@@ -1,0 +1,60 @@
+/*
+ * @shepherd-creative/weave-tokens — default CSS variables for Weave primitives.
+ *
+ * OPT-IN: host apps should import this file at the root only if they want Weave's
+ * default dark palette. Apps with their own theme should define the same variable
+ * names in their own stylesheet. The variable *surface* is the contract; the
+ * values here are just reasonable defaults.
+ *
+ * Structural variables follow shadcn/ui conventions. Semantic tones (`--tone-*`)
+ * and the chart palette (`--chart-1..8`) are Weave additions.
+ */
+
+:root {
+  /* --- Structural (shadcn-inherited) --- */
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #18181b;
+  --card-foreground: #fafafa;
+  --popover: #18181b;
+  --popover-foreground: #fafafa;
+  --primary: #fafafa;
+  --primary-foreground: #18181b;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #27272a;
+  --accent-foreground: #fafafa;
+  --destructive: #ef4444;
+  --destructive-foreground: #fafafa;
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #d4d4d8;
+  --radius: 0.5rem;
+
+  /* --- Semantic tones (Weave additions) --- */
+  --tone-positive: #10b981;
+  --tone-positive-muted: #064e3b;
+  --tone-negative: #ef4444;
+  --tone-negative-muted: #7f1d1d;
+  --tone-warning: #f59e0b;
+  --tone-warning-muted: #78350f;
+  --tone-info: #3b82f6;
+  --tone-info-muted: #1e3a8a;
+
+  /* --- Chart palette (8 steps) --- */
+  --chart-1: #10b981; /* emerald */
+  --chart-2: #06b6d4; /* cyan */
+  --chart-3: #8b5cf6; /* violet */
+  --chart-4: #f59e0b; /* amber */
+  --chart-5: #f43f5e; /* rose */
+  --chart-6: #0ea5e9; /* sky */
+  --chart-7: #84cc16; /* lime */
+  --chart-8: #f97316; /* orange */
+
+  /* --- Typography --- */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "Fira Code", Menlo, monospace;
+  --font-display: var(--font-sans);
+}
