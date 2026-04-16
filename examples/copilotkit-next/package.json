@@ -1,0 +1,13 @@
+{
+  "name": "@shepherd-creative/weave-example-copilotkit-next",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Minimal Weave + CopilotKit v2 example (populated progressively through B3 → B5).",
+  "scripts": {
+    "build": "echo 'example: stub'",
+    "dev": "echo 'example: stub'",
+    "test": "echo 'example: no tests'",
+    "typecheck": "echo 'example: no TS yet'",
+    "clean": "rm -rf .turbo .next"
+  }
+}

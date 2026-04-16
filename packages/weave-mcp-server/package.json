@@ -1,0 +1,41 @@
+{
+  "name": "@shepherd-creative/weave-mcp-server",
+  "version": "0.0.0",
+  "description": "HTTP server exposing Weave render tools for LLM agents.",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shepherd-Creative/weave.git",
+    "directory": "packages/weave-mcp-server"
+  },
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "bin": {
+    "weave-mcp-server": "./dist/server.js"
+  },
+  "files": ["dist", "README.md", "CHANGELOG.md"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@shepherd-creative/weave-primitives": "workspace:*",
+    "@shepherd-creative/weave-skill": "workspace:*",
+    "hono": "^4.6.0",
+    "zod": "^3.23.0",
+    "zod-to-json-schema": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}

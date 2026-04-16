@@ -1,0 +1,13 @@
+{
+  "name": "@shepherd-creative/weave-docs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Docs site for Weave (B6 — B3 ships a stub).",
+  "scripts": {
+    "build": "echo 'docs: stub; B6 fleshes this out'",
+    "dev": "echo 'docs: stub; B6 fleshes this out'",
+    "test": "echo 'docs: no tests'",
+    "typecheck": "echo 'docs: no TS yet'",
+    "clean": "rm -rf .turbo .next"
+  }
+}
