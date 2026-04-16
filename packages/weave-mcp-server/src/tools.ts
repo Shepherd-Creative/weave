@@ -1,0 +1,92 @@
+import {
+  ChartCardSchema,
+  MetricBandSchema,
+  NoteCardSchema,
+  SpecSchema,
+  TableCardSchema,
+} from "@shepherd-creative/weave-primitives/schemas";
+import { z } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
+
+/**
+ * Tool registry. Each entry:
+ * - `description`: what the tool does (surfaced to the LLM)
+ * - `inputSchema`: Zod schema validating the tool args
+ * - `specType`: the `type` discriminator prepended to the validated spec
+ *               (undefined for `render_dashboard` — input carries its own type)
+ */
+export type ToolDescriptor = {
+  name: string;
+  description: string;
+  inputSchema: z.ZodTypeAny;
+  specType?: string;
+};
+
+export const TOOLS: ToolDescriptor[] = [
+  {
+    name: "render_metric_band",
+    description:
+      "Render a horizontal strip of 1–8 KPIs. Use for the top-of-dashboard \"at a glance\" row. Pass the KPI items; the tool returns a MetricBand spec.",
+    inputSchema: MetricBandSchema.omit({ type: true }),
+    specType: "MetricBand",
+  },
+  {
+    name: "render_chart_card",
+    description:
+      "Render a titled chart card. Use for time-series, categorical, or share-of-whole visualisations. Requires a Chart sub-spec with a variant and data.",
+    inputSchema: ChartCardSchema.omit({ type: true }),
+    specType: "ChartCard",
+  },
+  {
+    name: "render_table_card",
+    description:
+      "Render a tabular breakdown with typed cells (text, number, badge, delta, sparkline). Use for ≤40 rows; prefer filtering + summary for longer datasets.",
+    inputSchema: TableCardSchema.omit({ type: true }),
+    specType: "TableCard",
+  },
+  {
+    name: "render_note_card",
+    description:
+      "Render a commentary note. Use for explaining the why, surfacing caveats, or recommending a next action — not for restating numbers.",
+    inputSchema: NoteCardSchema.omit({ type: true }),
+    specType: "NoteCard",
+  },
+  {
+    name: "render_dashboard",
+    description:
+      "Render a full dashboard composition — a Grid or Stack tree containing organisms. Use when you need more than one organism arranged together.",
+    // Full spec; the LLM supplies its own type discriminator here.
+    inputSchema: SpecSchema,
+    specType: undefined,
+  },
+];
+
+/** Runtime lookup: tool name → descriptor. */
+export const TOOLS_BY_NAME: Record<string, ToolDescriptor> = Object.fromEntries(
+  TOOLS.map((t) => [t.name, t]),
+);
+
+/** Convert each tool's Zod schema to JSON Schema for the `/tools` endpoint. */
+export function toolsJsonManifest() {
+  return TOOLS.map((t) => ({
+    name: t.name,
+    description: t.description,
+    inputSchema: zodToJsonSchema(t.inputSchema, { target: "jsonSchema7" }),
+  }));
+}
+
+/**
+ * Validate args for a tool, return the full spec.
+ * Throws z.ZodError on invalid args — handler translates to HTTP 400.
+ */
+export function invokeTool(name: string, args: unknown): unknown {
+  const tool = TOOLS_BY_NAME[name];
+  if (!tool) {
+    throw new Error(`Unknown tool: ${name}`);
+  }
+  const validated = tool.inputSchema.parse(args);
+  if (tool.specType) {
+    return { type: tool.specType, ...(validated as Record<string, unknown>) };
+  }
+  return validated;
+}
