@@ -21,12 +21,15 @@ Shipped in this version:
 - **`weave-mcp-server`** — HTTP server on `:8787` exposing 5 render tools
   (`render_metric_band`, `render_chart_card`, `render_table_card`,
   `render_note_card`, `render_dashboard`) with Zod validation sourced from
-  `weave-primitives/schemas`.
+  `weave-primitives/schemas`. Available over two wire protocols:
+  - `POST /invoke/:name` — minimal REST/JSON (B3 legacy; kept for
+    backwards compat, removed in B6).
+  - `POST /mcp` — MCP JSON-RPC (Streamable HTTP transport, stateless).
+    Works with any MCP client, including CopilotKit BuiltInAgent's
+    `mcpServers` config.
 - **`weave-tokens`** — opt-in default CSS variables for tone + chart palettes
   (hosts that already define their own `--tone-*` / `--chart-*` variables
   don't need to import this).
 
 Six primitives (`Sparkline`, `ProgressBar`, `Badge`, `Divider`, `Comparison`,
-plus `Spacer`) remain deferred to the B5 milestone. JSON-RPC MCP protocol
-via `@modelcontextprotocol/sdk` is deferred to A6+; `0.1.0` ships the
-minimal HTTP/JSON wire protocol.
+plus `Spacer`) remain deferred to the B5 milestone.

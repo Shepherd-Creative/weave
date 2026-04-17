@@ -14,7 +14,11 @@
   "bin": {
     "weave-mcp-server": "./dist/server.js"
   },
-  "files": ["dist", "README.md", "CHANGELOG.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"
@@ -29,6 +33,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@shepherd-creative/weave-primitives": "workspace:*",
     "@shepherd-creative/weave-skill": "workspace:*",
     "hono": "^4.6.0",

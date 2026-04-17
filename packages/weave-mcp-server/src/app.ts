@@ -2,6 +2,7 @@ import { loadSkill } from "@shepherd-creative/weave-skill";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
+import { handleMcpRequest } from "./mcp.js";
 import { TOOLS_BY_NAME, invokeTool, toolsJsonManifest } from "./tools.js";
 
 /**
@@ -30,6 +31,14 @@ export function createApp() {
     return c.body(content, 200, {
       "content-type": "text/markdown; charset=utf-8",
     });
+  });
+
+  // MCP JSON-RPC endpoint (Streamable HTTP transport). Same tools as
+  // /invoke/:name, but wire-compatible with CopilotKit BuiltInAgent's
+  // mcpServers config and any other MCP client. Accepts GET/POST/DELETE
+  // per the Streamable HTTP spec; the transport routes internally.
+  app.all("/mcp", async (c) => {
+    return handleMcpRequest(c.req.raw);
   });
 
   app.post("/invoke/:name", async (c) => {

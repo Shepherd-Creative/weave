@@ -155,4 +155,91 @@ describe("weave-mcp-server", () => {
     });
     expect(res.status).toBe(400);
   });
+
+  describe("MCP endpoint (/mcp)", () => {
+    const jsonRpc = (body: Record<string, unknown>) =>
+      app.request("/mcp", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+        },
+        body: JSON.stringify(body),
+      });
+
+    it("handles MCP initialize handshake", async () => {
+      const res = await jsonRpc({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-06-18",
+          capabilities: {},
+          clientInfo: { name: "test", version: "0.0.0" },
+        },
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.jsonrpc).toBe("2.0");
+      expect(body.result.serverInfo.name).toBe("weave-mcp-server");
+      expect(body.result.capabilities.tools).toBeDefined();
+    });
+
+    it("lists the same 5 tools as /tools", async () => {
+      const res = await jsonRpc({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/list",
+        params: {},
+      });
+      const body = await res.json();
+      const names = body.result.tools.map((t: { name: string }) => t.name);
+      expect(names).toEqual([
+        "render_metric_band",
+        "render_chart_card",
+        "render_table_card",
+        "render_note_card",
+        "render_dashboard",
+      ]);
+    });
+
+    it("tools/call render_metric_band returns structuredContent + text", async () => {
+      const res = await jsonRpc({
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: {
+          name: "render_metric_band",
+          arguments: {
+            items: [
+              { type: "KPI", label: "Revenue", value: 100, size: "lg" },
+            ],
+          },
+        },
+      });
+      const body = await res.json();
+      expect(body.result.isError).toBeUndefined();
+      expect(body.result.structuredContent).toEqual({
+        type: "MetricBand",
+        items: [{ type: "KPI", label: "Revenue", value: 100, size: "lg" }],
+      });
+      const text = body.result.content[0].text;
+      expect(JSON.parse(text).type).toBe("MetricBand");
+    });
+
+    it("tools/call with invalid args returns isError", async () => {
+      const res = await jsonRpc({
+        jsonrpc: "2.0",
+        id: 4,
+        method: "tools/call",
+        params: {
+          name: "render_metric_band",
+          arguments: { items: "not-an-array" },
+        },
+      });
+      const body = await res.json();
+      expect(body.result.isError).toBe(true);
+      expect(body.result.content[0].text).toMatch(/Invalid/);
+    });
+  });
 });
