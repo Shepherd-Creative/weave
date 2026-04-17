@@ -15,6 +15,10 @@
     "weave-mcp-server": "./dist/server.js"
   },
   "files": ["dist", "README.md", "CHANGELOG.md"],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
   "scripts": {
     "build": "tsup",
     "dev": "tsx watch src/server.ts",

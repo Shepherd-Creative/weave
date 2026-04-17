@@ -15,6 +15,10 @@
     "./tokens.css": "./tokens.css"
   },
   "files": ["tokens.css", "README.md", "CHANGELOG.md"],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
   "scripts": {
     "build": "echo 'weave-tokens is static CSS; nothing to build'",
     "test": "echo 'weave-tokens: no tests'",

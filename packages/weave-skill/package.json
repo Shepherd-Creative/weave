@@ -20,6 +20,10 @@
     "./NOTES.md": "./NOTES.md"
   },
   "files": ["dist", "SKILL.md", "NOTES.md", "README.md", "CHANGELOG.md"],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
   "scripts": {
     "build": "tsup",
     "test": "vitest run",

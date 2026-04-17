@@ -36,6 +36,10 @@
     }
   },
   "files": ["dist", "README.md", "CHANGELOG.md"],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
