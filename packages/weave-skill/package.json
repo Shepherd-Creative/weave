@@ -1,6 +1,6 @@
 {
   "name": "@shepherd-creative/weave-skill",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "SKILL.md teaching LLMs to compose Weave primitives, plus a loader utility.",
   "license": "UNLICENSED",
   "repository": {
@@ -19,7 +19,13 @@
     "./SKILL.md": "./SKILL.md",
     "./NOTES.md": "./NOTES.md"
   },
-  "files": ["dist", "SKILL.md", "NOTES.md", "README.md", "CHANGELOG.md"],
+  "files": [
+    "dist",
+    "SKILL.md",
+    "NOTES.md",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"
