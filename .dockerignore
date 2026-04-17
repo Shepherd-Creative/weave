@@ -1,0 +1,33 @@
+# Docker build context for packages/weave-mcp-server/Dockerfile.
+# Runs from the monorepo root so the Dockerfile can access
+# pnpm-lock.yaml, pnpm-workspace.yaml, and workspace deps.
+
+# Never ship local state
+node_modules
+**/node_modules
+**/dist
+**/.turbo
+**/.next
+**/.tsbuildinfo
+**/*.tsbuildinfo
+coverage
+.DS_Store
+
+# Env + secrets
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Git / local tooling
+.git
+.github
+.vscode
+.idea
+
+# apps/ and examples/ stay in context because pnpm-workspace.yaml
+# references them; pnpm install needs the workspace graph resolvable
+# even when we're only building one slice.
+
+# Changesets metadata is not needed at container runtime
+.changeset/
