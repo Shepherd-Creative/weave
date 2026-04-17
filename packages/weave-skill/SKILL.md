@@ -54,13 +54,15 @@ Five sizes. Apply them as a hierarchy.
 
 | Size | Use when… |
 |---|---|
-| `xl` | **The** headline KPI for the whole dashboard. **Use zero or one per screen.** Never two. |
-| `lg` | Secondary headline KPIs (typically the items in a `MetricBand`). |
+| `xl` | **The** headline KPI for the whole dashboard, rendered as a **standalone** `KPI` that occupies the full width of its row. Zero or one per screen. |
+| `lg` | Secondary headline KPIs (typically the items in a `MetricBand`). **Max size allowed inside a `MetricBand`, `Grid`, or any multi-sibling container.** |
 | `md` | Default. Stats inside tables, comparison values, regular numbers. |
 | `sm` | Inline within sentences, dense table cells. |
 | `xs` | Captions, fine print, overline labels. |
 
 **Hierarchy dies with ties.** If you set two numbers to `xl`, the user can no longer tell which is the headline. Pick one.
+
+**Never use `xl` inside a `MetricBand`, `Grid`, or any container with siblings.** `xl` is sized for a card that owns its full row — inside a band, the number will blow out of its cell. When emphasising one KPI among several in a `MetricBand`, keep all items at `lg` and put the emphasised one first.
 
 ---
 
@@ -92,6 +94,8 @@ Never emit a dashboard with 8+ widgets in `spacious` — it scrolls forever and 
 - 2 KPIs → use a `Stack` with two `KPI`s sized `lg`, or a `Comparison`.
 - 3–5 KPIs → use `MetricBand`, items sized `lg`.
 - 6+ KPIs → break into a `Grid` of `Stat`s sized `md`.
+
+**Inside a `MetricBand`, prefer `format: "compact"` for currency and counts.** Cells may be narrow (MetricBand wraps to 2×2 or 1×N when its container is tight), and compact values (`$848K`, `12.8K`) fit comfortably where long values (`$847,500.00`, `12,847`) do not. Percentages and small decimals (`3.5%`, `$2.84`) stay as-is — they're already short. When emphasising a single KPI inside a band, place it first and keep all items at `lg`.
 
 ### 5.4 Chart framing
 
@@ -127,6 +131,7 @@ When you emit a delta:
 ### 5.7 Tables
 
 - `TableCard` for ≤40 rows. Beyond that, suggest a filter in a `NoteCard` and show top 10–20 rows plus a "showing N of M" caption.
+- **Keep tables to ≤7 columns.** If you need more, split into two `TableCard`s or replace with a `Grid` of `Stat`s. Wide tables scroll horizontally inside the card, but that's a fallback, not a design goal — readers can't parse a table they have to scroll.
 - Give every header a tone (`default` unless a column is flagged semantic) and an `align` — numeric columns align `end`.
 - For columns that are deltas, use cell `kind: "delta"` — not `number` with a sign.
 
@@ -146,6 +151,8 @@ Don't use `NoteCard` to restate numbers that are already on screen. The dashboar
 - **Never** emit `color`, `background`, `fontFamily`, `padding`, `margin`, `width`, `height` as numeric or hex values. These are all host-theme responsibilities.
 - **Never** invent a primitive name. If the catalogue below doesn't have what you need, compose from what exists.
 - **Never** emit more than one `size: "xl"` Number per dashboard.
+- **Never** use `size: "xl"` inside a `MetricBand`, `Grid`, or any container with siblings — it will overflow its cell. Max size in such containers is `lg`.
+- **Never** emit a `TableCard` with more than 7 columns — split or restructure.
 - **Never** stack two `ChartCard`s directly without at least a `Label` or another organism between them — charts need breathing room and framing.
 - **Never** nest a layout primitive inside a card. Cards are leaf containers at the composition level.
 - **Never** use `tone: "positive"` just because a number is bigger than the reference. Judge semantics first.
@@ -173,7 +180,7 @@ Don't use `NoteCard` to restate numbers that are already on screen. The dashboar
           "value": 248500,
           "format": "currency",
           "currency": "USD",
-          "size": "xl",
+          "size": "lg",
           "delta": { "value": 0.142, "format": "percent", "tone": "positive", "showSign": true }
         },
         {
@@ -300,12 +307,13 @@ Before returning your spec, verify:
 
 1. Every `tone` is one of the six canonical values.
 2. Every `size` is one of the five canonical values.
-3. At most one `Number` / `KPI` has `size: "xl"`.
-4. Every `ChartCard` has a non-empty `title`.
-5. Every delta's `tone` reflects user-point-of-view semantics, not signed-value direction.
-6. No hex colours, pixel values, or font names anywhere in the spec.
-7. No primitive type outside the catalogue.
-8. The top-level is a layout primitive (`Grid`, `Stack`) or a single organism — never a raw atom as root.
+3. At most one `Number` / `KPI` has `size: "xl"`, **and** that `xl` is on a standalone `KPI`, not inside a `MetricBand` or `Grid`.
+4. Every `TableCard` has ≤7 columns.
+5. Every `ChartCard` has a non-empty `title`.
+6. Every delta's `tone` reflects user-point-of-view semantics, not signed-value direction.
+7. No hex colours, pixel values, or font names anywhere in the spec.
+8. No primitive type outside the catalogue.
+9. The top-level is a layout primitive (`Grid`, `Stack`) or a single organism — never a raw atom as root.
 
 ---
 
