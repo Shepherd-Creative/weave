@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+# Prevent two release runs from racing to publish the same version bump.
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write        # to push the Version Packages PR back to the repo
+  pull-requests: write   # to open / update the Version Packages PR
+  packages: write        # to publish npm packages to GitHub Packages
+
+jobs:
+  release:
+    name: Version or publish
+    runs-on: ubuntu-latest
+    steps:
+      # fetch-depth: 0 lets Changesets compute the diff of changed packages
+      # against previous commits; shallow clones will mis-detect releases.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Changesets Action behaviour:
+      #   - If pending changesets exist, it opens/updates the Version Packages
+      #     PR by running ci:version (bumps versions + updates lockfile).
+      #   - If the Version Packages PR was just merged (no pending changesets
+      #     on HEAD, but main's package.json versions bumped), ci:publish runs
+      #     (turbo build then changeset publish).
+      - name: Create Release PR or publish to GitHub Packages
+        uses: changesets/action@v1
+        with:
+          version: pnpm ci:version
+          publish: pnpm ci:publish
+          commit: "chore: version packages"
+          title: "chore: version packages"
+        env:
+          # GITHUB_TOKEN scopes: contents (for PR push), packages (for publish).
+          # Granted by the permissions block above.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The repo-level .npmrc references NODE_AUTH_TOKEN for auth to
+          # npm.pkg.github.com. Reuse GITHUB_TOKEN because we publish to
+          # GitHub Packages, not the public npm registry.
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
