@@ -42,45 +42,50 @@ export function TableCard(props: Omit<TableCardSpec, "type">): React.JSX.Element
         ) : null}
       </header>
 
-      <table
-        style={{
-          width: "100%",
-          borderCollapse: "collapse",
-          fontFamily: "var(--font-sans)",
-          fontSize: "0.875rem",
-        }}
-      >
-        <thead>
-          <tr
-            style={{
-              borderBottom: "1px solid var(--border)",
-            }}
-          >
-            {headers.map((h, i) => (
-              <th
-                key={i}
-                scope="col"
-                style={{
-                  color: toneToColorVar(h.tone ?? "muted"),
-                  textAlign: h.align ?? "start",
-                  padding: rowPadding,
-                  fontSize: "0.6875rem",
-                  fontWeight: 500,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                }}
-              >
-                {h.text}
-              </th>
+      {/* Horizontal-scroll wrapper: when total column content exceeds the
+          card's inline-size the table scrolls inside the wrapper rather
+          than spilling past the card's border. */}
+      <div style={{ overflowX: "auto" }}>
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontFamily: "var(--font-sans)",
+            fontSize: "0.875rem",
+          }}
+        >
+          <thead>
+            <tr
+              style={{
+                borderBottom: "1px solid var(--border)",
+              }}
+            >
+              {headers.map((h, i) => (
+                <th
+                  key={i}
+                  scope="col"
+                  style={{
+                    color: toneToColorVar(h.tone ?? "muted"),
+                    textAlign: h.align ?? "start",
+                    padding: rowPadding,
+                    fontSize: "0.6875rem",
+                    fontWeight: 500,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {h.text}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <DataRow key={i} cells={row.cells} />
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <DataRow key={i} cells={row.cells} />
-          ))}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

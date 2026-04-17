@@ -28,6 +28,9 @@ export function KPI(props: Omit<KPISpec, "type">): React.JSX.Element {
         flexDirection: "column",
         gap: "0.25rem",
         padding: "0.5rem 0",
+        // Container-query root so `cqi`-based font sizes in Number / Label
+        // resolve against this KPI's inline-size, not the viewport.
+        containerType: "inline-size",
       }}
     >
       <div
@@ -55,6 +58,14 @@ export function KPI(props: Omit<KPISpec, "type">): React.JSX.Element {
           fontVariantNumeric: "tabular-nums",
           fontFamily: "var(--font-display)",
           lineHeight: 1.1,
+          // Safety net for narrow containers (e.g. MetricBand cell in a
+          // side-panel card): clip instead of letting the value bleed into
+          // adjacent cells. When this triggers, authors/LLMs should switch
+          // to compact formatting.
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          minWidth: 0,
         }}
       >
         {valueText}

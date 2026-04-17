@@ -10,7 +10,11 @@ export function MetricBand(props: Omit<MetricBandSpec, "type">): React.JSX.Eleme
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`,
+        // Auto-fit wrapping: cells don't shrink below ~180px. At wider
+        // containers the band stays on one row; in narrow host cards
+        // (e.g. a 376px WidgetCard in a 2-column side panel) it wraps to
+        // 2×2 or 1×N so KPI values always have room to render.
+        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))",
         gap: pad,
         backgroundColor: "var(--card)",
         border: "1px solid var(--border)",
@@ -22,8 +26,9 @@ export function MetricBand(props: Omit<MetricBandSpec, "type">): React.JSX.Eleme
         <div
           key={i}
           style={{
-            borderRight: i < items.length - 1 ? "1px solid var(--border)" : "none",
-            paddingRight: i < items.length - 1 ? pad : 0,
+            // `min-width: 0` lets the grid cell shrink so the KPI's
+            // `text-overflow: ellipsis` inside it can actually trigger.
+            minWidth: 0,
           }}
         >
           <KPI {...item} />

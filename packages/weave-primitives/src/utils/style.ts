@@ -1,8 +1,10 @@
 import type { Size } from "../schemas/tokens.js";
 
 /**
- * Font size for Number / KPI value rendering. `xl` uses CSS clamp so it
- * scales with viewport for hero numbers.
+ * Font size for Number / KPI value rendering. `xl` uses CSS clamp with
+ * container-query units (`cqi` = 1% of the nearest sized container's inline-size)
+ * so hero numbers scale with their card, not the viewport. The containing
+ * element (e.g. KPI root) must declare `container-type: inline-size`.
  */
 export function numberFontSize(size: Size | undefined): string {
   switch (size) {
@@ -15,7 +17,7 @@ export function numberFontSize(size: Size | undefined): string {
     case "lg":
       return "2.25rem";
     case "xl":
-      return "clamp(2.5rem, 5vw, 4rem)";
+      return "clamp(1.75rem, 8cqi, 3.25rem)";
     default:
       return "1.5rem";
   }
@@ -23,7 +25,7 @@ export function numberFontSize(size: Size | undefined): string {
 
 /** Font size for Label atom and caption/body copy. */
 export function labelFontSize(size: Size | undefined, role?: string): string {
-  if (role === "display") return "clamp(2rem, 4vw, 3rem)";
+  if (role === "display") return "clamp(1.5rem, 6cqi, 2.5rem)";
   if (role === "overline") return "0.6875rem";
   if (role === "caption") return "0.75rem";
   switch (size) {
