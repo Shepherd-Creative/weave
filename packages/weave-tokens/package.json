@@ -1,6 +1,6 @@
 {
   "name": "@shepherd-creative/weave-tokens",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Default CSS variables for Weave primitives (opt-in).",
   "license": "UNLICENSED",
   "repository": {
@@ -8,13 +8,19 @@
     "url": "https://github.com/Shepherd-Creative/weave.git",
     "directory": "packages/weave-tokens"
   },
-  "sideEffects": ["*.css"],
+  "sideEffects": [
+    "*.css"
+  ],
   "style": "./tokens.css",
   "exports": {
     ".": "./tokens.css",
     "./tokens.css": "./tokens.css"
   },
-  "files": ["tokens.css", "README.md", "CHANGELOG.md"],
+  "files": [
+    "tokens.css",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"
