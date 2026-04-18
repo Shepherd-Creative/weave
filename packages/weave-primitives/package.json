@@ -1,6 +1,6 @@
 {
   "name": "@shepherd-creative/weave-primitives",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Theme-neutral React primitives for LLM-composed dashboards.",
   "license": "UNLICENSED",
   "repository": {
@@ -35,7 +35,11 @@
       "require": "./dist/utils/index.cjs"
     }
   },
-  "files": ["dist", "README.md", "CHANGELOG.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"
