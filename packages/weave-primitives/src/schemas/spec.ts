@@ -69,10 +69,21 @@ export const StackSchema: z.ZodType<StackSpec> = makeStackSchema(
 // instead of trying every member. Every member schema below declares
 // `type: z.literal(...)` so the discriminator is present in all branches.
 //
+// The variance cast below is needed because `GridSchema` / `StackSchema` are
+// declared as `z.ZodType<...>` (type-erased through `z.lazy()`), which Zod's
+// `discriminatedUnion` signature does not statically recognise as
+// `ZodDiscriminatedUnionOption`. At runtime both schemas still carry the
+// `type: z.literal(...)` shape the union needs, so the cast is sound.
+//
 // See docs/plans/a5-mcp-stress-test-results.md §F1 — depth-20 specs used to
 // OOM the Node process at ~29 s; with the discriminator, depth-20 specs
 // parse in <1 ms.
 export const SpecSchema: z.ZodType<Spec> = z.lazy(() =>
+  // GridSchema / StackSchema are `z.ZodType<...>` (type-erased through
+  // z.lazy), so TS can't prove they satisfy ZodDiscriminatedUnionOption<"type">.
+  // At runtime every member still has `type: z.literal(...)`, which is all
+  // discriminatedUnion needs to branch correctly.
+  // @ts-expect-error — variance on the members tuple; see comment above
   z.discriminatedUnion("type", [
     NumberSchema,
     LabelSchema,
