@@ -3,7 +3,12 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
 import { handleMcpRequest } from "./mcp.js";
-import { TOOLS_BY_NAME, invokeTool, toolsJsonManifest } from "./tools.js";
+import {
+  DepthLimitError,
+  TOOLS_BY_NAME,
+  invokeTool,
+  toolsJsonManifest,
+} from "./tools.js";
 
 /**
  * Hono app factory. Separated from `server.ts` so tests can call
@@ -66,6 +71,9 @@ export function createApp() {
           },
           400,
         );
+      }
+      if (err instanceof DepthLimitError) {
+        return c.json({ error: err.message }, 400);
       }
       return c.json(
         { error: err instanceof Error ? err.message : String(err) },
