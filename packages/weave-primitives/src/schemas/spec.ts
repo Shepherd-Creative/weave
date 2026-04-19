@@ -64,8 +64,16 @@ export const StackSchema: z.ZodType<StackSpec> = makeStackSchema(
   LazySpecSchema,
 ) as z.ZodType<StackSpec>;
 
+// `z.discriminatedUnion("type", [...])` collapses parse cost from O(13^N) to
+// O(N) on deeply-nested Grid/Stack trees by branching on the `type` literal
+// instead of trying every member. Every member schema below declares
+// `type: z.literal(...)` so the discriminator is present in all branches.
+//
+// See docs/plans/a5-mcp-stress-test-results.md §F1 — depth-20 specs used to
+// OOM the Node process at ~29 s; with the discriminator, depth-20 specs
+// parse in <1 ms.
 export const SpecSchema: z.ZodType<Spec> = z.lazy(() =>
-  z.union([
+  z.discriminatedUnion("type", [
     NumberSchema,
     LabelSchema,
     IconSchema,
@@ -79,5 +87,5 @@ export const SpecSchema: z.ZodType<Spec> = z.lazy(() =>
     NoteCardSchema,
     GridSchema,
     StackSchema,
-  ]),
+  ]) as unknown as z.ZodType<Spec>,
 );

@@ -156,6 +156,62 @@ describe("weave-mcp-server", () => {
     expect(res.status).toBe(400);
   });
 
+  it("render_dashboard rejects nested depth > 6 (F1 depth cap)", async () => {
+    // Build a Grid tree 7 containers deep wrapping a terminal NoteCard.
+    let node: unknown = {
+      type: "NoteCard",
+      body: "hello",
+    };
+    for (let i = 0; i < 7; i++) {
+      node = { type: "Grid", cols: 1, children: [node] };
+    }
+    const res = await app.request("/invoke/render_dashboard", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(node),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(String(body.error)).toMatch(/depth.*exceeds/i);
+  });
+
+  it("render_dashboard still accepts depth 6 (at the cap)", async () => {
+    let node: unknown = {
+      type: "NoteCard",
+      body: "hello",
+    };
+    for (let i = 0; i < 6; i++) {
+      node = { type: "Grid", cols: 1, children: [node] };
+    }
+    const res = await app.request("/invoke/render_dashboard", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(node),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("render_dashboard parses depth-20 specs fast via discriminatedUnion", async () => {
+    // Depth 20 would OOM pre-F1 (14s at depth 14, OOM at depth 20).
+    // The depth cap would reject it, so drop the cap indirectly: reach into
+    // the raw SpecSchema and parse directly to measure perf.
+    const { SpecSchema } = await import(
+      "@shepherd-creative/weave-primitives/schemas"
+    );
+    let node: unknown = {
+      type: "NoteCard",
+      body: "hello",
+    };
+    for (let i = 0; i < 20; i++) {
+      node = { type: "Grid", cols: 1, children: [node] };
+    }
+    const start = performance.now();
+    const parsed = SpecSchema.parse(node);
+    const elapsed = performance.now() - start;
+    expect(parsed).toBeDefined();
+    expect(elapsed).toBeLessThan(200);
+  });
+
   describe("MCP endpoint (/mcp)", () => {
     const jsonRpc = (body: Record<string, unknown>) =>
       app.request("/mcp", {
