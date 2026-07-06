@@ -7,7 +7,22 @@ export type ThemeValidation = {
 };
 
 const DECLARATION = /^(--[a-z0-9-]+)\s*:\s*([^;{}]+)$/i;
-const FORBIDDEN_VALUE = /(url\s*\(|expression\s*\(|javascript:|<|>)/i;
+// Reject dangerous value tokens. The final `\\` alternative rejects ANY CSS
+// ident-escape (backslash), which is load-bearing for security: without it the
+// literal-token denylist above is trivially bypassed — e.g. `\75rl(...)`
+// (`\75` = "u") is a valid url() token that the `url\s*\(` branch does not
+// match, so it would pass validation and be re-emitted verbatim into the
+// injected <style>, letting recharts pull the remote URL into an SVG fill via
+// getComputedStyle (live exfiltration). `expr\65 ssion(...)` defeats the
+// expression( branch the same way. No legitimate Weave theme token value needs
+// CSS ident-escapes, so rejecting the backslash outright closes the whole class.
+//
+// NOTE: comment-collapsing (`/* */` -> space) above is NOT a security property —
+// it is only a convenience so brand stylesheets may carry comments. Safety comes
+// from this backslash reject plus the clean-reconstruction model (we re-emit only
+// name/value pairs we have positively matched, never the raw source). Do not lean
+// on the space-break behaviour of comment collapsing as if it sanitised anything.
+const FORBIDDEN_VALUE = /(url\s*\(|expression\s*\(|javascript:|<|>|\\)/i;
 
 /**
  * Deterministic restricted-subset validator for brand theme CSS.

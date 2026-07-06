@@ -62,4 +62,19 @@ describe("validateThemeCss", () => {
     expect(r.applied).toEqual([]);
     expect(r.stripped).toEqual(["--BACKGROUND"]);
   });
+
+  it("rejects CSS ident-escapes that smuggle url()/expression() past the token denylist", () => {
+    // `\75` = "u", so `\75rl(...)` is a valid url() token the literal `url(`
+    // branch never matches. String.raw keeps a single literal backslash in the
+    // input, matching what a hostile brand stylesheet would actually contain.
+    for (const bad of [
+      String.raw`:root { --background: \75rl(https://evil.example/x.png); }`,
+      String.raw`:root { --background: \000075rl(https://evil.example/x.png); }`,
+      String.raw`:root { --background: expr\65 ssion(alert(1)); }`,
+    ]) {
+      const r = validateThemeCss(bad, KNOWN);
+      expect(r.ok).toBe(false);
+      expect(r.css).toBe("");
+    }
+  });
 });
