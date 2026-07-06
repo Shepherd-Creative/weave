@@ -8,14 +8,18 @@ if (!rootEl) throw new Error("weave view: #root missing");
 const root = createRoot(rootEl);
 
 function renderSpec(spec: unknown): void {
-  root.render(<Weave spec={spec as never} />);
+  root.render(<Weave spec={spec} />);
 }
 
 // Dev/test harness: ?spec=<base64 json> renders without a host connection.
 const params = new URLSearchParams(window.location.search);
 const devSpec = params.get("spec");
 if (devSpec) {
-  renderSpec(JSON.parse(atob(devSpec)));
+  try {
+    renderSpec(JSON.parse(atob(devSpec)));
+  } catch (err) {
+    rootEl.textContent = `weave dev harness: failed to parse spec: ${(err as Error).message}`;
+  }
 } else {
   const app = new App({ name: "Weave", version: "0.1.0" }, {});
   app.onerror = console.error;
