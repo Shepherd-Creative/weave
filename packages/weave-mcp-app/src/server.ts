@@ -45,6 +45,9 @@ export function createServer(): McpServer {
     // plain z.object() that strips organism fields before invokeTool sees them.
     // The cast satisfies the parameter type (SpecSchema isn't statically a raw
     // shape); it is runtime-correct — verified by the nested-Grid e2e case.
+    // Trade-off: tools/list advertises an empty JSON schema for this tool (the
+    // SDK cannot normalise the lazy union); revisit when the SDK consumes
+    // ~standard.jsonSchema (modelcontextprotocol/typescript-sdk PR #1689).
     const shape =
       tool.name === "render_dashboard"
         ? (tool.inputSchema as unknown as Record<string, z.ZodTypeAny>)

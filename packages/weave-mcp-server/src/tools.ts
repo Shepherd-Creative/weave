@@ -54,7 +54,7 @@ export const TOOLS: ToolDescriptor[] = [
   {
     name: "render_dashboard",
     description:
-      "Render a full dashboard composition — a Grid or Stack tree containing organisms. Use when you need more than one organism arranged together.",
+      "Render a full dashboard composition — a Grid or Stack tree containing organisms. Use when you need more than one organism arranged together. Input is a Grid or Stack node with a children array of organism specs; call get_skill for the full schema.",
     // Full spec; the LLM supplies its own type discriminator here.
     inputSchema: SpecSchema,
     specType: undefined,
