@@ -11,6 +11,42 @@ const rawSpec = readFileSync(path.resolve(__dirname, "fixtures/dashboard-spec.js
 // Chromium build (v1228 / Chrome for Testing 149) preserve query strings
 // fine, so no throwaway http server is needed to carry ?spec= to the page.
 
+export interface SpecPage {
+  page: Page;
+  consoleErrors: string[];
+  pageErrors: string[];
+}
+
+// NOTE for future chart-geometry assertions: gate on
+// `page.waitForSelector("#root .recharts-surface")` rather than `#root *` —
+// recharts' ResponsiveContainer paints on a later tick, and the race surfaces
+// on slow CI.
+export async function openSpecPage(
+  browser: Browser,
+  htmlPath: string,
+  spec: string,
+): Promise<SpecPage> {
+  const page = await browser.newPage();
+  const consoleErrors: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") consoleErrors.push(msg.text());
+  });
+  const pageErrors: string[] = [];
+  page.on("pageerror", (err) => pageErrors.push(err.message));
+
+  const b64 = Buffer.from(spec).toString("base64");
+  await page.goto(`file://${htmlPath}?spec=${encodeURIComponent(b64)}`);
+  await page.waitForSelector("#root *", { timeout: 10_000 });
+  return { page, consoleErrors, pageErrors };
+}
+
+export function computedRootVar(page: Page, name: string): Promise<string> {
+  return page.evaluate(
+    (varName) => getComputedStyle(document.documentElement).getPropertyValue(varName).trim(),
+    name,
+  );
+}
+
 describe("view renders a weave spec standalone", () => {
   let browser: Browser;
   beforeAll(async () => {
@@ -25,40 +61,40 @@ describe("view renders a weave spec standalone", () => {
   });
 
   it("renders primitives and consumes token variables", async () => {
-    const page: Page = await browser.newPage();
-    const consoleErrors: string[] = [];
-    page.on("console", (msg) => {
-      if (msg.type() === "error") consoleErrors.push(msg.text());
-    });
-    const pageErrors: string[] = [];
-    page.on("pageerror", (err) => pageErrors.push(err.message));
+    const { page, consoleErrors, pageErrors } = await openSpecPage(browser, HTML, rawSpec);
 
-    const b64 = Buffer.from(rawSpec).toString("base64");
-    await page.goto(`file://${HTML}?spec=${encodeURIComponent(b64)}`);
-    await page.waitForSelector("#root *", { timeout: 10_000 });
+    // A schema-invalid spec surfaces as a ZodError pageerror with an empty
+    // #root — the load-bearing assertion is that NO page errors occurred at
+    // all, not just that none mention the harness's parse-failure text.
+    expect(pageErrors).toEqual([]);
 
-    // Harness parse failures render as plain text into #root — assert none of
-    // that text (nor any console/page error) mentions a parse failure.
+    // Harness JSON/base64 parse failures render as plain text into #root.
     const rootText = await page.locator("#root").innerText();
     expect(rootText).not.toContain("failed to parse spec");
-    for (const msg of [...consoleErrors, ...pageErrors]) {
+    for (const msg of consoleErrors) {
       expect(msg).not.toContain("failed to parse spec");
     }
 
-    const revenueVisible = await page.getByText("Revenue").first().isVisible();
+    // Exact match so a fixture reorder can't silently repoint this at the
+    // "Revenue by week" chart title (verified: matches exactly 1 element).
+    const revenueVisible = await page.getByText("Revenue", { exact: true }).isVisible();
     expect(revenueVisible).toBe(true);
 
     // Other primitives from the fixture actually rendered, not just the KPI.
-    const chartTitleVisible = await page.getByText("Revenue by week").first().isVisible();
+    const chartTitleVisible = await page.getByText("Revenue by week", { exact: true }).isVisible();
     expect(chartTitleVisible).toBe(true);
-    const tableTitleVisible = await page.getByText("Top accounts").first().isVisible();
+    const tableTitleVisible = await page.getByText("Top accounts", { exact: true }).isVisible();
     expect(tableTitleVisible).toBe(true);
-    const noteVisible = await page.getByText("Context").first().isVisible();
+    const noteVisible = await page.getByText("Context", { exact: true }).isVisible();
     expect(noteVisible).toBe(true);
 
-    const bg = await page.evaluate(() =>
-      getComputedStyle(document.documentElement).getPropertyValue("--background").trim(),
-    );
+    // Recharts survived the singlefile bundle and painted an SVG surface —
+    // the highest-risk thing this proof exists to de-risk. ResponsiveContainer
+    // paints on a later tick than `#root *`, so gate on its own selector.
+    await page.waitForSelector("#root .recharts-surface", { timeout: 10_000 });
+    expect(await page.locator("#root .recharts-surface").count()).toBeGreaterThan(0);
+
+    const bg = await computedRootVar(page, "--background");
     expect(bg).toBe("#09090b");
 
     await page.close();
