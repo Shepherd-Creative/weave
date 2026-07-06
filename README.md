@@ -15,6 +15,10 @@ Weave is a small React component library plus a companion MCP server. An LLM emi
 | [`@shepherd-creative/weave-skill`](packages/weave-skill) | `SKILL.md` teaching an LLM how to compose primitives |
 | [`@shepherd-creative/weave-tokens`](packages/weave-tokens) | Default CSS variables (opt-in) |
 
+## Future directions
+
+- [Design-source integration](docs/future-directions/design-source-integration.md): suggested support for adapting `DESIGN.md`, brand CSS, or design-token repositories into LLM composition guidance and a validated Weave theme. This is not currently implemented or scheduled.
+
 ## Development
 
 ```bash
