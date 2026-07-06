@@ -14,10 +14,12 @@
   "style": "./tokens.css",
   "exports": {
     ".": "./tokens.css",
-    "./tokens.css": "./tokens.css"
+    "./tokens.css": "./tokens.css",
+    "./tokens.json": "./tokens.json"
   },
   "files": [
     "tokens.css",
+    "tokens.json",
     "README.md",
     "CHANGELOG.md"
   ],
