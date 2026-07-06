@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "stop": [
+      {
+        "type": "command",
+        "command": "bash .claude/scripts/sync-memory.sh"
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(.claude/scripts/*)"
+    ]
+  }
+}
