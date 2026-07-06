@@ -3,8 +3,13 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const tokensDir = path.resolve(__dirname, "../../../weave-tokens");
-const css = readFileSync(path.join(tokensDir, "tokens.css"), "utf8");
+const raw = readFileSync(path.join(tokensDir, "tokens.css"), "utf8");
+// Strip block comments before variable extraction so a flush-left commented-out
+// declaration (e.g. "/* --foo: bar; */" at column 0) can never be picked up as live.
+const css = raw.replace(/\/\*[\s\S]*?\*\//g, "");
 const manifest = JSON.parse(readFileSync(path.join(tokensDir, "tokens.json"), "utf8"));
+
+const KNOWN_CATEGORIES = ["structural", "tone", "chart", "typography"];
 
 describe("tokens.json manifest", () => {
   it("matches tokens.css exactly", () => {
@@ -19,6 +24,13 @@ describe("tokens.json manifest", () => {
       expect(typeof v.name).toBe("string");
       expect(typeof v.category).toBe("string");
       expect(v.name.startsWith("--")).toBe(true);
+    }
+  });
+
+  it("has a stable envelope: version 1 and known categories only", () => {
+    expect(manifest.version).toBe(1);
+    for (const v of manifest.variables) {
+      expect(KNOWN_CATEGORIES).toContain(v.category);
     }
   });
 });
