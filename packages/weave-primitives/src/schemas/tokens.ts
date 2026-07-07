@@ -2,14 +2,7 @@ import { z } from "zod";
 
 // Tone, size, density, icon vocabularies. See primitive-taxonomy.md §4.
 
-export const ToneSchema = z.enum([
-  "default",
-  "muted",
-  "positive",
-  "negative",
-  "warning",
-  "info",
-]);
+export const ToneSchema = z.enum(["default", "muted", "positive", "negative", "warning", "info"]);
 export type Tone = z.infer<typeof ToneSchema>;
 
 export const SizeSchema = z.enum(["xs", "sm", "md", "lg", "xl"]);
@@ -24,13 +17,11 @@ export type Density = z.infer<typeof DensitySchema>;
 export const AlignSchema = z.enum(["start", "center", "end"]);
 export const JustifySchema = z.enum(["start", "center", "end", "between"]);
 
-export const NumberFormatSchema = z.enum([
-  "int",
-  "decimal",
-  "currency",
-  "percent",
-  "compact",
-]);
+export const NumberFormatSchema = z
+  .enum(["int", "decimal", "currency", "percent", "compact"])
+  .describe(
+    'How the value renders. IMPORTANT: "percent" treats the value as a fraction of 1 — 0.034 renders as "3.4%", so 3.4 would render as "340%".',
+  );
 export type NumberFormat = z.infer<typeof NumberFormatSchema>;
 
 // Curated icon set. Fixed list — the LLM cannot invent icon names.
@@ -68,12 +59,5 @@ export const ICON_NAMES = [
 export const IconNameSchema = z.enum(ICON_NAMES);
 export type IconName = z.infer<typeof IconNameSchema>;
 
-export const ChartVariantSchema = z.enum([
-  "line",
-  "bar",
-  "horizontal-bar",
-  "area",
-  "pie",
-  "donut",
-]);
+export const ChartVariantSchema = z.enum(["line", "bar", "horizontal-bar", "area", "pie", "donut"]);
 export type ChartVariant = z.infer<typeof ChartVariantSchema>;
