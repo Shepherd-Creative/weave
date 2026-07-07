@@ -1,0 +1,7 @@
+/* Example host brand theme authored against the Weave token contract.
+   Light palette that must win over the base tokens.css cascade. */
+:root {
+  --background: #ffffff;
+  --foreground: #111827;
+  --tone-positive: #16a34a;
+}

@@ -9,6 +9,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
 import { invokeTool, TOOLS } from "@shepherd-creative/weave-mcp-server/tools";
 import type { z } from "zod";
+import { injectTheme } from "./theme.js";
 
 // When esbuild bundles src/main.ts to dist/index.js, import.meta.filename ends
 // in ".js" and its dirname IS dist/. Running unbundled under tsx (dev) the
@@ -28,8 +29,22 @@ async function readSkillText(): Promise<string> {
   return fs.readFile(path.join(DIST_DIR, "weave-skill.md"), "utf-8");
 }
 
-export function createServer(): McpServer {
+export type CreateServerOptions = {
+  // Validated, sanitised brand CSS to inject into the view (null → default theme).
+  themeCss?: string | null;
+  // Host-configured composition guidance appended to get_skill (null → skill only).
+  guidance?: string | null;
+};
+
+// One sentence appended to each render tool's description when brand guidance is
+// configured, nudging the model to read it before composing.
+const GUIDANCE_TOOL_HINT =
+  " Brand composition guidance is configured for this host; call get_skill before composing.";
+
+export function createServer(opts?: CreateServerOptions): McpServer {
   const server = new McpServer({ name: "Weave", version: "0.1.0" });
+  const themeCss = opts?.themeCss ?? null;
+  const guidance = opts?.guidance ?? null;
 
   for (const tool of TOOLS) {
     // registerAppTool's inputSchema accepts a raw Zod shape (ZodRawShapeCompat)
@@ -53,12 +68,16 @@ export function createServer(): McpServer {
         ? (tool.inputSchema as unknown as Record<string, z.ZodTypeAny>)
         : (tool.inputSchema as z.AnyZodObject).shape;
 
+    // Append the guidance hint to a LOCAL copy of the description; never mutate
+    // the shared TOOLS array (it is imported and reused across servers).
+    const description = guidance ? tool.description + GUIDANCE_TOOL_HINT : tool.description;
+
     registerAppTool(
       server,
       tool.name,
       {
         title: tool.name,
-        description: tool.description,
+        description,
         inputSchema: shape,
         _meta: { ui: { resourceUri: RESOURCE_URI } },
       },
@@ -93,7 +112,13 @@ export function createServer(): McpServer {
         "Returns the Weave composition skill: how to choose and compose the render_* tools. Call before composing a dashboard.",
       inputSchema: {},
     },
-    async () => ({ content: [{ type: "text", text: await readSkillText() }] }),
+    async () => {
+      const skill = await readSkillText();
+      const text = guidance
+        ? `${skill}\n\n---\n\n## Brand composition guidance (host-configured)\n\n${guidance}`
+        : skill;
+      return { content: [{ type: "text", text }] };
+    },
   );
 
   registerAppResource(
@@ -108,7 +133,7 @@ export function createServer(): McpServer {
           {
             uri: RESOURCE_URI,
             mimeType: RESOURCE_MIME_TYPE,
-            text: html,
+            text: injectTheme(html, themeCss),
             _meta: { ui: { prefersBorder: true } },
           },
         ],
