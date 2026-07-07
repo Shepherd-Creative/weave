@@ -13,11 +13,12 @@ Weave is a small React component library plus a companion MCP server. An LLM emi
 | [`@shepherd-creative/weave-primitives`](packages/weave-primitives) | React components + Zod schemas |
 | [`@shepherd-creative/weave-mcp-server`](packages/weave-mcp-server) | HTTP server exposing render tools |
 | [`@shepherd-creative/weave-skill`](packages/weave-skill) | `SKILL.md` teaching an LLM how to compose primitives |
-| [`@shepherd-creative/weave-tokens`](packages/weave-tokens) | Default CSS variables (opt-in) |
+| [`@shepherd-creative/weave-tokens`](packages/weave-tokens) | Default CSS variables (opt-in) + the machine-readable token contract (`tokens.json`) |
+| [`@shepherd-creative/weave-mcp-app`](packages/weave-mcp-app) | MCP App rendering dashboards inline in Claude Desktop, with host-configured brand theming (private, unpublished) |
 
 ## Future directions
 
-- [Design-source integration](docs/future-directions/design-source-integration.md): suggested support for adapting `DESIGN.md`, brand CSS, or design-token repositories into LLM composition guidance and a validated Weave theme. This is not currently implemented or scheduled.
+- [Design-source integration](docs/future-directions/design-source-integration.md): adapting `DESIGN.md`, brand CSS, or design-token repositories into LLM composition guidance and a validated Weave theme. The configured-theme core of this shipped with `weave-mcp-app` (env-configured theme CSS + composition guidance, demo brands under `examples/themes/`); the format-adapter CLI remains unscheduled.
 
 ## Development
 

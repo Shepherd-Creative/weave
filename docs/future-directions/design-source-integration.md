@@ -1,6 +1,12 @@
 # Future Direction: Design-Source Integration
 
-> **Status:** Suggested implementation idea. This capability is not implemented or scheduled.
+> **Status:** Largely implemented (2026-07-07) on `feat/mcp-app-design-source`, per the spec at
+> `docs/superpowers/specs/2026-07-06-mcp-app-design-source-design.md`. Shipped: the expanded
+> `--weave-*` token contract (v2), var()-routed primitives, `weave-mcp-app` with
+> `WEAVE_THEME_CSS_PATH` / `WEAVE_DESIGN_GUIDANCE_PATH`, `validateThemeCss` and two demo brands
+> under `examples/themes/`. Still unscheduled: the deterministic format adapter that derives a
+> Weave theme from an arbitrary `DESIGN.md` or design-token repository (hosts currently author
+> `weave-theme.css` by hand), runtime theme switching and multi-brand registries.
 
 ## Intent
 

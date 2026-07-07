@@ -1,14 +1,14 @@
 # Handoff: Wrap Weave as an MCP App for Claude Desktop
 
-**Generated**: 2026-05-04 (updated 2026-05-05, 2026-07-06)
-**Branch**: `main`
-**Status**: MCP App wrap — Planned, not started (unchanged this update). Reference implementation (`mermaid-app-mcp`) is shipped and working. **Test harness decision made: MCPJam Inspector** (see Key Decisions). Separately: Claude Code / Codex project scaffolding — **done 2026-07-06** (see its own section below).
+**Generated**: 2026-05-04 (updated 2026-05-05, 2026-07-06, 2026-07-07)
+**Branch**: `feat/mcp-app-design-source` (worktree `~/Documents/weave-wt/mcp-app-design-source`)
+**Status**: MCP App wrap — **phases 0-2 done** (2026-07-07). Verified via an autonomous harness instead of MCPJam: a scripted stdio MCP client (`server.e2e.test.ts`) plus a Playwright render proof of the built View (`view.e2e.test.ts`), so no interactive inspector was needed. **Design-source theming shipped** on the same branch: contract v2 tokens, var()-routed primitives, `WEAVE_THEME_CSS_PATH`/`WEAVE_DESIGN_GUIDANCE_PATH` loading, two demo brands and a three-theme acceptance proof. **Manual Claude Desktop verification pending** — checklist in `packages/weave-mcp-app/README.md`. Phases 3-4 below remain open. Separately: Claude Code / Codex project scaffolding — done 2026-07-06 (see its own section below).
 
 ## Goal
 
 Wrap weave as an MCP App with **inline generative UI** in Claude Desktop. Each `render_*` tool returns a Weave spec **and** an `ui://` resource that renders it interactively in the chat (instead of just text/JSON).
 
-For a separate, unscheduled proposal covering `DESIGN.md` and brand-CSS integration, see [`docs/future-directions/design-source-integration.md`](docs/future-directions/design-source-integration.md). That proposal is not part of the MCP App phases below unless it is explicitly added to scope.
+The `DESIGN.md` and brand-CSS integration proposal ([`docs/future-directions/design-source-integration.md`](docs/future-directions/design-source-integration.md)) was pulled into scope and **shipped with this branch** (spec: `docs/superpowers/specs/2026-07-06-mcp-app-design-source-design.md`); only the format-adapter CLI and runtime theme switching remain future work.
 
 ## Completed (preceding work this handoff builds on)
 
@@ -23,9 +23,9 @@ For a separate, unscheduled proposal covering `DESIGN.md` and brand-CSS integrat
 
 ## Not Yet Done (this handoff's actual work)
 
-- [ ] **Phase 0 — Validate MCPJam against `mermaid-app-mcp`** (the proven-working reference). Install `@mcpjam/inspector`, point it at `node ~/Documents/mcp-servers/mermaid-app-mcp/dist/index.js --stdio`, render a Mermaid diagram. **Don't proceed past Phase 0 until MCPJam shows the inline view correctly** — confirms the harness works before introducing new code.
-- [ ] **Phase 1 — Skeleton**: new workspace package `packages/weave-mcp-app`, mirror mermaid-app-mcp shape, stdio entry, empty View. Verify in MCPJam first, then in Claude Desktop.
-- [ ] **Phase 2 — Real renderer**: View imports `<Weave>` from `weave-primitives` (workspace), loads `weave-tokens/tokens.css`, renders spec from `app.ontoolresult`
+- [x] **Phase 0 — harness validation** (2026-07-07): MCPJam superseded — verification is a scripted stdio MCP client + Playwright against the built View, both running in `pnpm test`, so the harness re-proves itself on every run.
+- [x] **Phase 1 — Skeleton** (2026-07-07): `packages/weave-mcp-app`, stdio entry, `ui://weave/mcp-app.html` View resource.
+- [x] **Phase 2 — Real renderer** (2026-07-07): View renders specs with `<Weave>` + `tokens.css`, plus brand-theme injection via `WEAVE_THEME_CSS_PATH` (see `packages/weave-mcp-app/README.md`).
 - [ ] **Phase 3 — Interactivity**: spec inspector (split-pane editor), chart variant switcher, theme toggle, send-back-to-Claude
 - [ ] **Phase 4 — Polish**: `prefersBorder: true`, fullscreen via `app.requestDisplayMode`, `validate_spec` + `get_skill` tools, tree-shake recharts
 - [ ] **Cleanup (open question for user)**: tear down stale cloudflared setup — kill leftover daemons, delete the named tunnel `mcp-app` from Cloudflare Zero Trust dashboard, remove `~/.cloudflared/config.yml.named-tunnel-bak` + creds JSON, delete dead CNAME `mcp-app.brandiron.co.za` from HostServ Zone Editor.
