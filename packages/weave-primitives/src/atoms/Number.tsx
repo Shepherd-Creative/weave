@@ -16,8 +16,9 @@ export function Number(props: Omit<NumberSpec, "type">): React.JSX.Element {
             ? "var(--weave-font-weight-bold, 700)"
             : "var(--weave-font-weight-medium, 500)",
         fontVariantNumeric: "tabular-nums",
+        fontFeatureSettings: "var(--weave-font-feature-numeric, normal)",
         lineHeight: "var(--weave-line-height-tight, 1.1)",
-        fontFamily: "var(--font-display)",
+        fontFamily: "var(--weave-font-numeric, var(--font-display))",
       }}
     >
       {text}

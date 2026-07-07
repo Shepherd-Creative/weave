@@ -13,7 +13,8 @@
       "!**/node_modules/**",
       "!**/.turbo/**",
       "!**/.next/**",
-      "!**/coverage/**"
+      "!**/coverage/**",
+      "!**/.claude/worktrees/**"
     ]
   },
   "formatter": {

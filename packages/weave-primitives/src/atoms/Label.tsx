@@ -14,7 +14,12 @@ export function Label(props: Omit<LabelSpec, "type">): React.JSX.Element {
           tone ?? (role === "caption" || role === "overline" ? "muted" : "default"),
         ),
         fontSize: labelFontSize(size, role),
-        fontFamily: role === "display" ? "var(--font-display)" : "var(--font-sans)",
+        fontFamily:
+          role === "display"
+            ? "var(--font-display)"
+            : role === "overline"
+              ? "var(--weave-font-overline, var(--font-sans))"
+              : "var(--font-sans)",
         fontWeight: roleStyle.fontWeight,
         letterSpacing: roleStyle.letterSpacing,
         textTransform: roleStyle.textTransform,

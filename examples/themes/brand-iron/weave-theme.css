@@ -11,6 +11,11 @@
  * radial overlay in its tokens.css) cannot travel through the :root-only
  * restricted subset validateThemeCss accepts. Recorded as an adapter learning
  * in docs/future-directions/design-source-integration.md.
+ *
+ * Contract v3 gap closed: this run originally hit two missing tokens — no
+ * per-role font routing (uppercase overlines forced onto --font-sans) and no
+ * font-feature-settings token (no tabular figures for data). Both now ship
+ * as --weave-font-overline and --weave-font-feature-numeric, exercised below.
  */
 :root {
   /* Structural: paper and ink. Card shares the background surface — Iron
@@ -22,7 +27,10 @@
   --popover: #e5d9bb;
   --popover-foreground: #1c1611;
   --primary: #c8721e;
-  --primary-foreground: #ede3cc;
+  /* JUDGEMENT CALL: cream on saffron reads 2.8:1 — below the 3:1 floor the
+     theme lint enforces for text pairs. Iron Press differentiates with ink,
+     so saffron surfaces carry ink text (5.0:1). */
+  --primary-foreground: #1c1611;
   --secondary: #e5d9bb;
   --secondary-foreground: #1c1611;
   --muted: #e5d9bb;
@@ -71,6 +79,20 @@
   --font-display: "Fraunces", "Charter", "Georgia", "Times New Roman", serif;
   --font-mono: "JetBrains Mono", "SF Mono", Consolas, "Courier New", monospace;
   --weave-letter-spacing-overline: 0.12em;
+
+  /* Uppercase — JUDGEMENT CALL. Iron Press's overlines run in the mono face,
+     not the serif: uppercase belongs to the mono. Routing the contract's
+     per-role token means labels and table headers pick up JetBrains Mono
+     while titles and body stay Fraunces. */
+  --weave-font-overline: "JetBrains Mono", "SF Mono", Consolas, "Courier New", monospace;
+
+  /* Numeric displays stay on the Fraunces serif — set explicitly so the
+     routing token is exercised end-to-end rather than via its fallback. */
+  --weave-font-numeric: "Fraunces", "Charter", "Georgia", "Times New Roman", serif;
+
+  /* Oldstyle Fraunces figures for numeric displays — editorial, and visibly
+     distinct from the primitives' hardcoded tabular-nums baseline. */
+  --weave-font-feature-numeric: "onum" 1;
 
   /* Surfaces: hairlines structure the page. Square corners, no elevation. */
   --weave-card-padding: 1.25rem;

@@ -34,7 +34,8 @@ export function Stat(props: Omit<StatSpec, "type">): React.JSX.Element {
             fontSize: numberFontSize(size),
             fontWeight: "var(--weave-font-weight-semibold, 600)",
             fontVariantNumeric: "tabular-nums",
-            fontFamily: "var(--font-display)",
+            fontFeatureSettings: "var(--weave-font-feature-numeric, normal)",
+            fontFamily: "var(--weave-font-numeric, var(--font-display))",
             lineHeight: "var(--weave-line-height-snug, 1.2)",
           }}
         >
@@ -44,10 +45,13 @@ export function Stat(props: Omit<StatSpec, "type">): React.JSX.Element {
           <span
             style={{
               color: toneToColorVar(delta.tone),
+              // delta stays on --font-sans by design: routing through
+              // --weave-font-numeric would change un-themed rendering.
               fontFamily: "var(--font-sans)",
               fontSize: "var(--weave-font-size-xs, 0.75rem)",
               fontWeight: "var(--weave-font-weight-medium, 500)",
               fontVariantNumeric: "tabular-nums",
+              fontFeatureSettings: "var(--weave-font-feature-numeric, normal)",
             }}
           >
             {formatNumber(delta.value, { format: delta.format ?? "percent", showSign: true })}

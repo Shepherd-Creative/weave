@@ -1,0 +1,43 @@
+{
+  "name": "@shepherd-creative/weave-adapter-skill",
+  "version": "0.1.0",
+  "description": "SKILL.md teaching an LLM to convert a brand's design source into a validated Weave theme, plus a loader utility.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shepherd-Creative/weave.git",
+    "directory": "packages/weave-adapter-skill"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./SKILL.md": "./SKILL.md"
+  },
+  "files": [
+    "dist",
+    "SKILL.md",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}

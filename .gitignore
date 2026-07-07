@@ -16,3 +16,10 @@ yarn-error.log*
 # Claude Code local overrides
 CLAUDE.local.md
 .claude/settings.local.json
+
+# Session-concurrency worktrees (each checkout carries its own biome.json;
+# committed ignore needed because tools like biome don't read .git/info/exclude)
+.claude/worktrees/
+
+# memsearch session-memory store (local only; untracked 2026-07-07 pre-OSS)
+.memsearch/

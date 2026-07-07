@@ -39,7 +39,7 @@ export function KPI(props: Omit<KPISpec, "type">): React.JSX.Element {
           alignItems: "center",
           gap: "var(--weave-space-xs, 0.375rem)",
           color: "var(--muted-foreground)",
-          fontFamily: "var(--font-sans)",
+          fontFamily: "var(--weave-font-overline, var(--font-sans))",
           fontSize: "var(--weave-font-size-xs, 0.75rem)",
           fontWeight: "var(--weave-font-weight-medium, 500)",
           letterSpacing: "var(--weave-letter-spacing-wider, 0.04em)",
@@ -56,7 +56,8 @@ export function KPI(props: Omit<KPISpec, "type">): React.JSX.Element {
           fontSize: numberFontSize(size),
           fontWeight: "var(--weave-font-weight-bold, 700)",
           fontVariantNumeric: "tabular-nums",
-          fontFamily: "var(--font-display)",
+          fontFeatureSettings: "var(--weave-font-feature-numeric, normal)",
+          fontFamily: "var(--weave-font-numeric, var(--font-display))",
           lineHeight: "var(--weave-line-height-tight, 1.1)",
           // Safety net for narrow containers (e.g. MetricBand cell in a
           // side-panel card): clip instead of letting the value bleed into
@@ -78,10 +79,13 @@ export function KPI(props: Omit<KPISpec, "type">): React.JSX.Element {
             alignItems: "center",
             gap: "var(--weave-space-2xs, 0.25rem)",
             color: toneToColorVar(delta.tone ?? "muted"),
+            // delta stays on --font-sans by design: routing through
+            // --weave-font-numeric would change un-themed rendering.
             fontFamily: "var(--font-sans)",
             fontSize: "var(--weave-font-size-sm, 0.875rem)",
             fontWeight: "var(--weave-font-weight-medium, 500)",
             fontVariantNumeric: "tabular-nums",
+            fontFeatureSettings: "var(--weave-font-feature-numeric, normal)",
           }}
         >
           {formatNumber(delta.value, {

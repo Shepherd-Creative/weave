@@ -12,3 +12,10 @@ Calm, boardroom-ready dashboards on white. Restraint is the brand.
 - Restrained tone: reserve `positive`/`negative` for genuine deltas, never
   for decoration. Most labels stay `default` or `muted`.
 - Titles in sentence case. Captions short and factual, no exclamation.
+
+## Proactive triggers
+
+Render unprompted only for a board-level story: three or more KPIs worth
+a hero view, a clear period-on-period comparison or a trend a sentence
+would flatten. A single figure stays prose or one KPI. Curate before you
+render; a thin dashboard reads worse than a clean paragraph.

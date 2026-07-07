@@ -78,6 +78,7 @@ export function TableCard(props: Omit<TableCardSpec, "type">): React.JSX.Element
                     color: toneToColorVar(h.tone ?? "muted"),
                     textAlign: h.align ?? "start",
                     padding: rowPadding,
+                    fontFamily: "var(--weave-font-overline, var(--font-sans))",
                     fontSize: "var(--weave-font-size-overline, 0.6875rem)",
                     fontWeight: "var(--weave-font-weight-medium, 500)",
                     letterSpacing: "var(--weave-letter-spacing-widest, 0.06em)",

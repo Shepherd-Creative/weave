@@ -24,6 +24,9 @@ type ComputedLook = {
   cardBackground: string;
   cardPadding: string;
   cardFontFamily: string;
+  overlineFontFamily: string;
+  numericFontFamily: string;
+  numericFontFeatureSettings: string;
 };
 
 const looks = new Map<string, ComputedLook>();
@@ -35,7 +38,7 @@ const CASES: Array<{ name: string; brandDir: string | null }> = [
   { name: "brand-iron", brandDir: path.join(THEMES_ROOT, "brand-iron") },
 ];
 
-describe("three-theme acceptance: one spec, three looks", () => {
+describe("multi-theme acceptance: one spec, N looks", () => {
   let browser: Browser;
   let dir: string;
 
@@ -66,22 +69,40 @@ describe("three-theme acceptance: one spec, three looks", () => {
     expect(pageErrors).toEqual([]);
     await page.waitForSelector("#root .recharts-surface", { timeout: 10_000 });
 
-    const look = await page
-      .getByText("Revenue by week", { exact: true })
-      .evaluate((title): ComputedLook => {
-        // title div → <header> → card root div (see ChartCard.tsx).
-        const card = title.parentElement?.parentElement as HTMLElement;
-        const cardStyle = getComputedStyle(card);
-        return {
-          rootBackground: getComputedStyle(document.documentElement)
-            .getPropertyValue("--background")
-            .trim(),
-          cardBackground: cardStyle.backgroundColor,
-          cardPadding: cardStyle.padding,
-          cardFontFamily: cardStyle.fontFamily,
-        };
-      });
-    looks.set(name, look);
+    // looks.set below enforces that the combined probes match ComputedLook.
+    const look = await page.getByText("Revenue by week", { exact: true }).evaluate((title) => {
+      // title div → <header> → card root div (see ChartCard.tsx).
+      const card = title.parentElement?.parentElement as HTMLElement;
+      const cardStyle = getComputedStyle(card);
+      return {
+        rootBackground: getComputedStyle(document.documentElement)
+          .getPropertyValue("--background")
+          .trim(),
+        cardBackground: cardStyle.backgroundColor,
+        cardPadding: cardStyle.padding,
+        cardFontFamily: cardStyle.fontFamily,
+      };
+    });
+
+    // "MRR" is the TableCard's uppercase column header (role: overline
+    // routing, see TableCard.tsx) — probes --weave-font-overline directly.
+    const overlineFontFamily = await page
+      .getByText("MRR", { exact: true })
+      .evaluate((th) => getComputedStyle(th).fontFamily);
+
+    // KPI value: "Revenue" label span → label row div → sibling value div
+    // (see KPI.tsx) — probes --weave-font-numeric and
+    // --weave-font-feature-numeric on a numeric data display.
+    const numeric = await page.getByText("Revenue", { exact: true }).evaluate((label) => {
+      const value = label.parentElement?.nextElementSibling as HTMLElement;
+      const valueStyle = getComputedStyle(value);
+      return {
+        numericFontFamily: valueStyle.fontFamily,
+        numericFontFeatureSettings: valueStyle.fontFeatureSettings,
+      };
+    });
+
+    looks.set(name, { ...look, overlineFontFamily, ...numeric });
 
     // Recharts animates the line draw over ~1.5s; screenshot after it settles
     // or the PNGs show an empty plot area (the assertions above don't care,
@@ -91,7 +112,7 @@ describe("three-theme acceptance: one spec, three looks", () => {
     await page.close();
   });
 
-  it("the three computed looks are pairwise different", () => {
+  it("the computed looks are pairwise different", () => {
     expect(looks.size).toBe(CASES.length);
     const entries = [...looks.entries()];
     for (let i = 0; i < entries.length; i++) {
@@ -101,5 +122,23 @@ describe("three-theme acceptance: one spec, three looks", () => {
         expect(a, `${nameA} and ${nameB} render identically`).not.toEqual(b);
       }
     }
+  });
+
+  it("brand-iron routes overline text to the mono face, unlike default's sans", () => {
+    const defaultLook = looks.get("default") as ComputedLook;
+    const brandIronLook = looks.get("brand-iron") as ComputedLook;
+    expect(brandIronLook.overlineFontFamily).not.toEqual(defaultLook.overlineFontFamily);
+    expect(brandIronLook.overlineFontFamily.toLowerCase()).toContain("jetbrains mono");
+  });
+
+  it("brand-iron applies oldstyle numeric features and a serif numeric family, unlike default", () => {
+    const defaultLook = looks.get("default") as ComputedLook;
+    const brandIronLook = looks.get("brand-iron") as ComputedLook;
+    // Default computes the token's `normal` default; brand-iron computes its
+    // "onum" 1 override (Chromium may serialise the feature without the ` 1`).
+    expect(defaultLook.numericFontFeatureSettings).toBe("normal");
+    expect(brandIronLook.numericFontFeatureSettings.toLowerCase()).toContain("onum");
+    expect(brandIronLook.numericFontFamily).not.toEqual(defaultLook.numericFontFamily);
+    expect(brandIronLook.numericFontFamily.toLowerCase()).toContain("fraunces");
   });
 });

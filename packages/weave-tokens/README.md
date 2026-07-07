@@ -42,9 +42,33 @@ Override any of the above in your own stylesheet after importing:
 }
 ```
 
-## Contract v2
+## Programmatic validation (`./validate`)
 
-Beyond the base palette, primitives read the `--weave-*` variables below for typography, spacing, surfaces and chart treatment. Every default equals the literal that used to be hard-coded in the components, so leaving them untouched is render-identical to pre-v2. The machine-readable list ships as `tokens.json` (`{ name, category }` per variable); it is what `weave-mcp-app` validates brand themes against.
+The package also ships the deterministic theme-CSS validator used by `weave-mcp-app`, so any consumer can validate a brand stylesheet against the token contract:
+
+```ts
+import {
+  validateThemeCss,
+  knownVarsFromManifest,
+  THEME_CSS_MAX_BYTES,
+  GUIDANCE_MAX_BYTES,
+} from "@shepherd-creative/weave-tokens/validate";
+
+const result = validateThemeCss(css, knownVarsFromManifest());
+// result: { ok, css, applied, stripped, errors }
+```
+
+- `validateThemeCss(source, knownVars)` accepts only comments and `:root { --var: value; }` declarations; at-rules, other selectors and dangerous values are hard rejects, unknown variables are stripped with a warning. Returns a `ThemeValidation`.
+- `knownVarsFromManifest()` builds the known-variable set from this package's own `tokens.json`.
+- `THEME_CSS_MAX_BYTES` / `GUIDANCE_MAX_BYTES` are the size caps hosts should enforce before reading theme and guidance files.
+
+The `./validate` subpath is built output (ESM-only, types included); the `tokens.css` / `tokens.json` exports remain plain static files.
+
+## Contract v3
+
+Beyond the base palette, primitives read the `--weave-*` variables below for typography, spacing, surfaces, chart treatment and per-role font routing. Every default equals the literal that used to be hard-coded in the components, so leaving them untouched is render-identical to pre-v2 (and now pre-v3). The machine-readable list ships as `tokens.json` (`{ name, category }` per variable); it is what `weave-mcp-app` validates brand themes against.
+
+Lineage: v1 shipped the base structural/tone/chart palette; v2 added the `--weave-*` expansion (typography scale, spacing, surfaces, chart treatment); v3 adds per-role font routing and numeric font features. The tokens.json `version` field now tracks the contract version, hence 1→3.
 
 "style.ts" in the consumed-by column is `weave-primitives`' shared sizing helpers (font-size, gap, density and label-role scales) used by Label, Number, KPI, Stat, Grid and Stack.
 
@@ -74,6 +98,9 @@ Beyond the base palette, primitives read the `--weave-*` variables below for typ
 | `--weave-letter-spacing-wider` | typography | `0.04em` | KPI |
 | `--weave-letter-spacing-widest` | typography | `0.06em` | TableCard |
 | `--weave-letter-spacing-overline` | typography | `0.08em` | style.ts |
+| `--weave-font-overline` | typography | `var(--font-sans)` | Label, KPI, TableCard |
+| `--weave-font-numeric` | typography | `var(--font-display)` | Number, KPI, Stat, DataRow |
+| `--weave-font-feature-numeric` | typography | `normal` | Number, KPI, Stat, DataRow |
 | `--weave-space-3xs` | spacing | `0.125rem` | ChartCard, DataRow, Stat, TableCard |
 | `--weave-space-2xs` | spacing | `0.25rem` | ChartCard, DataRow, KPI, NoteCard |
 | `--weave-space-xs` | spacing | `0.375rem` | KPI, TableCard |

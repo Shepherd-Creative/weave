@@ -125,4 +125,26 @@
   --weave-chart-tooltip-radius: 6px;
   --weave-chart-grid-dasharray: 3 3;
   --weave-chart-stroke-width: 2;
+
+  /*
+   * --- v3 contract additions ---
+   *
+   * Per-role font routing and numeric font features. Defaults are
+   * behaviour-identical to the literals they replace: overline falls back to
+   * --font-sans (the family every uppercase label/header already used),
+   * numeric falls back to --font-display (ditto for KPI/Number/Stat/DataRow
+   * values), and the feature-settings default is the CSS initial value
+   * `normal`, layered on top of the hard-coded `font-variant-numeric:
+   * tabular-nums` baseline that primitives keep in place.
+   *
+   * One deliberate nuance to "un-themed render unchanged": declaring
+   * font-feature-settings explicitly at the seven numeric sites resets any
+   * ancestor-inherited feature settings there — by design, so primitive
+   * rendering stays deterministic regardless of host page styles.
+   */
+
+  /* --- Typography routing + features (v3) --- */
+  --weave-font-overline: var(--font-sans);
+  --weave-font-numeric: var(--font-display);
+  --weave-font-feature-numeric: normal;
 }

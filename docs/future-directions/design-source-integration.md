@@ -1,12 +1,15 @@
 # Future Direction: Design-Source Integration
 
-> **Status:** Largely implemented (2026-07-07) on `feat/mcp-app-design-source`, per the spec at
-> `docs/superpowers/specs/2026-07-06-mcp-app-design-source-design.md`. Shipped: the expanded
-> `--weave-*` token contract (v2), var()-routed primitives, `weave-mcp-app` with
-> `WEAVE_THEME_CSS_PATH` / `WEAVE_DESIGN_GUIDANCE_PATH`, `validateThemeCss` and two demo brands
-> under `examples/themes/`. Still unscheduled: the deterministic format adapter that derives a
-> Weave theme from an arbitrary `DESIGN.md` or design-token repository (hosts currently author
-> `weave-theme.css` by hand), runtime theme switching and multi-brand registries.
+> **Status:** Implemented (2026-07-07). Shipped: the expanded `--weave-*` token contract (v3),
+> var()-routed primitives, `weave-mcp-app` with `WEAVE_THEME_CSS_PATH` /
+> `WEAVE_DESIGN_GUIDANCE_PATH`, `validateThemeCss`, three demo brands under `examples/themes/`, and
+> the format adapter itself. The adapter did not land as the deterministic CLI sketched below: it
+> ships as an LLM skill (`weave-adapter-skill`) gated by a deterministic lint CLI
+> (`weave-theme-cli`), because the brand-iron dry-run showed the mapping decisions (tone
+> derivation, chart-ramp synthesis, font fallbacks, the contrast flip) are judgement calls that
+> need a model, so the model authors the theme and determinism moved to the gate rather than the
+> mapping. Still future work: runtime theme switching, multi-brand registries and host-delivered
+> fonts (`applyHostFonts`).
 
 ## Intent
 
@@ -110,7 +113,7 @@ The integration is successful when the same validated dashboard specification ca
 - **Chart ramp derivation.** An 8-colour chart palette rarely exists in a restrained brand. Walking the neutral ramp with the accent as series highlight worked, paired with composition guidance capping series count.
 - **Font stacks, not font files.** `url()` loading is (correctly) rejected, so brand faces only apply if installed on the host. The adapter must emit the brand's own documented fallback stack (Iron Press: Charter/Georgia carry the Fraunces role). Host-delivered fonts via the MCP Apps host-context (`applyHostFonts`) is the eventual proper channel.
 - **Non-token signatures do not survive.** Iron Press's paper-grain `body::before` texture cannot travel through the `:root`-only restricted subset. The adapter should list what it dropped.
-- **Contract gaps found.** No per-role font routing (uppercase overlines should be mono in this brand, but labels all follow `--font-sans`); no `font-feature-settings` token (tabular figures for data). Candidate v3 variables.
+- **Contract gaps found.** No per-role font routing (uppercase overlines should be mono in this brand, but labels all follow `--font-sans`); no `font-feature-settings` token (tabular figures for data). Candidate v3 variables. **Resolved in contract v3**: `--weave-font-overline` and `--weave-font-feature-numeric` now ship (`packages/weave-tokens/tokens.css`), and `examples/themes/brand-iron/weave-theme.css` exercises both.
 - **Composition rules matter as much as CSS.** "Omit icon fields", "never pie", "one chart max" came from the brand's prose rules, not its tokens — the adapter must read both.
 - **What worked as-is:** `rgba()` and `clamp()` values pass the validator; zero stripped variables on first authoring; the brand rendered pairwise-different from all three other looks with no primitive changes. One real bug surfaced: the view never painted `body` with `--background` (invisible on near-white/near-black themes, glaring on warm paper) — fixed in the same change.
 

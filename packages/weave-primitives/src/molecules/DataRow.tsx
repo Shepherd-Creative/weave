@@ -29,7 +29,8 @@ function renderCell(cell: DataCell, key: number): React.JSX.Element {
             textAlign: "end",
             padding: "var(--weave-space-sm, 0.5rem) var(--weave-space-md, 0.75rem)",
             fontVariantNumeric: "tabular-nums",
-            fontFamily: "var(--font-display)",
+            fontFeatureSettings: "var(--weave-font-feature-numeric, normal)",
+            fontFamily: "var(--weave-font-numeric, var(--font-display))",
             fontSize: "var(--weave-font-size-sm, 0.875rem)",
           }}
         >
@@ -87,7 +88,8 @@ function renderCell(cell: DataCell, key: number): React.JSX.Element {
             textAlign: "end",
             padding: "var(--weave-space-sm, 0.5rem) var(--weave-space-md, 0.75rem)",
             fontVariantNumeric: "tabular-nums",
-            fontFamily: "var(--font-display)",
+            fontFeatureSettings: "var(--weave-font-feature-numeric, normal)",
+            fontFamily: "var(--weave-font-numeric, var(--font-display))",
             fontSize: "var(--weave-font-size-sm, 0.875rem)",
             fontWeight: "var(--weave-font-weight-medium, 500)",
           }}

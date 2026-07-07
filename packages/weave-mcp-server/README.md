@@ -60,4 +60,4 @@ Invalid args return `400` with a Zod-issue array:
 
 ## License
 
-UNLICENSED during B3–B5 private development.
+MIT. See [LICENSE](../../LICENSE) at the repository root.

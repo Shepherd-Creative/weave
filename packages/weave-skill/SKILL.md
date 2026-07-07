@@ -16,6 +16,23 @@ Use this skill whenever the user asks for any of:
 
 Use this skill **only** for data-dense composition. For prose answers, free-form explanations, or conversational replies, respond in the chat channel, not through MCP tools.
 
+### 1.1 When to visualise unprompted
+
+§1 says when to reach for this skill on request. This says when to reach for it **unprompted**: render the moment an answer turns data-shaped, before you commit it to prose.
+
+| The answer is… | Render |
+|---|---|
+| Three or more related numbers | `render_metric_band` |
+| A comparison across entities or periods | `render_table_card` |
+| A trend or time series | `render_chart_card` |
+| A status or health summary across several dimensions | `render_dashboard` |
+
+**Litmus test.** If your prose draft contains a markdown table or a list of figures, render it instead.
+
+**Do not render** for a single scalar answer, a conceptual or prose question, an explicit request for text or a mid-conversation clarification. Those stay in chat: §1's rule that prose answers belong in the chat channel is unchanged. This section widens only *when* you reach for Weave, never *what* you emit. The §2 contract still binds: no colours, no pixel values, no CSS.
+
+Host guidance appended to this skill at runtime may add per-brand proactive triggers that sharpen these thresholds. Where present, prefer them over the defaults above.
+
 ---
 
 ## 2. The core contract
