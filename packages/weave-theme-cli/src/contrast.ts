@@ -45,14 +45,14 @@ const VAR_REF_RE = /^var\(\s*(--[a-z0-9-]+)\s*(?:,\s*([\s\S]+?)\s*)?\)$/i;
  * Resolves a theme variable's value one level deep: `--name` is looked up in
  * the theme, then the defaults map. If that value is itself
  * `var(--other[, fallback])`, `--other` is looked up the same way (theme,
- * then defaults, then the var()'s own fallback literal) — but if THAT value
+ * then defaults, then the var()'s own fallback literal), but if THAT value
  * is *also* `var(...)`, resolution stops and reports unparseable.
  *
  * The depth-1 cap is a deliberate spec choice, not a shortcut: chasing
  * indirection indefinitely both complicates the tool and risks looping on a
  * theme that (accidentally or not) defines a var() cycle. One hop covers the
- * realistic case — a theme setting `--primary-foreground: var(--background)`
- * — without open-ended graph traversal.
+ * realistic case, a theme setting `--primary-foreground: var(--background)`,
+ * without open-ended graph traversal.
  */
 export function resolveVar(
   name: string,
@@ -109,7 +109,7 @@ let cachedDefaults: Map<string, string> | null = null;
  * parsed into a name -> value map: the fallback side of any contrast pair
  * the brand theme only half-overrides. Resolved via `require.resolve`
  * against the installed package (a real dependency of this package) rather
- * than a relative path. Runtime filesystem access is fine here — this is a
+ * than a relative path. Runtime filesystem access is fine here; this is a
  * Node CLI, not the sandboxed MCP App render path.
  */
 export function loadDefaultVarMap(): Map<string, string> {
@@ -128,7 +128,7 @@ export function loadDefaultVarMap(): Map<string, string> {
     // against an empty defaults map, which would quietly skip every
     // half-themed contrast pair.
     throw new Error(
-      `weave-theme-cli: shipped tokens.css failed validation — ${result.errors.join("; ")}`,
+      `weave-theme-cli: shipped tokens.css failed validation: ${result.errors.join("; ")}`,
     );
   }
   cachedDefaults = parseVarMap(result.css);
@@ -192,7 +192,7 @@ function buildPairs(): PairSpec[] {
 
   // --chart-3..8 are deliberately unchecked: a series-capped brand (e.g. an
   // editorial theme with a one- or two-colour palette) legitimately lets the
-  // palette tail fade toward invisibility on its own surface — compositions
+  // palette tail fade toward invisibility on its own surface; compositions
   // built for that brand are expected to cap series count too (that's a
   // DESIGN.md guidance concern, not a theme-CSS one). Only the first two
   // series, which every chart uses regardless of brand, are checked.
@@ -219,7 +219,7 @@ function sideSkipReason(varName: string, res: VarResolution, color: RGBA | null)
 /**
  * Runs every contrast-pair check against a theme's applied variables.
  *
- * `theme` is the linted theme's own name -> value map (APPLIED vars only —
+ * `theme` is the linted theme's own name -> value map (APPLIED vars only;
  * see parseVarMap / validateThemeCss). `defaults` is the shipped default
  * theme, used to fill in whichever side of a pair the brand theme didn't
  * touch. A pair where NEITHER side is themed is skipped outright: the
@@ -254,7 +254,7 @@ export function runContrastChecks(
       continue;
     }
 
-    // A translucent background has no single effective colour — what the
+    // A translucent background has no single effective colour; what the
     // reader actually sees depends on whatever surface sits beneath it,
     // which this tool cannot know. compositeOver's opaque-base assumption
     // only holds for genuinely opaque backgrounds, so computing a ratio
@@ -264,7 +264,7 @@ export function runContrastChecks(
       skipped.push({
         fg: pair.fg,
         bg: pair.bg,
-        reason: `${pair.bg}: translucent background — effective colour depends on the surface beneath`,
+        reason: `${pair.bg}: translucent background; effective colour depends on the surface beneath`,
       });
       continue;
     }

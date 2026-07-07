@@ -4,7 +4,7 @@ import { dirname, join, resolve } from "node:path";
 export class ThemesDirNotFoundError extends Error {
   constructor() {
     super(
-      "could not locate examples/themes/ automatically (no pnpm-workspace.yaml found walking up from the current directory) — pass --themes-dir or set WEAVE_THEMES_DIR",
+      "could not locate examples/themes/ automatically (no pnpm-workspace.yaml found walking up from the current directory); pass --themes-dir or set WEAVE_THEMES_DIR",
     );
     this.name = "ThemesDirNotFoundError";
   }
@@ -25,7 +25,7 @@ function findRepoRoot(startDir: string): string | undefined {
  * Resolves the themes directory: explicit `--themes-dir` first, then
  * `WEAVE_THEMES_DIR`, then `<repoRoot>/examples/themes` found by walking up
  * from `cwd` for `pnpm-workspace.yaml`. Throws `ThemesDirNotFoundError` when
- * none apply — running outside this repo with neither flag nor env var set.
+ * none apply: running outside this repo with neither flag nor env var set.
  *
  * `cwd` defaults to `process.cwd()` but is injectable so tests can assert
  * the "not found" path deterministically without depending on wherever the

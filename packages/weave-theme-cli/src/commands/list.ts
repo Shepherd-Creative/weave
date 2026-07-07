@@ -73,7 +73,7 @@ type ActiveLookup = { cssPath?: string; note?: string };
 
 /**
  * Best-effort: any failure to read the config, parse it, or find the server
- * entry is NOT an error for `list` — it just means there's nothing to mark
+ * entry is NOT an error for `list`; it just means there's nothing to mark
  * active, reported as a short `note` instead of aborting the command.
  */
 function resolveActiveCssPath(configPath: string, serverName: string): ActiveLookup {
@@ -82,7 +82,7 @@ function resolveActiveCssPath(configPath: string, serverName: string): ActiveLoo
     config = readConfig(configPath);
   } catch (err) {
     if (err instanceof DesktopConfigError)
-      return { note: `${err.message} — showing no active theme` };
+      return { note: `${err.message}; showing no active theme` };
     throw err;
   }
 
@@ -91,7 +91,7 @@ function resolveActiveCssPath(configPath: string, serverName: string): ActiveLoo
     located = locateServerEntry(config, serverName);
   } catch (err) {
     if (err instanceof DesktopConfigError)
-      return { note: `${err.message} — showing no active theme` };
+      return { note: `${err.message}; showing no active theme` };
     throw err;
   }
 
@@ -101,7 +101,7 @@ function resolveActiveCssPath(configPath: string, serverName: string): ActiveLoo
       ? (env as Record<string, unknown>).WEAVE_THEME_CSS_PATH
       : undefined;
   if (typeof cssPath !== "string" || cssPath.length === 0) {
-    return { note: `no theme configured for "${serverName}" — default theme active` };
+    return { note: `no theme configured for "${serverName}"; default theme active` };
   }
   return { cssPath };
 }

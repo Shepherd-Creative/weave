@@ -42,7 +42,7 @@ describe("formatHuman", () => {
               fg: "--card-foreground",
               bg: "--card",
               reason:
-                "--card: translucent background — effective colour depends on the surface beneath",
+                "--card: translucent background; effective colour depends on the surface beneath",
             },
           ],
         },

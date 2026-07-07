@@ -19,7 +19,7 @@ export abstract class DesktopConfigError extends Error {}
 export class ConfigNotFoundError extends DesktopConfigError {
   constructor(readonly path: string) {
     super(
-      `no Claude Desktop config found at ${path} — install the weave MCP server first, see packages/weave-mcp-app/README.md`,
+      `no Claude Desktop config found at ${path}; install the weave MCP server first, see packages/weave-mcp-app/README.md`,
     );
     this.name = "ConfigNotFoundError";
   }
@@ -41,7 +41,7 @@ export class ConfigParseError extends DesktopConfigError {
     readonly path: string,
     reason: string,
   ) {
-    super(`${path} is corrupt (${reason}) — refusing to touch it`);
+    super(`${path} is corrupt (${reason}); refusing to touch it`);
     this.name = "ConfigParseError";
   }
 }
@@ -49,7 +49,7 @@ export class ConfigParseError extends DesktopConfigError {
 export class ServerEntryNotFoundError extends DesktopConfigError {
   constructor(readonly serverName: string) {
     super(
-      `no "${serverName}" entry in mcpServers (and no entry whose args point at weave-mcp-app/dist/index.js) — install the weave MCP server first, see packages/weave-mcp-app/README.md for the config block to add`,
+      `no "${serverName}" entry in mcpServers (and no entry whose args point at weave-mcp-app/dist/index.js); install the weave MCP server first, see packages/weave-mcp-app/README.md for the config block to add`,
     );
     this.name = "ServerEntryNotFoundError";
   }
@@ -64,8 +64,8 @@ export const DEFAULT_SERVER_NAME = "weave";
 const WEAVE_MCP_APP_ENTRYPOINT_SUFFIX = "weave-mcp-app/dist/index.js";
 
 /**
- * Claude Desktop's config path on macOS. Pure path construction — no
- * filesystem access — so it's safe to call and assert on in tests without
+ * Claude Desktop's config path on macOS. Pure path construction, no
+ * filesystem access, so it's safe to call and assert on in tests without
  * ever touching the real file. `--config` overrides this everywhere it's
  * used; this function only supplies the default.
  */
@@ -111,7 +111,7 @@ export function readConfig(path: string): JsonRecord {
 }
 
 export type LocatedServerEntry = {
-  /** The mcpServers key the entry was found under — may differ from the
+  /** The mcpServers key the entry was found under; may differ from the
    * requested `serverName` when found via the args-suffix fallback. */
   name: string;
   entry: JsonRecord;
@@ -127,7 +127,7 @@ function argsMatchWeaveMcpApp(args: unknown): boolean {
 /**
  * Finds the weave MCP server's entry in a parsed config: `mcpServers[serverName]`
  * first, falling back to the entry (under any key) whose `args` contains a
- * string ending `weave-mcp-app/dist/index.js` — covers a renamed key. Throws
+ * string ending `weave-mcp-app/dist/index.js`; covers a renamed key. Throws
  * `ServerEntryNotFoundError` when neither matches.
  */
 export function locateServerEntry(
@@ -166,7 +166,7 @@ function isoBasic(date: Date): string {
  * Generic on purpose: this function does not know about `mcpServers` or
  * theme env vars, it just backs up and serialises whatever `JsonRecord`
  * it's handed. Callers (`use`) are responsible for mutating only the two
- * theme env keys before calling this — everything else in `config` survives
+ * theme env keys before calling this; everything else in `config` survives
  * because it's the same object the caller read back from `readConfig`,
  * mutated in place rather than reconstructed. JSON has no comments to lose,
  * and key order is preserved (existing keys keep their position; a newly
@@ -178,7 +178,7 @@ function isoBasic(date: Date): string {
  * Two writes within the same second (e.g. `use <name>` immediately followed
  * by `use --default`, or a script looping `use` calls) would otherwise
  * compute the identical `<path>.bak-<isoBasic>` name and the second write
- * would silently clobber the first backup — exactly the data loss a backup
+ * would silently clobber the first backup, exactly the data loss a backup
  * exists to prevent. On a collision, a numeric suffix (`-2`, `-3`, ...) is
  * appended so every write keeps its own backup; the common case (writes
  * seconds or more apart) still gets the plain documented name.

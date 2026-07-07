@@ -10,7 +10,7 @@ import { afterAll, describe, expect, it } from "vitest";
 // turbo.json declares test dependsOn ["^build", "build"], so any turbo run
 // (root `pnpm test` included) builds this package's dist before its tests
 // run. Only a bare `vitest run` in this package with no prior build lacks
-// dist — hence the skipIf guard below rather than a hard failure.
+// dist, hence the skipIf guard below rather than a hard failure.
 const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const CLI_PATH = join(PACKAGE_ROOT, "dist", "cli.js");
 const REPO_ROOT = fileURLToPath(new URL("../../../..", import.meta.url));
@@ -37,7 +37,7 @@ function runCli(args: string[]): CliResult {
 }
 
 describe.skipIf(!hasDist)(
-  "weave-theme lint (spawned CLI — requires `pnpm --filter @shepherd-creative/weave-theme-cli build`)",
+  "weave-theme lint (spawned CLI; requires `pnpm --filter @shepherd-creative/weave-theme-cli build`)",
   () => {
     it("exits 0 for a clean theme, with a human-readable coverage table on stdout", () => {
       const result = runCli(["lint", join(THEMES_DIR, "corporate-light")]);
@@ -159,5 +159,5 @@ if (!hasDist) {
   // Vitest still needs at least one test in the file to not report it as
   // empty; this one always runs and prints exactly why the suite above was
   // skipped instead of silently vanishing from the summary.
-  it.skip(`skipped: ${CLI_PATH} not built — run pnpm --filter @shepherd-creative/weave-theme-cli build`, () => {});
+  it.skip(`skipped: ${CLI_PATH} not built; run pnpm --filter @shepherd-creative/weave-theme-cli build`, () => {});
 }

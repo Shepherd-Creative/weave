@@ -5,8 +5,9 @@ import { z } from "zod";
  * A design-source adapter run's drop report: what it couldn't carry across
  * the restricted theme-CSS grammar, the judgement calls it made filling
  * contract gaps, and gaps in the contract itself it noticed along the way.
- * Schema, not prose — this is meant to be read by the next stage (the
- * adapter `use` command) as much as by a human reviewer.
+ * Schema, not prose: machine-validated so a malformed report fails the lint
+ * gate loudly, and structured so a human reviewer can read the judgement
+ * calls in order.
  */
 export const DropReportSchema = z.object({
   version: z.literal(1),

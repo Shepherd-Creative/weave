@@ -54,7 +54,7 @@ describe("suggestNearest", () => {
   });
 
   it("respects a custom maxDistance", () => {
-    // "--tone-x" is 8 edits from "--tone-positive" (roughly) — comfortably
+    // "--tone-x" is 8 edits from "--tone-positive" (roughly), comfortably
     // outside a tight cap even though it shares the "--tone-" prefix.
     expect(suggestNearest("--tone-x", KNOWN, 1)).toBeUndefined();
   });

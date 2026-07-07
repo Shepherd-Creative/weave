@@ -8,8 +8,8 @@ import { createRequire } from "node:module";
  * manifest's `chart` category covers both the 8-colour series palette
  * (`--chart-1`..`--chart-8`) and the chart *treatment* variables (grid,
  * axis, tooltip, stroke width, ...). Those have very different fidelity
- * expectations — a brand with a two-colour palette is a legitimate design
- * choice, but a missing chart grid colour is just an oversight — so they're
+ * expectations: a brand with a two-colour palette is a legitimate design
+ * choice, but a missing chart grid colour is just an oversight, so they're
  * reported as separate buckets: `palette` and `chart-treatment`.
  */
 export type CoverageBucket = {
@@ -56,7 +56,7 @@ let cachedManifest: TokensManifest | null = null;
  * Deliberately NOT a static `import tokens from ".../tokens.json"`: that
  * form typechecks fine (resolveJsonModule + moduleResolution: bundler) and
  * even survives tsup's bundling with @shepherd-creative/weave-tokens marked
- * external, but fails at actual `node dist/cli.js` runtime — Node's ESM
+ * external, but fails at actual `node dist/cli.js` runtime: Node's ESM
  * loader requires a `with { type: "json" }` import attribute on a bare JSON
  * import, which an externalised import specifier doesn't carry. Resolving
  * and JSON.parse-ing at runtime sidesteps that entirely.
@@ -83,7 +83,7 @@ function manifestBuckets(): Map<string, string[]> {
 
 /**
  * Computes per-bucket coverage over a theme's APPLIED variables (i.e. the
- * names `validateThemeCss` accepted — stripped/rejected declarations don't
+ * names `validateThemeCss` accepted; stripped/rejected declarations don't
  * count as "set", by design: they never reach the rendered CSS).
  */
 export function computeCoverage(applied: ReadonlySet<string>): CoverageBucket[] {

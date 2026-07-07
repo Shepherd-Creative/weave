@@ -3,7 +3,7 @@ import type { RGBA } from "../color.js";
 import { compositeOver, contrastRatio, parseColor } from "../color.js";
 import { loadDefaultVarMap, parseVarMap, resolveVar, runContrastChecks } from "../contrast.js";
 
-/** parseColor, asserting the parse succeeded — avoids `!` non-null assertions in test bodies. */
+/** parseColor, asserting the parse succeeded; avoids `!` non-null assertions in test bodies. */
 function mustParseColor(value: string): RGBA {
   const parsed = parseColor(value);
   if (parsed === null) throw new Error(`expected "${value}" to parse as a colour`);

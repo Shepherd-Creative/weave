@@ -81,7 +81,7 @@ function unrelatedServerEntry() {
   };
 }
 
-/** The weave entry deliberately has NO `env` key — so a clean `use --default`
+/** The weave entry deliberately has NO `env` key, so a clean `use --default`
  * after `use <name>` should restore the file to byte-for-byte the same
  * parsed shape, not just "the two keys are gone but env: {} lingers". */
 function fixtureConfig(): JsonRecord {
@@ -108,7 +108,7 @@ function backupFiles(dir: string): string[] {
 }
 
 // A full 36-var coverage set (structural + tone + palette) with bg==fg, so
-// lint fails on CONTRAST_FAIL alone — not also on COVERAGE_INCOMPLETE.
+// lint fails on CONTRAST_FAIL alone, not also on COVERAGE_INCOMPLETE.
 // Deliberately not imported from lint.test.ts (test files stay
 // self-contained, matching the rest of this suite).
 const FULL_COVERAGE_BG_EQ_FG_CSS = `:root {
@@ -193,8 +193,8 @@ describe("runUse: round trip (set then --default)", () => {
     expect(backupFiles(dir)).toHaveLength(1);
 
     expect(runUse(["--default", "--config", configPath])).toBe(0);
-    // Two writes in a row can land in the same wall-clock second — see the
-    // writeConfig collision test below — so this only pins the *shape* of
+    // Two writes in a row can land in the same wall-clock second (see the
+    // writeConfig collision test below), so this only pins the *shape* of
     // each backup name, not that it's collision-free within a second.
     expect(backupFiles(dir)).toHaveLength(2);
 

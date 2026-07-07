@@ -8,7 +8,7 @@ import { lintThemeDir } from "./lint.js";
 import { formatHuman, formatJson } from "./output.js";
 
 // Dispatch is a plain switch on argv[2], each subcommand parsing its own
-// remaining args with node:util's parseArgs — no framework. Each subcommand
+// remaining args with node:util's parseArgs, no framework. Each subcommand
 // owns its full usage text (lintUsage() below; commands/list.ts and
 // commands/use.ts each export nothing but keep a local usage() the same
 // way); this file's usage() is just the top-level command directory shown
@@ -83,7 +83,7 @@ function runLint(args: string[]): number {
     requireDropReport: Boolean(parsed.values["require-drop-report"]),
   });
 
-  // Under --json, ONLY the JSON blob reaches stdout — human output (and any
+  // Under --json, ONLY the JSON blob reaches stdout; human output (and any
   // future incidental notes) goes to stderr instead, so `weave-theme lint
   // <dir> --json | jq .` never has to skip over prose.
   if (asJson) {
@@ -123,8 +123,8 @@ function main(): number {
 
 // Top-level safety net: lintThemeDir only guards the failure modes it knows
 // about (missing/oversized files, invalid CSS, invalid JSON). An unexpected
-// filesystem error it doesn't anticipate — e.g. `weave-theme.css` existing
-// as a directory, or a permissions problem — would otherwise surface as a
+// filesystem error it doesn't anticipate (e.g. `weave-theme.css` existing
+// as a directory, or a permissions problem) would otherwise surface as a
 // raw Node stack trace and the process's default (non-2) crash exit code.
 // Converting that into the same "2 = usage/IO failure" contract every other
 // bad-input path already uses keeps the exit-code contract honest.

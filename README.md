@@ -48,7 +48,7 @@ The split is deliberate: the model authors (judgement), the linter gates (determ
 | [`weave-primitives`](packages/weave-primitives) | Theme-neutral React primitives and Zod schemas; renders a JSON spec against the host's CSS variables |
 | [`weave-tokens`](packages/weave-tokens) | Default CSS variables (opt-in), the machine-readable token contract (`tokens.json`) and the theme-CSS validator (`./validate`) |
 | [`weave-skill`](packages/weave-skill) | `SKILL.md` teaching an LLM how to compose primitive specs (and when to visualise unprompted) |
-| [`weave-mcp-server`](packages/weave-mcp-server) | HTTP server exposing the five `render_*` tools as validated JSON |
+| [`weave-mcp-server`](packages/weave-mcp-server) | HTTP + MCP JSON-RPC server exposing the five `render_*` tools as validated JSON |
 | [`weave-mcp-app`](packages/weave-mcp-app) | MCP App rendering dashboards inline in Claude Desktop, with host-configured brand theming (private, unpublished) |
 | [`weave-adapter-skill`](packages/weave-adapter-skill) | `SKILL.md` teaching an LLM to convert a brand's design source into a validated Weave theme |
 | [`weave-theme-cli`](packages/weave-theme-cli) | The `weave-theme` CLI: the authoring-time lint gate plus one-command theme switching for Claude Desktop |

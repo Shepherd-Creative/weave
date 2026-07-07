@@ -31,7 +31,7 @@ There is no PR-triggered CI, so the gate is local and it is on you to run it. Be
 pnpm typecheck && pnpm test
 ```
 
-Both should pass clean (43 tests at the time of writing). Paste the tail of the real output into the PR. Evidence over assertions: "tests pass" is worth nothing without the output that says so.
+Both should pass clean across every workspace package. Paste the tail of the real output into the PR. Evidence over assertions: "tests pass" is worth nothing without the output that says so.
 
 ## Linting and formatting
 
@@ -45,7 +45,13 @@ The history mixes [Conventional Commits](https://www.conventionalcommits.org/) (
 
 ## Themes are conformance fixtures
 
-Every theme under `examples/themes/*` must lint with zero errors. The test suite asserts this with no per-theme allowlist, so a regression in a shipped theme, or an over-tight new check, fails the suite loudly. If you add or change a theme, gate it first:
+Every theme under `examples/themes/*` must lint with zero errors. The test suite asserts this with no per-theme allowlist, so a regression in a shipped theme, or an over-tight new check, fails the suite loudly. If you change an existing theme, gate it the way the suite does:
+
+```bash
+node packages/weave-theme-cli/dist/cli.js lint examples/themes/<name>
+```
+
+New or adapter-authored themes must also carry a `drop-report.json` and pass the stricter gate (`brand-iron` is the worked example; the two hand-authored demo brands predate drop reports and lint plain):
 
 ```bash
 node packages/weave-theme-cli/dist/cli.js lint examples/themes/<name> --require-drop-report

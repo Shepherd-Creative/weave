@@ -3,7 +3,7 @@ import type { LintResult } from "./lint.js";
 /**
  * Human-readable report: coverage table, then errors, warnings, and skipped
  * contrast checks, ending in a one-line verdict. Written to stdout in human
- * mode; under `--json` this is never called (see cli.ts — only the JSON
+ * mode; under `--json` this is never called (see cli.ts; only the JSON
  * blob reaches stdout there).
  */
 export function formatHuman(result: LintResult): string {
@@ -50,7 +50,7 @@ export function formatHuman(result: LintResult): string {
 
 /**
  * Stable JSON shape for `--json` mode. This is a contract other tooling
- * (the future `weave-theme use` command, CI) depends on — additive changes
+ * (the future `weave-theme use` command, CI) depends on; additive changes
  * only; bump `version` on any breaking reshape so consumers can branch.
  */
 export function formatJson(result: LintResult): string {

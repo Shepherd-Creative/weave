@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 // A complete set of the three ENFORCED coverage buckets (structural, tone,
-// palette — 20 + 8 + 8 = 36 vars), so fixtures targeting one specific check
+// palette, 20 + 8 + 8 = 36 vars), so fixtures targeting one specific check
 // (contrast, unknown-variable, drop-report) don't also trip unrelated
 // COVERAGE_INCOMPLETE findings. Deliberately NOT the shipped example CSS, so
 // these fixtures stay stable even if the example themes change.
@@ -97,7 +97,7 @@ describe("shipped example themes", () => {
   });
 
   // Shipped themes are conformance fixtures: every one of them must lint
-  // with ZERO errors (warnings allowed). No per-theme escape map here — a
+  // with ZERO errors (warnings allowed). No per-theme escape map here: a
   // regression in a shipped theme or an over-tight new check must fail this
   // test loudly, not hide behind an allowlist. When the linter surfaced
   // brand-iron's 2.8:1 cream-on-saffron --primary pair, the resolution was
@@ -140,7 +140,7 @@ describe("weave-theme.css presence", () => {
 describe("size caps", () => {
   it("a theme over THEME_CSS_MAX_BYTES is THEME_CSS_TOO_LARGE and skips the CSS checks", () => {
     // Valid CSS wrapped in comment padding pushes the byte length over the
-    // cap — proving the finding comes from the size gate, not the grammar.
+    // cap, proving the finding comes from the size gate, not the grammar.
     // Fixture is generated here, never committed (no 64KiB files in git).
     const padding = `/* ${"x".repeat(THEME_CSS_MAX_BYTES)} */\n`;
     const dir = makeThemeDir({
@@ -294,7 +294,7 @@ describe("unknown variables", () => {
 
 describe("drop-report.json", () => {
   it("is a warning when missing, and does not fail the lint by itself", () => {
-    // DESIGN.md included so GUIDANCE_MISSING doesn't also land in warnings —
+    // DESIGN.md included so GUIDANCE_MISSING doesn't also land in warnings;
     // this fixture isolates the drop-report behaviour specifically.
     const dir = makeThemeDir({
       "weave-theme.css": buildThemeCss(),
@@ -317,7 +317,7 @@ describe("drop-report.json", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("malformed JSON (not schema-invalid — unparseable) is DROP_REPORT_INVALID", () => {
+  it("malformed JSON (not schema-invalid, unparseable) is DROP_REPORT_INVALID", () => {
     const dir = makeThemeDir({
       "weave-theme.css": buildThemeCss(),
       "drop-report.json": '{ "version": 1, "brand": "test",', // truncated mid-object

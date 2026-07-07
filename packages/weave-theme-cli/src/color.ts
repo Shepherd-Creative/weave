@@ -3,8 +3,8 @@
  *
  * Deliberately narrow: this package only needs to understand the colour
  * syntaxes a hand-authored Weave theme is likely to use (hex, `rgb()`,
- * `rgba()`). Anything else — `clamp()`, `color-mix()`, `oklch()`, named
- * keywords, gradients — is out of scope by design and `parseColor` returns
+ * `rgba()`). Anything else (`clamp()`, `color-mix()`, `oklch()`, named
+ * keywords, gradients) is out of scope by design and `parseColor` returns
  * `null` for it. Callers (contrast.ts) treat a `null` parse as "unparseable"
  * and record a skip rather than fail the lint.
  */
@@ -89,7 +89,7 @@ const RGB_FN_RE = /^rgba?\(\s*(.+?)\s*\)$/i;
  * Supported: `#rgb #rgba #rrggbb #rrggbbaa`, `rgb(r g b / a)`, `rgb(r,g,b)`,
  * `rgba(r,g,b,a)`, with r/g/b as plain numbers or percentages. Anything else
  * (`clamp()`, `color-mix()`, `oklch()`, named keywords, gradients, `var()`)
- * returns `null` — `var()` resolution is handled one level up, in contrast.ts.
+ * returns `null`; `var()` resolution is handled one level up, in contrast.ts.
  */
 export function parseColor(input: string): RGBA | null {
   const value = input.trim();
@@ -102,8 +102,8 @@ export function parseColor(input: string): RGBA | null {
 
 /**
  * Composites `fg` (with its own alpha) over an opaque `base`, channel by
- * channel: `out = fg*a + base*(1-a)`. `base`'s own alpha (if any) is ignored
- * — it is treated as the opaque backdrop, matching the CSS custom-property
+ * channel: `out = fg*a + base*(1-a)`. `base`'s own alpha (if any) is ignored;
+ * it is treated as the opaque backdrop, matching the CSS custom-property
  * pairs this tool checks (a themed background colour IS the base, not a
  * layer over something else).
  */

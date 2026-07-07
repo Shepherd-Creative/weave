@@ -34,15 +34,15 @@ function usage(): string {
     "  --config <path>      Claude Desktop config path",
     "                       (default: ~/Library/Application Support/Claude/claude_desktop_config.json)",
     "  --server <name>      mcpServers entry name to edit (default: weave)",
-    "  --force               Proceed even if the theme fails lint",
-    "  --default              Restore the packaged default theme (removes",
-    "                          WEAVE_THEME_CSS_PATH / WEAVE_DESIGN_GUIDANCE_PATH)",
+    "  --force              Proceed even if the theme fails lint",
+    "  --default            Restore the packaged default theme (removes",
+    "                       WEAVE_THEME_CSS_PATH / WEAVE_DESIGN_GUIDANCE_PATH)",
   ].join("\n");
 }
 
 // Exact text required by the design: printed as the last line on every
 // successful write, since a stdio MCP server only reads its config at
-// launch — nothing short of a restart makes a `use` call take effect.
+// launch; nothing short of a restart makes a `use` call take effect.
 const RESTART_REMINDER = "Restart Claude Desktop to apply (the config is read at launch only).";
 
 /** A path with a slash is used as-is; a bare name is looked up in the themes dir. */
@@ -128,7 +128,7 @@ export function runUse(args: string[]): number {
     : defaultDesktopConfigPath();
 
   // Resolve + lint BEFORE ever touching the config file: a refused switch
-  // (lint errors, no --force) must leave the config completely untouched —
+  // (lint errors, no --force) must leave the config completely untouched:
   // not read, not backed up, not written. This block also owns all the
   // <name|path>/--default usage validation.
   let themeDir: string | undefined;
@@ -171,7 +171,7 @@ export function runUse(args: string[]): number {
       );
       for (const e of lintResult.errors) process.stdout.write(`  [${e.code}] ${e.message}\n`);
       if (!force) {
-        process.stdout.write("\nRefusing to switch — fix the theme, or re-run with --force.\n");
+        process.stdout.write("\nRefusing to switch: fix the theme, or re-run with --force.\n");
         return 1;
       }
       process.stdout.write("\n--force: proceeding despite the errors above.\n");
@@ -190,8 +190,8 @@ export function runUse(args: string[]): number {
     const backupPath = writeConfig(configPath, config);
     process.stdout.write(
       removed
-        ? `Removed WEAVE_THEME_CSS_PATH / WEAVE_DESIGN_GUIDANCE_PATH from "${located.name}" — default theme restored.\n`
-        : `"${located.name}" had no theme configured — already on the default theme.\n`,
+        ? `Removed WEAVE_THEME_CSS_PATH / WEAVE_DESIGN_GUIDANCE_PATH from "${located.name}"; default theme restored.\n`
+        : `"${located.name}" had no theme configured; already on the default theme.\n`,
     );
     process.stdout.write(`Backup: ${backupPath}\n`);
     process.stdout.write(`${RESTART_REMINDER}\n`);
@@ -202,7 +202,7 @@ export function runUse(args: string[]): number {
     // Unreachable: the !useDefault branch above always sets themeDir before
     // falling through (every early-return path takes place inside it). A
     // runtime guard here is honest about that instead of an `as string` cast.
-    throw new Error("weave-theme use: internal error — themeDir unset for a non-default run");
+    throw new Error("weave-theme use: internal error: themeDir unset for a non-default run");
   }
 
   const themeCssPath = resolve(join(themeDir, "weave-theme.css"));
@@ -220,7 +220,7 @@ export function runUse(args: string[]): number {
     process.stdout.write(`Set WEAVE_DESIGN_GUIDANCE_PATH -> ${change.guidancePath}\n`);
   } else {
     process.stdout.write(
-      `No DESIGN.md in ${themeDir} — WEAVE_DESIGN_GUIDANCE_PATH not set${
+      `No DESIGN.md in ${themeDir}; WEAVE_DESIGN_GUIDANCE_PATH not set${
         change.guidanceRemoved ? " (previous value removed)" : ""
       }.\n`,
     );
