@@ -33,7 +33,9 @@ export function formatHuman(result: LintResult): string {
 
   if (result.contrast.skipped.length > 0) {
     lines.push("");
-    lines.push("Contrast checks skipped (unparseable value):");
+    // Neutral header: each entry's reason carries the specifics (unparseable
+    // value, unset variable, var() depth cap, translucent background, ...).
+    lines.push("Contrast checks skipped:");
     for (const s of result.contrast.skipped) {
       lines.push(`  - ${s.fg} on ${s.bg}: ${s.reason}`);
     }
@@ -48,12 +50,14 @@ export function formatHuman(result: LintResult): string {
 
 /**
  * Stable JSON shape for `--json` mode. This is a contract other tooling
- * (the future `weave-theme use` command, CI) depends on — do not rename
- * fields without checking downstream consumers.
+ * (the future `weave-theme use` command, CI) depends on — additive changes
+ * only; bump `version` on any breaking reshape so consumers can branch.
  */
 export function formatJson(result: LintResult): string {
   return JSON.stringify({
+    version: 1,
     ok: result.ok,
+    dir: result.dir,
     errors: result.errors,
     warnings: result.warnings,
     coverage: result.coverage,

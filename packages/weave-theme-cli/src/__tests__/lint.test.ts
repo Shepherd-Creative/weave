@@ -195,6 +195,25 @@ describe("coverage", () => {
     expect(typography?.set).toBe(0);
     expect(result.errors.some((e) => e.message.startsWith("typography:"))).toBe(false);
   });
+
+  it("every derived bucket is a known bucket, reported in the canonical order", () => {
+    // Pins coverage.ts's BUCKET_ORDER to the buckets tokens.json actually
+    // derives: if the manifest grows a category this tool doesn't know, the
+    // new bucket would sort last (bucketRank fallback) and this exact-order
+    // assertion fails, forcing BUCKET_ORDER (and the enforcement policy) to
+    // be revisited deliberately.
+    const dir = makeThemeDir({ "weave-theme.css": buildThemeCss() });
+    const result = lintThemeDir(dir);
+    expect(result.coverage.map((b) => b.name)).toEqual([
+      "structural",
+      "tone",
+      "palette",
+      "chart-treatment",
+      "typography",
+      "spacing",
+      "surface",
+    ]);
+  });
 });
 
 describe("contrast", () => {
@@ -205,11 +224,19 @@ describe("contrast", () => {
     const result = lintThemeDir(dir);
     const finding = result.errors.find((e) => e.code === "CONTRAST_FAIL");
     expect(finding).toBeDefined();
-    expect(finding?.context).toMatchObject({ fg: "--foreground", bg: "--background" });
+    expect(finding?.context).toMatchObject({
+      fg: "--foreground",
+      bg: "--background",
+      fgValue: "#111111",
+      bgValue: "#111111",
+    });
+    expect(finding?.message).toContain("(#111111)");
     const entry = result.contrast.checked.find(
       (c) => c.fg === "--foreground" && c.bg === "--background",
     );
     expect(entry?.ratio).toBeCloseTo(1, 5);
+    expect(entry?.fgValue).toBe("#111111");
+    expect(entry?.bgValue).toBe("#111111");
   });
 
   it("rgba() values pass grammar and are checked; clamp() passes grammar but lands in contrast skipped", () => {

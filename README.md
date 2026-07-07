@@ -15,6 +15,7 @@ Weave is a small React component library plus a companion MCP server. An LLM emi
 | [`@shepherd-creative/weave-skill`](packages/weave-skill) | `SKILL.md` teaching an LLM how to compose primitives |
 | [`@shepherd-creative/weave-tokens`](packages/weave-tokens) | Default CSS variables (opt-in) + the machine-readable token contract (`tokens.json`) + theme-CSS validator (`./validate`) |
 | [`@shepherd-creative/weave-mcp-app`](packages/weave-mcp-app) | MCP App rendering dashboards inline in Claude Desktop, with host-configured brand theming (private, unpublished) |
+| [`@shepherd-creative/weave-theme-cli`](packages/weave-theme-cli) | `weave-theme` CLI — authoring-time lint gate for theme directories (coverage, contrast, drop-report schema) |
 
 ## Future directions
 

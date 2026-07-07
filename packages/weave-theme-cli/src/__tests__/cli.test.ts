@@ -66,13 +66,23 @@ describe.skipIf(!hasDist)(
       const result = runCli(["lint", join(THEMES_DIR, "corporate-light"), "--json"]);
       expect(result.status).toBe(0);
       const parsed = JSON.parse(result.stdout);
-      expect(parsed).toMatchObject({ ok: true });
+      expect(parsed).toMatchObject({ version: 1, ok: true });
+      expect(parsed.dir).toContain("corporate-light");
       expect(parsed).toHaveProperty("errors");
       expect(parsed).toHaveProperty("warnings");
       expect(parsed).toHaveProperty("coverage");
       expect(parsed).toHaveProperty("contrast.checked");
       expect(parsed).toHaveProperty("contrast.skipped");
       expect(parsed).toHaveProperty("dropReport.present");
+    });
+
+    it("--help, -h and `help` print usage on stdout and exit 0", () => {
+      for (const arg of ["--help", "-h", "help"]) {
+        const result = runCli([arg]);
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain("Usage: weave-theme");
+        expect(result.stderr).toBe("");
+      }
     });
 
     it("--allow-partial and --require-drop-report are forwarded to the linter", () => {

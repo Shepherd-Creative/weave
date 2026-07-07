@@ -19,7 +19,9 @@
     "weave-theme": "./dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
   ],
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",

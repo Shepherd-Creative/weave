@@ -167,7 +167,7 @@ describe("runContrastChecks", () => {
     expect(skipped).toEqual([]);
   });
 
-  it("flags an ERROR below the 3.0 text-pair floor", () => {
+  it("flags an ERROR below the 3.0 text-pair floor, carrying the resolved values", () => {
     const theme = new Map([
       ["--background", "#111111"],
       ["--foreground", "#111111"],
@@ -176,9 +176,28 @@ describe("runContrastChecks", () => {
     const finding = findings.find((f) => f.code === "CONTRAST_FAIL");
     expect(finding).toBeDefined();
     expect(finding?.severity).toBe("error");
+    expect(finding?.context).toMatchObject({ fgValue: "#111111", bgValue: "#111111" });
+    expect(finding?.message).toContain("--foreground (#111111) on --background (#111111)");
     const entry = checked.find((c) => c.fg === "--foreground" && c.bg === "--background");
     expect(entry?.ratio).toBeCloseTo(1, 5);
     expect(entry?.status).toBe("error");
+    expect(entry?.fgValue).toBe("#111111");
+    expect(entry?.bgValue).toBe("#111111");
+  });
+
+  it("skips a pair whose background is translucent, with no CONTRAST_* finding", () => {
+    const theme = new Map([
+      ["--card", "rgba(255, 255, 255, 0.8)"],
+      ["--card-foreground", "#111111"],
+    ]);
+    const { findings, checked, skipped } = runContrastChecks(theme, defaults);
+    const entry = skipped.find((s) => s.bg === "--card" && s.fg === "--card-foreground");
+    expect(entry).toBeDefined();
+    expect(entry?.reason).toContain("translucent background");
+    expect(checked.some((c) => c.bg === "--card" && c.fg === "--card-foreground")).toBe(false);
+    // Every checked pair involving the translucent --card is skipped, and
+    // nothing else in this minimal theme can produce a finding.
+    expect(findings).toEqual([]);
   });
 
   it("records unparseable values in skipped, not as an error", () => {

@@ -8,7 +8,16 @@ import type { Finding, LintCode } from "./types.js";
 export type ContrastCheckEntry = {
   fg: string;
   bg: string;
+  /** The resolved colour value the foreground side was compared as (e.g. "#ede3cc"). */
+  fgValue: string;
+  /** The resolved colour value the background side was compared as. */
+  bgValue: string;
   ratio: number;
+  /**
+   * The threshold the ratio was judged against for the reported `status`:
+   * the pair's error floor when status is "error", otherwise the pair's
+   * warning target (which an "ok" entry met and a "warning" entry missed).
+   */
   threshold: number;
   status: "ok" | "warning" | "error";
 };
@@ -112,7 +121,17 @@ export function loadDefaultVarMap(): Map<string, string> {
   // through the identical validator both sanitises it and gives us the
   // exact `--name: value;` text parseVarMap already knows how to read.
   const result = validateThemeCss(source, knownVarsFromManifest());
-  cachedDefaults = result.ok ? parseVarMap(result.css) : new Map();
+  if (!result.ok) {
+    // Invariant violation, not a user error: the package's own shipped
+    // default stylesheet must always pass its own validator. Failing loud
+    // (cli.ts's top-level catch maps this to exit 2) beats silently linting
+    // against an empty defaults map, which would quietly skip every
+    // half-themed contrast pair.
+    throw new Error(
+      `weave-theme-cli: shipped tokens.css failed validation — ${result.errors.join("; ")}`,
+    );
+  }
+  cachedDefaults = parseVarMap(result.css);
   return cachedDefaults;
 }
 
@@ -136,12 +155,21 @@ const TEXT_PAIR_NAMES: ReadonlyArray<readonly [bg: string, fg: string]> = [
 
 const TONE_NAMES = ["--tone-positive", "--tone-negative", "--tone-warning", "--tone-info"];
 
+// Thresholds, named for what they mean rather than repeated as bare numbers.
+// Text pairs get both a hard floor (error) and a WCAG AA target (warning);
+// non-text roles (muted text, tone accents) get the 3:1 large-text/graphics
+// target as a warning only; chart series just need to be visibly present.
+const TEXT_CONTRAST_FLOOR = 3.0;
+const TEXT_CONTRAST_TARGET = 4.5;
+const NON_TEXT_TARGET = 3.0;
+const CHART_VISIBILITY_FLOOR = 1.5;
+
 function buildPairs(): PairSpec[] {
   const textPairs: PairSpec[] = TEXT_PAIR_NAMES.map(([bg, fg]) => ({
     bg,
     fg,
-    errorThreshold: 3.0,
-    warnThreshold: 4.5,
+    errorThreshold: TEXT_CONTRAST_FLOOR,
+    warnThreshold: TEXT_CONTRAST_TARGET,
     errorCode: "CONTRAST_FAIL",
     warnCode: "CONTRAST_LOW",
   }));
@@ -149,7 +177,7 @@ function buildPairs(): PairSpec[] {
   const mutedPairs: PairSpec[] = ["--background", "--card"].map((bg) => ({
     bg,
     fg: "--muted-foreground",
-    warnThreshold: 3.0,
+    warnThreshold: NON_TEXT_TARGET,
     warnCode: "CONTRAST_LOW",
   }));
 
@@ -157,7 +185,7 @@ function buildPairs(): PairSpec[] {
     ["--background", "--card"].map((bg) => ({
       bg,
       fg,
-      warnThreshold: 3.0,
+      warnThreshold: NON_TEXT_TARGET,
       warnCode: "CONTRAST_LOW" as const,
     })),
   );
@@ -171,7 +199,7 @@ function buildPairs(): PairSpec[] {
   const chartPairs: PairSpec[] = ["--chart-1", "--chart-2"].map((fg) => ({
     bg: "--card",
     fg,
-    warnThreshold: 1.5,
+    warnThreshold: CHART_VISIBILITY_FLOOR,
     warnCode: "CHART_INVISIBLE",
   }));
 
@@ -226,9 +254,27 @@ export function runContrastChecks(
       continue;
     }
 
+    // A translucent background has no single effective colour — what the
+    // reader actually sees depends on whatever surface sits beneath it,
+    // which this tool cannot know. compositeOver's opaque-base assumption
+    // only holds for genuinely opaque backgrounds, so computing a ratio
+    // here would report a number that may be badly wrong in situ. Skip,
+    // with the reason on record.
+    if (bgColor.a < 1) {
+      skipped.push({
+        fg: pair.fg,
+        bg: pair.bg,
+        reason: `${pair.bg}: translucent background — effective colour depends on the surface beneath`,
+      });
+      continue;
+    }
+
+    const fgValue = fgRes.kind === "value" ? fgRes.value : "";
+    const bgValue = bgRes.kind === "value" ? bgRes.value : "";
     const base = { r: bgColor.r, g: bgColor.g, b: bgColor.b };
     const compositedFg = compositeOver(fgColor, base);
     const ratio = contrastRatio(compositedFg, base);
+    const pairLabel = `${pair.fg} (${fgValue}) on ${pair.bg} (${bgValue})`;
 
     let status: "ok" | "warning" | "error" = "ok";
     let threshold = pair.warnThreshold;
@@ -238,19 +284,19 @@ export function runContrastChecks(
       findings.push({
         severity: "error",
         code: pair.errorCode ?? "CONTRAST_FAIL",
-        message: `${pair.fg} on ${pair.bg}: contrast ${ratio.toFixed(2)}:1 is below the ${pair.errorThreshold}:1 floor`,
-        context: { fg: pair.fg, bg: pair.bg, ratio },
+        message: `${pairLabel}: contrast ${ratio.toFixed(2)}:1 is below the ${pair.errorThreshold}:1 floor`,
+        context: { fg: pair.fg, bg: pair.bg, fgValue, bgValue, ratio },
       });
     } else if (ratio < pair.warnThreshold) {
       status = "warning";
       findings.push({
         severity: "warning",
         code: pair.warnCode,
-        message: `${pair.fg} on ${pair.bg}: contrast ${ratio.toFixed(2)}:1 is below the ${pair.warnThreshold}:1 target`,
-        context: { fg: pair.fg, bg: pair.bg, ratio },
+        message: `${pairLabel}: contrast ${ratio.toFixed(2)}:1 is below the ${pair.warnThreshold}:1 target`,
+        context: { fg: pair.fg, bg: pair.bg, fgValue, bgValue, ratio },
       });
     }
-    checked.push({ fg: pair.fg, bg: pair.bg, ratio, threshold, status });
+    checked.push({ fg: pair.fg, bg: pair.bg, fgValue, bgValue, ratio, threshold, status });
   }
 
   return { findings, checked, skipped };

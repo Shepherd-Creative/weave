@@ -86,6 +86,14 @@ function main(): number {
   switch (command) {
     case "lint":
       return runLint(rest);
+    // Asking for help is a successful interaction, not a usage error: usage
+    // goes to stdout with exit 0, unlike the unknown-command path below
+    // (stderr, exit 2).
+    case "help":
+    case "--help":
+    case "-h":
+      process.stdout.write(`${usage()}\n`);
+      return 0;
     default:
       process.stderr.write(
         `weave-theme: unknown command ${command ? `"${command}"` : "(none given)"}\n\n${usage()}\n`,

@@ -62,7 +62,7 @@ export function lintThemeDir(dir: string, options: LintOptions = {}): LintResult
   let coverage: CoverageBucket[] = [];
   let contrast: LintResult["contrast"] = { checked: [], skipped: [] };
 
-  // --- 1-4. weave-theme.css: presence, size cap, grammar/security, unknown vars ---
+  // --- weave-theme.css: presence, size cap, grammar/security, unknown vars ---
   const themeCssPath = join(dir, THEME_FILE);
   if (!existsSync(themeCssPath)) {
     errors.push({
@@ -92,7 +92,7 @@ export function lintThemeDir(dir: string, options: LintOptions = {}): LintResult
           errors.push({ severity: "error", code: "CSS_INVALID", message });
         }
       } else {
-        // 4. Zero-stripped: every silently-dropped variable becomes a hard
+        // Zero-stripped: every silently-dropped variable becomes a hard
         // error here, with a did-you-mean suggestion when one is close.
         for (const name of validation.stripped) {
           const suggestion = suggestNearest(name, known);
@@ -108,7 +108,7 @@ export function lintThemeDir(dir: string, options: LintOptions = {}): LintResult
 
         const applied = new Set(validation.applied);
 
-        // 5. Coverage
+        // Coverage
         coverage = computeCoverage(applied);
         for (const bucket of coverage) {
           if (!bucket.enforced) continue;
@@ -123,7 +123,7 @@ export function lintThemeDir(dir: string, options: LintOptions = {}): LintResult
           }
         }
 
-        // 6. Contrast
+        // Contrast
         const themeVarMap = parseVarMap(validation.css);
         const defaults = loadDefaultVarMap();
         const contrastResult = runContrastChecks(themeVarMap, defaults);
@@ -155,7 +155,7 @@ export function lintThemeDir(dir: string, options: LintOptions = {}): LintResult
     }
   }
 
-  // --- 7. drop-report.json: presence, schema ---
+  // --- drop-report.json: presence, schema ---
   const dropReportPath = join(dir, DROP_REPORT_FILE);
   const dropCheck = checkDropReport(dropReportPath);
   const dropReportPresent = dropCheck.status !== "missing";

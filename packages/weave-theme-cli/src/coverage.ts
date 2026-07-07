@@ -99,6 +99,16 @@ export function computeCoverage(applied: ReadonlySet<string>): CoverageBucket[] 
       enforced: ENFORCED_BUCKETS.has(name),
     });
   }
-  result.sort((a, b) => BUCKET_ORDER.indexOf(a.name) - BUCKET_ORDER.indexOf(b.name));
+  result.sort((a, b) => bucketRank(a.name) - bucketRank(b.name));
   return result;
+}
+
+/**
+ * Sort rank for a bucket, with unknown buckets (a future tokens.json
+ * category this list hasn't caught up with) sinking to the end of the table
+ * instead of indexOf's -1 floating them to the top.
+ */
+function bucketRank(name: string): number {
+  const index = BUCKET_ORDER.indexOf(name);
+  return index === -1 ? BUCKET_ORDER.length : index;
 }
