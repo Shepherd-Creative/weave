@@ -12,8 +12,14 @@
   "main": "./dist/server.js",
   "types": "./dist/server.d.ts",
   "exports": {
-    ".": { "types": "./dist/server.d.ts", "import": "./dist/server.js" },
-    "./tools": { "types": "./dist/tools.d.ts", "import": "./dist/tools.js" }
+    ".": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
+    "./tools": {
+      "types": "./dist/tools.d.ts",
+      "import": "./dist/tools.js"
+    }
   },
   "bin": {
     "weave-mcp-server": "./dist/server.js"
