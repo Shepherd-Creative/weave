@@ -5,7 +5,7 @@ import {
   SpecSchema,
   TableCardSchema,
 } from "@shepherd-creative/weave-primitives/schemas";
-import { z } from "zod";
+import type { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 
 /**
@@ -26,7 +26,7 @@ export const TOOLS: ToolDescriptor[] = [
   {
     name: "render_metric_band",
     description:
-      "Render a horizontal strip of 1–8 KPIs. Use for the top-of-dashboard \"at a glance\" row. Pass the KPI items; the tool returns a MetricBand spec.",
+      'Render a horizontal strip of 1–8 KPIs. Use for the top-of-dashboard "at a glance" row. Pass the KPI items; the tool returns a MetricBand spec.',
     inputSchema: MetricBandSchema.omit({ type: true }),
     specType: "MetricBand",
   },

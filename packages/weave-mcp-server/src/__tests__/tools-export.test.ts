@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TOOLS, TOOLS_BY_NAME, invokeTool } from "../tools.js";
+import { invokeTool, TOOLS, TOOLS_BY_NAME } from "../tools.js";
 
 describe("tools registry surface", () => {
   it("exposes exactly the five render tools", () => {
