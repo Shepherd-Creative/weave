@@ -11,9 +11,9 @@ function renderCell(cell: DataCell, key: number): React.JSX.Element {
           style={{
             color: toneToColorVar(cell.tone),
             textAlign: cell.align ?? "start",
-            padding: "0.5rem 0.75rem",
+            padding: "var(--weave-space-sm, 0.5rem) var(--weave-space-md, 0.75rem)",
             fontFamily: "var(--font-sans)",
-            fontSize: "0.875rem",
+            fontSize: "var(--weave-font-size-sm, 0.875rem)",
           }}
         >
           {cell.value}
@@ -27,10 +27,10 @@ function renderCell(cell: DataCell, key: number): React.JSX.Element {
           style={{
             color: toneToColorVar(cell.tone),
             textAlign: "end",
-            padding: "0.5rem 0.75rem",
+            padding: "var(--weave-space-sm, 0.5rem) var(--weave-space-md, 0.75rem)",
             fontVariantNumeric: "tabular-nums",
             fontFamily: "var(--font-display)",
-            fontSize: "0.875rem",
+            fontSize: "var(--weave-font-size-sm, 0.875rem)",
           }}
         >
           {formatNumber(cell.value, {
@@ -50,26 +50,26 @@ function renderCell(cell: DataCell, key: number): React.JSX.Element {
         <td
           key={key}
           style={{
-            padding: "0.5rem 0.75rem",
+            padding: "var(--weave-space-sm, 0.5rem) var(--weave-space-md, 0.75rem)",
             fontFamily: "var(--font-sans)",
-            fontSize: "0.75rem",
+            fontSize: "var(--weave-font-size-xs, 0.75rem)",
           }}
         >
           <span
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: "0.25rem",
-              padding: "0.125rem 0.5rem",
-              borderRadius: "var(--radius)",
+              gap: "var(--weave-space-2xs, 0.25rem)",
+              padding: "var(--weave-space-3xs, 0.125rem) var(--weave-space-sm, 0.5rem)",
+              borderRadius: "var(--weave-radius-md, var(--radius))",
               color: isSoft ? color : isOutline ? color : "var(--background)",
               backgroundColor: isSoft
                 ? toneToMutedBgVar(cell.tone)
                 : isOutline
                   ? "transparent"
                   : color,
-              border: isOutline ? `1px solid ${color}` : "none",
-              fontWeight: 500,
+              border: isOutline ? `var(--weave-card-border-width, 1px) solid ${color}` : "none",
+              fontWeight: "var(--weave-font-weight-medium, 500)",
             }}
           >
             {cell.value}
@@ -85,11 +85,11 @@ function renderCell(cell: DataCell, key: number): React.JSX.Element {
           style={{
             color: toneToColorVar(cell.tone),
             textAlign: "end",
-            padding: "0.5rem 0.75rem",
+            padding: "var(--weave-space-sm, 0.5rem) var(--weave-space-md, 0.75rem)",
             fontVariantNumeric: "tabular-nums",
             fontFamily: "var(--font-display)",
-            fontSize: "0.875rem",
-            fontWeight: 500,
+            fontSize: "var(--weave-font-size-sm, 0.875rem)",
+            fontWeight: "var(--weave-font-weight-medium, 500)",
           }}
         >
           {formatNumber(cell.value, { format: cell.format ?? "percent", showSign: true })}
@@ -104,9 +104,9 @@ function renderCell(cell: DataCell, key: number): React.JSX.Element {
           style={{
             color: "var(--muted-foreground)",
             textAlign: "center",
-            padding: "0.5rem 0.75rem",
+            padding: "var(--weave-space-sm, 0.5rem) var(--weave-space-md, 0.75rem)",
             fontFamily: "var(--font-mono)",
-            fontSize: "0.75rem",
+            fontSize: "var(--weave-font-size-xs, 0.75rem)",
           }}
           title={`Sparkline with ${cell.data.length} points — renders in B5`}
         >

@@ -18,7 +18,10 @@ export function Label(props: Omit<LabelSpec, "type">): React.JSX.Element {
         textTransform: roleStyle.textTransform,
         textAlign: align,
         width: align === "center" || align === "end" ? "100%" : undefined,
-        lineHeight: role === "display" ? 1.1 : 1.4,
+        lineHeight:
+          role === "display"
+            ? "var(--weave-line-height-tight, 1.1)"
+            : "var(--weave-line-height-normal, 1.4)",
       }}
     >
       {text}
