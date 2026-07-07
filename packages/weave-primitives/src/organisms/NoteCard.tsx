@@ -25,9 +25,11 @@ function renderInline(text: string): React.ReactNode[] {
           key={i}
           style={{
             fontFamily: "var(--font-mono)",
-            fontSize: "0.8125rem",
-            padding: "0.0625rem 0.25rem",
-            borderRadius: "3px",
+            fontSize: "var(--weave-font-size-code, 0.8125rem)",
+            // 0.0625rem (1px) inline-code hairline padding: intentionally not
+            // tokenised — a sub-pixel micro-pad, not a brand spacing scale.
+            padding: "0.0625rem var(--weave-space-2xs, 0.25rem)",
+            borderRadius: "var(--weave-radius-code, 3px)",
             backgroundColor: "var(--muted)",
           }}
         >
@@ -50,11 +52,12 @@ export function NoteCard(props: Omit<NoteCardSpec, "type">): React.JSX.Element {
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: "0.5rem",
+        gap: "var(--weave-space-sm, 0.5rem)",
         backgroundColor: tone === "default" ? "var(--card)" : toneToMutedBgVar(tone),
-        border: `1px solid ${tone === "default" ? "var(--border)" : toneToColorVar(tone)}`,
-        borderRadius: "var(--radius)",
-        padding: "1rem",
+        border: `var(--weave-card-border-width, 1px) solid ${tone === "default" ? "var(--border)" : toneToColorVar(tone)}`,
+        borderRadius: "var(--weave-radius-md, var(--radius))",
+        padding: "var(--weave-card-padding, 1rem)",
+        boxShadow: "var(--weave-card-shadow, none)",
       }}
     >
       {title || icon ? (
@@ -62,11 +65,11 @@ export function NoteCard(props: Omit<NoteCardSpec, "type">): React.JSX.Element {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "0.5rem",
+            gap: "var(--weave-space-sm, 0.5rem)",
             color: toneToColorVar(tone === "default" ? "default" : tone),
             fontFamily: "var(--font-sans)",
-            fontSize: "0.875rem",
-            fontWeight: 600,
+            fontSize: "var(--weave-font-size-sm, 0.875rem)",
+            fontWeight: "var(--weave-font-weight-semibold, 600)",
           }}
         >
           {icon ? <Icon name={icon} size="sm" tone={tone === "default" ? "default" : tone} /> : null}
@@ -81,12 +84,12 @@ export function NoteCard(props: Omit<NoteCardSpec, "type">): React.JSX.Element {
               ? "var(--card-foreground)"
               : toneToColorVar(tone === "muted" ? "muted" : tone),
           fontFamily: "var(--font-sans)",
-          fontSize: "0.875rem",
-          lineHeight: 1.55,
+          fontSize: "var(--weave-font-size-sm, 0.875rem)",
+          lineHeight: "var(--weave-line-height-relaxed, 1.55)",
         }}
       >
         {paragraphs.map((para, i) => (
-          <p key={i} style={{ margin: i === 0 ? 0 : "0.5rem 0 0" }}>
+          <p key={i} style={{ margin: i === 0 ? 0 : "var(--weave-space-sm, 0.5rem) 0 0" }}>
             {renderInline(para)}
           </p>
         ))}
