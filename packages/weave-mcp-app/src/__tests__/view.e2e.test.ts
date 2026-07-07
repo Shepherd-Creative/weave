@@ -1,8 +1,11 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { SpecSchema } from "@shepherd-creative/weave-primitives/schemas";
+import tokens from "@shepherd-creative/weave-tokens/tokens.json";
 import { type Browser, chromium, type Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { injectTheme, validateThemeCss } from "../theme.js";
 
 const HTML = path.resolve(__dirname, "../../dist/mcp-app.html");
 const rawSpec = readFileSync(path.resolve(__dirname, "fixtures/dashboard-spec.json"), "utf8");
@@ -98,5 +101,31 @@ describe("view renders a weave spec standalone", () => {
     expect(bg).toBe("#09090b");
 
     await page.close();
+  });
+
+  it("brand theme injected into the placeholder wins the cascade over base tokens", async () => {
+    const knownVars = new Set(tokens.variables.map((v) => v.name));
+    const brandCss = readFileSync(
+      path.resolve(__dirname, "fixtures/brand/weave-theme.css"),
+      "utf8",
+    );
+    const validated = validateThemeCss(brandCss, knownVars);
+    expect(validated.ok).toBe(true);
+
+    const themedHtml = injectTheme(readFileSync(HTML, "utf8"), validated.css);
+    const dir = mkdtempSync(path.join(tmpdir(), "weave-themed-view-"));
+    const themedPath = path.join(dir, "mcp-app.html");
+    writeFileSync(themedPath, themedHtml);
+
+    try {
+      const { page } = await openSpecPage(browser, themedPath, rawSpec);
+      // The injected :root wins over the base tokens.css default (#09090b),
+      // proving cascade order lets the brand theme override the base.
+      const bg = await computedRootVar(page, "--background");
+      expect(bg).toBe("#ffffff");
+      await page.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

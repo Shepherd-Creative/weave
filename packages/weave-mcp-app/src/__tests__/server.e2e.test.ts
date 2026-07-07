@@ -100,3 +100,43 @@ describe("weave-mcp-app stdio server", () => {
     expect(html).toContain('<style id="weave-brand-theme"></style>');
   });
 });
+
+describe("weave-mcp-app stdio server with host design sources", () => {
+  const themePath = path.resolve(__dirname, "fixtures/brand/weave-theme.css");
+  const guidancePath = path.resolve(__dirname, "fixtures/brand/DESIGN.md");
+  const { client, transport } = makeClient({
+    WEAVE_THEME_CSS_PATH: themePath,
+    WEAVE_DESIGN_GUIDANCE_PATH: guidancePath,
+  });
+  beforeAll(async () => {
+    await client.connect(transport);
+  }, 20_000);
+  afterAll(async () => {
+    await client.close();
+  });
+
+  it("injects the brand theme into the (now non-empty) placeholder", async () => {
+    const res = await client.readResource({ uri: "ui://weave/mcp-app.html" });
+    const html = (res.contents[0] as { text: string }).text;
+    // The empty placeholder must be gone, replaced by a populated <style> block.
+    expect(html).not.toContain('<style id="weave-brand-theme"></style>');
+    const block = html.slice(
+      html.indexOf('<style id="weave-brand-theme">'),
+      html.indexOf("</style>", html.indexOf('<style id="weave-brand-theme">')),
+    );
+    expect(block).toContain("--background: #ffffff");
+  });
+
+  it("appends the host guidance to the composition skill", async () => {
+    const result = await client.callTool({ name: "get_skill", arguments: {} });
+    const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
+    expect(text).toContain("## Brand composition guidance (host-configured)");
+    expect(text).toContain("Acme brand composition guidance");
+  });
+
+  it("hints on render tool descriptions to read the skill first", async () => {
+    const { tools } = await client.listTools();
+    const withHint = tools.filter((t) => (t.description ?? "").includes("call get_skill"));
+    expect(withHint.length).toBeGreaterThan(0);
+  });
+});
