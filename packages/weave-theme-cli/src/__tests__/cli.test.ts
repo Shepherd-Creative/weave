@@ -6,9 +6,11 @@ import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 
 // packages/weave-theme-cli/src/__tests__/cli.test.ts -> dist/cli.js is two
-// levels up, then into dist/. Requires a build (turbo's test task
-// dependsOn ^build, so `pnpm test` at the repo root always has it; running
-// this package's `vitest run` standalone before a build does not).
+// levels up, then into dist/. Requires a build: this package's own
+// turbo.json declares test dependsOn ["^build", "build"], so any turbo run
+// (root `pnpm test` included) builds this package's dist before its tests
+// run. Only a bare `vitest run` in this package with no prior build lacks
+// dist — hence the skipIf guard below rather than a hard failure.
 const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const CLI_PATH = join(PACKAGE_ROOT, "dist", "cli.js");
 const REPO_ROOT = fileURLToPath(new URL("../../../..", import.meta.url));
@@ -73,11 +75,12 @@ describe.skipIf(!hasDist)(
       expect(parsed).toHaveProperty("dropReport.present");
     });
 
-    it("--allow-partial and --require-drop-report reach the linter (empty theme dir)", () => {
-      // No fixture directory needed beyond an existing empty one: an empty
-      // dir has no weave-theme.css at all, so this exercises argument
-      // plumbing (flags parsed, forwarded) rather than the flags'
-      // downstream effect — see lint.test.ts for the effect itself.
+    it("--allow-partial and --require-drop-report are forwarded to the linter", () => {
+      // Flag-plumbing check against a real shipped theme: corporate-light
+      // has no drop-report.json, so DROP_REPORT_MISSING landing in errors
+      // (not warnings) proves --require-drop-report was parsed and
+      // forwarded. The flags' full downstream behaviour is covered in
+      // lint.test.ts; this only proves the CLI wiring.
       const result = runCli([
         "lint",
         join(THEMES_DIR, "corporate-light"),
