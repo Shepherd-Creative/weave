@@ -1,8 +1,8 @@
+import { Icon } from "../atoms/Icon.js";
 import type { KPISpec } from "../schemas/molecules.js";
 import { formatNumber } from "../utils/format.js";
 import { numberFontSize } from "../utils/style.js";
 import { toneToColorVar } from "../utils/theme.js";
-import { Icon } from "../atoms/Icon.js";
 
 export function KPI(props: Omit<KPISpec, "type">): React.JSX.Element {
   const {
@@ -26,8 +26,8 @@ export function KPI(props: Omit<KPISpec, "type">): React.JSX.Element {
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: "0.25rem",
-        padding: "0.5rem 0",
+        gap: "var(--weave-space-2xs, 0.25rem)",
+        padding: "var(--weave-space-sm, 0.5rem) 0",
         // Container-query root so `cqi`-based font sizes in Number / Label
         // resolve against this KPI's inline-size, not the viewport.
         containerType: "inline-size",
@@ -37,12 +37,12 @@ export function KPI(props: Omit<KPISpec, "type">): React.JSX.Element {
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "0.375rem",
+          gap: "var(--weave-space-xs, 0.375rem)",
           color: "var(--muted-foreground)",
           fontFamily: "var(--font-sans)",
-          fontSize: "0.75rem",
-          fontWeight: 500,
-          letterSpacing: "0.04em",
+          fontSize: "var(--weave-font-size-xs, 0.75rem)",
+          fontWeight: "var(--weave-font-weight-medium, 500)",
+          letterSpacing: "var(--weave-letter-spacing-wider, 0.04em)",
           textTransform: "uppercase",
         }}
       >
@@ -54,10 +54,10 @@ export function KPI(props: Omit<KPISpec, "type">): React.JSX.Element {
         style={{
           color: toneToColorVar(tone),
           fontSize: numberFontSize(size),
-          fontWeight: 700,
+          fontWeight: "var(--weave-font-weight-bold, 700)",
           fontVariantNumeric: "tabular-nums",
           fontFamily: "var(--font-display)",
-          lineHeight: 1.1,
+          lineHeight: "var(--weave-line-height-tight, 1.1)",
           // Safety net for narrow containers (e.g. MetricBand cell in a
           // side-panel card): clip instead of letting the value bleed into
           // adjacent cells. When this triggers, authors/LLMs should switch
@@ -76,11 +76,11 @@ export function KPI(props: Omit<KPISpec, "type">): React.JSX.Element {
           style={{
             display: "inline-flex",
             alignItems: "center",
-            gap: "0.25rem",
+            gap: "var(--weave-space-2xs, 0.25rem)",
             color: toneToColorVar(delta.tone ?? "muted"),
             fontFamily: "var(--font-sans)",
-            fontSize: "0.875rem",
-            fontWeight: 500,
+            fontSize: "var(--weave-font-size-sm, 0.875rem)",
+            fontWeight: "var(--weave-font-weight-medium, 500)",
             fontVariantNumeric: "tabular-nums",
           }}
         >
@@ -96,7 +96,7 @@ export function KPI(props: Omit<KPISpec, "type">): React.JSX.Element {
           style={{
             color: "var(--muted-foreground)",
             fontFamily: "var(--font-sans)",
-            fontSize: "0.75rem",
+            fontSize: "var(--weave-font-size-xs, 0.75rem)",
           }}
         >
           {caption}

@@ -1,0 +1,35 @@
+# MCP App + Design-Source Theming — Progress / Handoff
+
+**Branch:** `feat/mcp-app-design-source` (worktree `/Users/pierregallet/Documents/weave-wt/mcp-app-design-source`)
+**Plan:** `docs/superpowers/plans/2026-07-07-mcp-app-design-source.md` (on `main`)
+**Spec:** `docs/superpowers/specs/2026-07-06-mcp-app-design-source-design.md` (on `main`)
+**As of:** 2026-07-07 (session 2). **ALL 16 TASKS COMPLETE.** PR open: <https://github.com/Shepherd-Creative/weave/pull/3>. Tree clean, branch pushed. `pnpm build` 7/7, `pnpm typecheck` 11/11, `pnpm test` 12/12 (99 tests) green.
+
+## Done
+
+- **Stage 1 (MCP App), Tasks 1-5:** `packages/weave-mcp-app` scaffolded; stdio server registers the five `render_*` tools (from `@shepherd-creative/weave-mcp-server/tools` subpath export) + `get_skill` + the `ui://weave/mcp-app.html` View resource. Verification is autonomous: scripted stdio MCP client (`server.e2e.test.ts`) + Playwright render proof of the built View (`view.e2e.test.ts`). `render_dashboard`'s `tools/list` advertisement is an empty JSON schema at SDK 1.29.0 (documented, revisit at SDK PR #1689).
+- **Stage 2 (theme pipeline), Tasks 6-8:** `weave-tokens/tokens.json` manifest; `validateThemeCss` (restricted `:root` subset, rejects CSS ident-escapes, see [[css-denylist-ident-escape-bypass]]); `loadDesignSources(env)` with size caps and never-throw diagnostics; `injectTheme` into the `<style id="weave-brand-theme">` slot.
+- **Stage 3 (contract expansion), Tasks 9-12:** 50 `--weave-*` v2 vars; `style.ts` + all 13 primitives routed through `var(--weave-NAME, <old literal>)`; `no-orphan-literals.test.ts` scan (comments/var()/resolve-call spans stripped balanced-paren, allowlist: Grid `240px`, MetricBand `180px`, NoteCard `0.0625rem`; mutation-checked); brand fixture proves `--weave-card-padding: 2rem` → computed `32px` and `--weave-chart-grid: #ff0000` → grid stroke in the DOM.
+- **Stage 4 (Tasks 13-16):**
+  - Demo brands `examples/themes/{corporate-light,terminal-dense}/` (weave-theme.css + DESIGN.md), both validate with 0 stripped vars (`design-sources.test.ts` iterates the dir).
+  - `acceptance.e2e.test.ts`: same spec × {default, corporate-light, terminal-dense} → pairwise-different computed looks + screenshots in `dist/acceptance/` (screenshots wait 1.8s for the recharts line-draw animation, else the plot area is empty).
+  - Docs: `weave-mcp-app/README.md` (Desktop install + env vars + theme-authoring rules + diagnostics + **manual verification checklist for Pierre**), tokens README contract v2 table (`--weave-radius-sm`/`-lg` are defined-but-unconsumed, marked reserved), root README package row, HANDOFF.md phases 0-2 done, future-directions note status flipped to largely-implemented.
+  - Changeset `design-source-theming.md`: minor tokens + primitives, patch mcp-server. Lint: only pre-existing finding classes (verified same on `main`); the branch adds zero new errors.
+
+## Desktop verification (session 3, 2026-07-07)
+
+Step 1 (default theme) **passes** — metric band renders inline. Getting there found a Claude Desktop host bug: **Desktop strips `structuredContent` from `ui/notifications/tool-result`**, so a view reading only `result.structuredContent` (as all SDK examples do) collapses to an invisible zero-height widget. Filed as <https://github.com/modelcontextprotocol/ext-apps/issues/696>. Fixes on the branch: `b0c20e7` (outputSchema, spec-correct but insufficient), `328e5b6` (view status line + error surfacing + nonzero initial height), `0610e92` (spec on three channels: structuredContent, `_meta["weave/spec"]`, fenced json in content; + `app-mode.e2e.test.ts` emulating the MCP Apps postMessage host protocol, including a stripping host). 46 tests green.
+
+**Checklist COMPLETE (2026-07-07, session 3):** all four Desktop steps verified by Pierre — default theme renders inline; corporate-light applies (white/serif/navy) AND its composition brief changed the model's layout choice (re-composed as a two-KPI Stack per the brand's rules); terminal-dense applies (phosphor/mono/square); broken theme path falls back to default with the ENOENT diagnostic on stderr. Percent-fraction contract fix verified live (`3.4%` rendered, not `340%`) — `416f91f`. Desktop config restored to corporate-light.
+
+## Next (for whoever picks this up)
+
+1. **PR review + merge** of <https://github.com/Shepherd-Creative/weave/pull/3> (human gate; do not auto-merge).
+3. After merge: tear down the worktree **from the main clone** (`git -C ~/Documents/weave worktree remove ...` then branch delete), never from inside it.
+4. Future (unscheduled): format-adapter CLI (DESIGN.md/token-repo → weave-theme.css), runtime theme switching, MCP App phases 3-4 (spec inspector, fullscreen, recharts tree-shaking).
+
+## Notes that survive this session
+
+- Subagents misbehaved in session 1 (delegated instead of editing, spend limit); session 2 did everything inline in the main session — fine at this scale.
+- `pnpm format` reformats 10 files of pre-existing drift on `main` (schemas, mcp-server, `.claude/settings.json`) — do NOT commit those into a feature PR; revert and keep the diff focused.
+- Verify commands: `pnpm typecheck && pnpm test`; biome only on changed files.

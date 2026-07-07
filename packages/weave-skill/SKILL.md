@@ -121,7 +121,9 @@ Bad:
 
 Never use pie for >6 slices. Never use pie to compare magnitudes across categories — use bar.
 
-### 5.6 Deltas
+### 5.6 Deltas and percentages
+
+**Percent values are fractions of 1.** `format: "percent"` multiplies by 100 at render: `0.034` renders as `3.4%`, `0.142` as `14.2%`. Passing `3.4` for "3.4%" renders `340%` — the single most common composition mistake. This applies to every `value` paired with `format: "percent"`: KPI values, deltas, Stat deltas and DataRow delta cells.
 
 When you emit a delta:
 - Always set `showSign: true` in the format. `+12.3%`, `-4.1%`, never bare `12.3%`.

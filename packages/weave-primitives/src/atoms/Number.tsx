@@ -11,9 +11,12 @@ export function Number(props: Omit<NumberSpec, "type">): React.JSX.Element {
       style={{
         color: toneToColorVar(tone),
         fontSize: numberFontSize(size),
-        fontWeight: size === "xl" || size === "lg" ? 700 : 500,
+        fontWeight:
+          size === "xl" || size === "lg"
+            ? "var(--weave-font-weight-bold, 700)"
+            : "var(--weave-font-weight-medium, 500)",
         fontVariantNumeric: "tabular-nums",
-        lineHeight: 1.1,
+        lineHeight: "var(--weave-line-height-tight, 1.1)",
         fontFamily: "var(--font-display)",
       }}
     >

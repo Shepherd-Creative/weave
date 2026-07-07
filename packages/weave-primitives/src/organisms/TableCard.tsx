@@ -1,30 +1,40 @@
-import type { TableCardSpec } from "../schemas/organisms.js";
 import { DataRow } from "../molecules/DataRow.js";
+import type { TableCardSpec } from "../schemas/organisms.js";
 import { toneToColorVar } from "../utils/theme.js";
 
 export function TableCard(props: Omit<TableCardSpec, "type">): React.JSX.Element {
   const { title, caption, headers, rows, density = "comfortable" } = props;
-  const rowPadding = density === "compact" ? "0.375rem 0.75rem" : "0.5rem 0.75rem";
+  const rowPadding =
+    density === "compact"
+      ? "var(--weave-space-xs, 0.375rem) var(--weave-space-md, 0.75rem)"
+      : "var(--weave-space-sm, 0.5rem) var(--weave-space-md, 0.75rem)";
 
   return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: "0.5rem",
+        gap: "var(--weave-space-sm, 0.5rem)",
         backgroundColor: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius)",
-        padding: "1rem",
+        border: "var(--weave-card-border-width, 1px) solid var(--border)",
+        borderRadius: "var(--weave-radius-md, var(--radius))",
+        padding: "var(--weave-card-padding, 1rem)",
+        boxShadow: "var(--weave-card-shadow, none)",
       }}
     >
-      <header style={{ display: "flex", flexDirection: "column", gap: "0.125rem" }}>
+      <header
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--weave-space-3xs, 0.125rem)",
+        }}
+      >
         <div
           style={{
             color: "var(--card-foreground)",
             fontFamily: "var(--font-sans)",
-            fontSize: "0.875rem",
-            fontWeight: 600,
+            fontSize: "var(--weave-font-size-sm, 0.875rem)",
+            fontWeight: "var(--weave-font-weight-semibold, 600)",
           }}
         >
           {title}
@@ -34,7 +44,7 @@ export function TableCard(props: Omit<TableCardSpec, "type">): React.JSX.Element
             style={{
               color: "var(--muted-foreground)",
               fontFamily: "var(--font-sans)",
-              fontSize: "0.75rem",
+              fontSize: "var(--weave-font-size-xs, 0.75rem)",
             }}
           >
             {caption}
@@ -51,13 +61,13 @@ export function TableCard(props: Omit<TableCardSpec, "type">): React.JSX.Element
             width: "100%",
             borderCollapse: "collapse",
             fontFamily: "var(--font-sans)",
-            fontSize: "0.875rem",
+            fontSize: "var(--weave-font-size-sm, 0.875rem)",
           }}
         >
           <thead>
             <tr
               style={{
-                borderBottom: "1px solid var(--border)",
+                borderBottom: "var(--weave-card-border-width, 1px) solid var(--border)",
               }}
             >
               {headers.map((h, i) => (
@@ -68,9 +78,9 @@ export function TableCard(props: Omit<TableCardSpec, "type">): React.JSX.Element
                     color: toneToColorVar(h.tone ?? "muted"),
                     textAlign: h.align ?? "start",
                     padding: rowPadding,
-                    fontSize: "0.6875rem",
-                    fontWeight: 500,
-                    letterSpacing: "0.06em",
+                    fontSize: "var(--weave-font-size-overline, 0.6875rem)",
+                    fontWeight: "var(--weave-font-weight-medium, 500)",
+                    letterSpacing: "var(--weave-letter-spacing-widest, 0.06em)",
                     textTransform: "uppercase",
                   }}
                 >

@@ -19,7 +19,7 @@ import {
 import type { ChartSpec } from "../schemas/molecules.js";
 import type { Tone } from "../schemas/tokens.js";
 import { chartHeight } from "../utils/style.js";
-import { resolveCSSVar, resolveChartColor } from "../utils/theme.js";
+import { resolveChartColor, resolveCSSVar, resolveFirstVar } from "../utils/theme.js";
 
 const CATEGORY_KEY_CANDIDATES = [
   "name",
@@ -52,9 +52,7 @@ function detectValueKeys(
   if (data.length === 0) return [];
   const first = data[0];
   if (!first) return [];
-  return Object.keys(first).filter(
-    (k) => k !== categoryKey && typeof first[k] === "number",
-  );
+  return Object.keys(first).filter((k) => k !== categoryKey && typeof first[k] === "number");
 }
 
 function toneToColor(tone: Tone, index: number, fallback: string): string {
@@ -93,15 +91,20 @@ export function Chart(props: Omit<ChartSpec, "type">): React.JSX.Element {
     const valKeys = userValueKeys ?? detectValueKeys(data, catKey);
     const cs = valKeys.map((_, i) => {
       const tone = seriesTones?.[i];
-      return tone
-        ? toneToColor(tone, i, `#10b981`)
-        : resolveChartColor(i);
+      return tone ? toneToColor(tone, i, `#10b981`) : resolveChartColor(i);
     });
     return { categoryKey: catKey, valueKeys: valKeys, colors: cs };
   }, [userCategoryKey, userValueKeys, data, seriesTones]);
 
-  const gridColor = resolveCSSVar("--border", "#27272a");
-  const tickColor = resolveCSSVar("--muted-foreground", "#a1a1aa");
+  // Chart-treatment tokens (v2), each falling back to the base structural
+  // token then the hard-coded default, so default rendering is unchanged.
+  const gridColor = resolveFirstVar(["--weave-chart-grid", "--border"], "#27272a");
+  const axisColor = resolveFirstVar(["--weave-chart-axis", "--muted-foreground"], "#a1a1aa");
+  const labelColor = resolveFirstVar(["--weave-chart-label", "--muted-foreground"], "#a1a1aa");
+  const tooltipBg = resolveFirstVar(["--weave-chart-tooltip-bg", "--card"], "#18181b");
+  const tooltipFg = resolveFirstVar(["--weave-chart-tooltip-fg", "--card-foreground"], "#fafafa");
+  const gridDasharray = resolveFirstVar(["--weave-chart-grid-dasharray"], "3 3");
+  const seriesStrokeWidth = Number(resolveFirstVar(["--weave-chart-stroke-width"], "2")) || 2;
 
   const containerStyle = {
     width: "100%",
@@ -111,17 +114,17 @@ export function Chart(props: Omit<ChartSpec, "type">): React.JSX.Element {
   const wantLegend = showLegend ?? valueKeys.length > 1;
 
   const commonAxisProps = {
-    tick: { fill: tickColor, fontSize: 12 },
-    tickLine: { stroke: gridColor },
-    axisLine: { stroke: gridColor },
+    tick: { fill: labelColor, fontSize: 12 },
+    tickLine: { stroke: axisColor },
+    axisLine: { stroke: axisColor },
   } as const;
 
   const tooltipProps = {
     contentStyle: {
-      backgroundColor: resolveCSSVar("--card", "#18181b"),
-      border: `1px solid ${gridColor}`,
-      borderRadius: 6,
-      color: resolveCSSVar("--card-foreground", "#fafafa"),
+      backgroundColor: tooltipBg,
+      border: `var(--weave-card-border-width, 1px) solid ${gridColor}`,
+      borderRadius: "var(--weave-chart-tooltip-radius, 6px)",
+      color: tooltipFg,
       fontSize: 12,
     },
     cursor: { fill: resolveCSSVar("--muted", "#27272a"), opacity: 0.3 },
@@ -145,7 +148,11 @@ export function Chart(props: Omit<ChartSpec, "type">): React.JSX.Element {
               {data.map((_row, i) => (
                 <Cell
                   key={`cell-${i}`}
-                  fill={seriesTones?.[i] ? toneToColor(seriesTones[i] as Tone, i, "#10b981") : resolveChartColor(i)}
+                  fill={
+                    seriesTones?.[i]
+                      ? toneToColor(seriesTones[i] as Tone, i, "#10b981")
+                      : resolveChartColor(i)
+                  }
                 />
               ))}
             </Pie>
@@ -162,7 +169,7 @@ export function Chart(props: Omit<ChartSpec, "type">): React.JSX.Element {
       <div style={containerStyle}>
         <ResponsiveContainer>
           <BarChart data={data} layout="vertical">
-            {showGrid ? <CartesianGrid stroke={gridColor} strokeDasharray="3 3" /> : null}
+            {showGrid ? <CartesianGrid stroke={gridColor} strokeDasharray={gridDasharray} /> : null}
             <XAxis type="number" {...commonAxisProps} />
             <YAxis type="category" dataKey={categoryKey} width={96} {...commonAxisProps} />
             {showTooltip ? <Tooltip {...tooltipProps} /> : null}
@@ -181,7 +188,7 @@ export function Chart(props: Omit<ChartSpec, "type">): React.JSX.Element {
       <div style={containerStyle}>
         <ResponsiveContainer>
           <BarChart data={data}>
-            {showGrid ? <CartesianGrid stroke={gridColor} strokeDasharray="3 3" /> : null}
+            {showGrid ? <CartesianGrid stroke={gridColor} strokeDasharray={gridDasharray} /> : null}
             <XAxis dataKey={categoryKey} {...commonAxisProps} />
             <YAxis {...commonAxisProps} />
             {showTooltip ? <Tooltip {...tooltipProps} /> : null}
@@ -200,7 +207,7 @@ export function Chart(props: Omit<ChartSpec, "type">): React.JSX.Element {
       <div style={containerStyle}>
         <ResponsiveContainer>
           <AreaChart data={data}>
-            {showGrid ? <CartesianGrid stroke={gridColor} strokeDasharray="3 3" /> : null}
+            {showGrid ? <CartesianGrid stroke={gridColor} strokeDasharray={gridDasharray} /> : null}
             <XAxis dataKey={categoryKey} {...commonAxisProps} />
             <YAxis {...commonAxisProps} />
             {showTooltip ? <Tooltip {...tooltipProps} /> : null}
@@ -213,7 +220,7 @@ export function Chart(props: Omit<ChartSpec, "type">): React.JSX.Element {
                 stroke={colors[i]}
                 fill={colors[i]}
                 fillOpacity={0.22}
-                strokeWidth={2}
+                strokeWidth={seriesStrokeWidth}
               />
             ))}
           </AreaChart>
@@ -227,7 +234,7 @@ export function Chart(props: Omit<ChartSpec, "type">): React.JSX.Element {
     <div style={containerStyle}>
       <ResponsiveContainer>
         <LineChart data={data}>
-          {showGrid ? <CartesianGrid stroke={gridColor} strokeDasharray="3 3" /> : null}
+          {showGrid ? <CartesianGrid stroke={gridColor} strokeDasharray={gridDasharray} /> : null}
           <XAxis dataKey={categoryKey} {...commonAxisProps} />
           <YAxis {...commonAxisProps} />
           {showTooltip ? <Tooltip {...tooltipProps} /> : null}
@@ -238,7 +245,7 @@ export function Chart(props: Omit<ChartSpec, "type">): React.JSX.Element {
               type="monotone"
               dataKey={k}
               stroke={colors[i]}
-              strokeWidth={2}
+              strokeWidth={seriesStrokeWidth}
               dot={false}
             />
           ))}

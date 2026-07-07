@@ -1,6 +1,6 @@
+import { KPI } from "../molecules/KPI.js";
 import type { MetricBandSpec } from "../schemas/organisms.js";
 import { densityPadding } from "../utils/style.js";
-import { KPI } from "../molecules/KPI.js";
 
 export function MetricBand(props: Omit<MetricBandSpec, "type">): React.JSX.Element {
   const { items, density = "comfortable" } = props;
@@ -17,9 +17,10 @@ export function MetricBand(props: Omit<MetricBandSpec, "type">): React.JSX.Eleme
         gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))",
         gap: pad,
         backgroundColor: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius)",
+        border: "var(--weave-card-border-width, 1px) solid var(--border)",
+        borderRadius: "var(--weave-radius-md, var(--radius))",
         padding: pad,
+        boxShadow: "var(--weave-card-shadow, none)",
       }}
     >
       {items.map((item, i) => (
