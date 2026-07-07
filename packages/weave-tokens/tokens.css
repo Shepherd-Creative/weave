@@ -124,4 +124,5 @@
   --weave-chart-tooltip-fg: var(--card-foreground);
   --weave-chart-tooltip-radius: 6px;
   --weave-chart-grid-dasharray: 3 3;
+  --weave-chart-stroke-width: 2;
 }
