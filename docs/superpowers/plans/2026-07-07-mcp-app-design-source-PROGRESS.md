@@ -16,9 +16,13 @@
   - Docs: `weave-mcp-app/README.md` (Desktop install + env vars + theme-authoring rules + diagnostics + **manual verification checklist for Pierre**), tokens README contract v2 table (`--weave-radius-sm`/`-lg` are defined-but-unconsumed, marked reserved), root README package row, HANDOFF.md phases 0-2 done, future-directions note status flipped to largely-implemented.
   - Changeset `design-source-theming.md`: minor tokens + primitives, patch mcp-server. Lint: only pre-existing finding classes (verified same on `main`); the branch adds zero new errors.
 
+## Desktop verification (session 3, 2026-07-07)
+
+Step 1 (default theme) **passes** — metric band renders inline. Getting there found a Claude Desktop host bug: **Desktop strips `structuredContent` from `ui/notifications/tool-result`**, so a view reading only `result.structuredContent` (as all SDK examples do) collapses to an invisible zero-height widget. Filed as <https://github.com/modelcontextprotocol/ext-apps/issues/696>. Fixes on the branch: `b0c20e7` (outputSchema, spec-correct but insufficient), `328e5b6` (view status line + error surfacing + nonzero initial height), `0610e92` (spec on three channels: structuredContent, `_meta["weave/spec"]`, fenced json in content; + `app-mode.e2e.test.ts` emulating the MCP Apps postMessage host protocol, including a stripping host). 46 tests green.
+
 ## Next (for whoever picks this up)
 
-1. **Pierre: manual Claude Desktop verification** — checklist in `packages/weave-mcp-app/README.md`. Everything else is machine-verified.
+1. **Pierre: remaining Desktop checklist steps** — corporate-light env vars, terminal-dense flip, broken-path fallback (checklist in `packages/weave-mcp-app/README.md`, steps 2-4).
 2. **PR review + merge** of <https://github.com/Shepherd-Creative/weave/pull/3> (human gate; do not auto-merge).
 3. After merge: tear down the worktree **from the main clone** (`git -C ~/Documents/weave worktree remove ...` then branch delete), never from inside it.
 4. Future (unscheduled): format-adapter CLI (DESIGN.md/token-repo → weave-theme.css), runtime theme switching, MCP App phases 3-4 (spec inspector, fullscreen, recharts tree-shaking).
