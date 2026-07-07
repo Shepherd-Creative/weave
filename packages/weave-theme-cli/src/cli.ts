@@ -94,4 +94,16 @@ function main(): number {
   }
 }
 
-process.exit(main());
+// Top-level safety net: lintThemeDir only guards the failure modes it knows
+// about (missing/oversized files, invalid CSS, invalid JSON). An unexpected
+// filesystem error it doesn't anticipate — e.g. `weave-theme.css` existing
+// as a directory, or a permissions problem — would otherwise surface as a
+// raw Node stack trace and the process's default (non-2) crash exit code.
+// Converting that into the same "2 = usage/IO failure" contract every other
+// bad-input path already uses keeps the exit-code contract honest.
+try {
+  process.exit(main());
+} catch (err) {
+  process.stderr.write(`weave-theme: unexpected error: ${(err as Error).message}\n`);
+  process.exit(2);
+}
