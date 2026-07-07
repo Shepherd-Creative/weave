@@ -121,6 +121,37 @@ describe.skipIf(!hasDist)(
       const result = runCli(["lint", join(REPO_ROOT, "nonexistent-theme-dir-xyz")]);
       expect(result.status).toBe(2);
     });
+
+    it("list --json emits a parseable JSON array on stdout", () => {
+      // --config points at a path that's never written: proves list treats a
+      // missing config as a soft "no active theme" case rather than an
+      // error, and (just as importantly) never touches the real
+      // ~/Library/Application Support/Claude/claude_desktop_config.json.
+      const dir = mkdtempSync(join(tmpdir(), "weave-theme-cli-spawn-list-"));
+      fixtureDirs.push(dir);
+      const result = runCli([
+        "list",
+        "--themes-dir",
+        THEMES_DIR,
+        "--config",
+        join(dir, "claude_desktop_config.json"),
+        "--json",
+      ]);
+      expect(result.status).toBe(0);
+      const parsed = JSON.parse(result.stdout);
+      expect(Array.isArray(parsed)).toBe(true);
+      expect(parsed.map((e: { name: string }) => e.name)).toEqual(
+        expect.arrayContaining(["brand-iron", "corporate-light", "terminal-dense"]),
+      );
+      expect(parsed.every((e: { active: boolean }) => e.active === false)).toBe(true);
+    });
+
+    it("use without args exits 2 with usage text on stderr", () => {
+      const result = runCli(["use"]);
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain("Usage: weave-theme use");
+      expect(result.stdout).toBe("");
+    });
   },
 );
 

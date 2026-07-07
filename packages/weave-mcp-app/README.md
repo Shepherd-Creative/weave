@@ -42,7 +42,21 @@ Always point the config at the **pre-bundled** `dist/index.js`. Never point it a
 
 ## Brand theming (design sources)
 
-Two optional env vars, set in the config entry:
+Switch brand themes with the `weave-theme` CLI rather than hand-editing the config:
+
+```bash
+pnpm add -D @shepherd-creative/weave-theme-cli   # if not already installed
+weave-theme list                                  # what's shipped, coverage, what's active
+weave-theme use corporate-light                    # lints the theme, then edits the config
+# restart Claude Desktop — it reads the config at launch only
+weave-theme use --default                         # back to the packaged default theme
+```
+
+`use` refuses to switch to a theme that fails lint (pass `--force` to override) and backs up the config before every write. See [`weave-theme-cli`'s README](../weave-theme-cli/README.md#use) for the full flag reference, exit codes and backup behaviour. Two ready-made demo brands live in [`examples/themes/`](../../examples/themes): `corporate-light` and `terminal-dense`.
+
+### How it works (manual fallback)
+
+`weave-theme use` sets two optional env vars in the config entry — edit them by hand if the CLI isn't available (a checkout without `pnpm install`, a locked-down environment) or to understand the mechanism:
 
 ```json
 {
@@ -62,7 +76,7 @@ Two optional env vars, set in the config entry:
 - `WEAVE_THEME_CSS_PATH` — a brand stylesheet, validated then injected into the View so every rendered dashboard adopts the brand. Cap: 64 KiB.
 - `WEAVE_DESIGN_GUIDANCE_PATH` — a plain-text composition brief appended to the `get_skill` output, steering what the LLM composes (density, chart choice, tone). Cap: 16 KiB.
 
-Two ready-made demo brands live in [`examples/themes/`](../../examples/themes): `corporate-light` and `terminal-dense`.
+Either way, restart Claude Desktop afterwards — it reads the config at launch only.
 
 ### Theme-authoring rules
 
