@@ -49,8 +49,32 @@ if (devSpec) {
     status(`weave host error: ${err.message}`);
   };
   app.onteardown = async () => ({});
+  // The server ships the spec on three channels because hosts differ in what
+  // reaches the view (Claude Desktop strips structuredContent, observed
+  // 2026-07-07). Try each in order; the fenced json block in content is the
+  // last resort and matches the server's content format exactly.
+  type ToolResultLike = {
+    structuredContent?: { spec?: unknown };
+    _meta?: Record<string, unknown>;
+    content?: Array<{ type?: string; text?: string }>;
+  };
+  function specFromResult(result: ToolResultLike): unknown {
+    if (result.structuredContent?.spec) return result.structuredContent.spec;
+    if (result._meta?.["weave/spec"]) return result._meta["weave/spec"];
+    for (const block of result.content ?? []) {
+      if (block?.type !== "text" || typeof block.text !== "string") continue;
+      const fenced = block.text.match(/```json\s*\n([\s\S]*?)\n```/);
+      if (!fenced?.[1]) continue;
+      try {
+        return JSON.parse(fenced[1]);
+      } catch {
+        // fall through to the next block
+      }
+    }
+    return undefined;
+  }
   app.ontoolresult = (result) => {
-    const spec = (result.structuredContent as { spec?: unknown })?.spec;
+    const spec = specFromResult(result as ToolResultLike);
     if (spec) {
       try {
         renderSpec(spec);
@@ -58,7 +82,14 @@ if (devSpec) {
         status(`weave render failed: ${(err as Error).message}`);
       }
     } else {
-      status("weave: tool result received but no structuredContent.spec attached");
+      // Diagnostic dump: say what DID arrive so the widget itself tells us
+      // which channels the host stripped.
+      const r = result as ToolResultLike;
+      const shape = [
+        `keys: ${Object.keys(r).join(",") || "none"}`,
+        `content: ${(r.content ?? []).map((b) => b?.type).join(",") || "empty"}`,
+      ].join("; ");
+      status(`weave: tool result had no spec on any channel (${shape})`);
     }
   };
   // Handlers registered BEFORE connect — mandatory ordering.
