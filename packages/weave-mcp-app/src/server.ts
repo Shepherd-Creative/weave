@@ -101,6 +101,15 @@ export function createServer(opts?: CreateServerOptions): McpServer {
       async (args: Record<string, unknown>): Promise<CallToolResult> => {
         try {
           const spec = invokeTool(tool.name, args);
+          // The spec travels on THREE channels because hosts differ in what
+          // they forward to the app view (Claude Desktop was observed on
+          // 2026-07-07 stripping structuredContent from the tool-result
+          // notification). The view tries them in order:
+          //   1. structuredContent.spec  — the spec-compliant channel
+          //   2. _meta["weave/spec"]     — sidesteps structuredContent stripping
+          //   3. the fenced ```json block in content — parsed as last resort
+          // The content format is therefore LOAD-BEARING: keep the fenced
+          // json block intact if editing this.
           return {
             content: [
               {
@@ -109,6 +118,7 @@ export function createServer(opts?: CreateServerOptions): McpServer {
               },
             ],
             structuredContent: { spec },
+            _meta: { "weave/spec": spec },
           };
         } catch (err) {
           return {
