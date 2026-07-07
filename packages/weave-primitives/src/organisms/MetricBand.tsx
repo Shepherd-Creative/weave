@@ -1,6 +1,6 @@
+import { KPI } from "../molecules/KPI.js";
 import type { MetricBandSpec } from "../schemas/organisms.js";
 import { densityPadding } from "../utils/style.js";
-import { KPI } from "../molecules/KPI.js";
 
 export function MetricBand(props: Omit<MetricBandSpec, "type">): React.JSX.Element {
   const { items, density = "comfortable" } = props;

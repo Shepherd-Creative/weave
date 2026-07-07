@@ -1,8 +1,8 @@
+import { Icon } from "../atoms/Icon.js";
 import type { KPISpec } from "../schemas/molecules.js";
 import { formatNumber } from "../utils/format.js";
 import { numberFontSize } from "../utils/style.js";
 import { toneToColorVar } from "../utils/theme.js";
-import { Icon } from "../atoms/Icon.js";
 
 export function KPI(props: Omit<KPISpec, "type">): React.JSX.Element {
   const {

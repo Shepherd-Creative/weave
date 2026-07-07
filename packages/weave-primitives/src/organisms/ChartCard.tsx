@@ -1,6 +1,6 @@
-import type { ChartCardSpec } from "../schemas/organisms.js";
-import { Chart } from "../molecules/Chart.js";
 import { Label } from "../atoms/Label.js";
+import { Chart } from "../molecules/Chart.js";
+import type { ChartCardSpec } from "../schemas/organisms.js";
 import { NoteCard } from "./NoteCard.js";
 
 export function ChartCard(props: Omit<ChartCardSpec, "type">): React.JSX.Element {
@@ -20,7 +20,11 @@ export function ChartCard(props: Omit<ChartCardSpec, "type">): React.JSX.Element
       }}
     >
       <header
-        style={{ display: "flex", flexDirection: "column", gap: "var(--weave-space-3xs, 0.125rem)" }}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--weave-space-3xs, 0.125rem)",
+        }}
       >
         <div
           style={{

@@ -19,7 +19,7 @@ import {
 import type { ChartSpec } from "../schemas/molecules.js";
 import type { Tone } from "../schemas/tokens.js";
 import { chartHeight } from "../utils/style.js";
-import { resolveCSSVar, resolveChartColor, resolveFirstVar } from "../utils/theme.js";
+import { resolveChartColor, resolveCSSVar, resolveFirstVar } from "../utils/theme.js";
 
 const CATEGORY_KEY_CANDIDATES = [
   "name",
@@ -52,9 +52,7 @@ function detectValueKeys(
   if (data.length === 0) return [];
   const first = data[0];
   if (!first) return [];
-  return Object.keys(first).filter(
-    (k) => k !== categoryKey && typeof first[k] === "number",
-  );
+  return Object.keys(first).filter((k) => k !== categoryKey && typeof first[k] === "number");
 }
 
 function toneToColor(tone: Tone, index: number, fallback: string): string {
@@ -93,9 +91,7 @@ export function Chart(props: Omit<ChartSpec, "type">): React.JSX.Element {
     const valKeys = userValueKeys ?? detectValueKeys(data, catKey);
     const cs = valKeys.map((_, i) => {
       const tone = seriesTones?.[i];
-      return tone
-        ? toneToColor(tone, i, `#10b981`)
-        : resolveChartColor(i);
+      return tone ? toneToColor(tone, i, `#10b981`) : resolveChartColor(i);
     });
     return { categoryKey: catKey, valueKeys: valKeys, colors: cs };
   }, [userCategoryKey, userValueKeys, data, seriesTones]);
@@ -152,7 +148,11 @@ export function Chart(props: Omit<ChartSpec, "type">): React.JSX.Element {
               {data.map((_row, i) => (
                 <Cell
                   key={`cell-${i}`}
-                  fill={seriesTones?.[i] ? toneToColor(seriesTones[i] as Tone, i, "#10b981") : resolveChartColor(i)}
+                  fill={
+                    seriesTones?.[i]
+                      ? toneToColor(seriesTones[i] as Tone, i, "#10b981")
+                      : resolveChartColor(i)
+                  }
                 />
               ))}
             </Pie>
