@@ -27,8 +27,8 @@ describe("tokens.json manifest", () => {
     }
   });
 
-  it("has a stable envelope: version 1 and known categories only", () => {
-    expect(manifest.version).toBe(1);
+  it("stable envelope: manifest version and known categories", () => {
+    expect(manifest.version).toBe(3);
     for (const v of manifest.variables) {
       expect(KNOWN_CATEGORIES).toContain(v.category);
     }

@@ -14,7 +14,9 @@ Classics. Type does the work; when in doubt, leave it out.
 - Omit `icon` fields entirely. The system has no icon vocabulary;
   typography carries the meaning.
 - Uppercase belongs to the mono: head sections with `role: "overline"`
-  labels. Titles and body stay mixed case, sentence case, left-aligned.
+  labels — the theme's `--weave-font-overline` token routes the mono face
+  automatically, so composition only needs to reach for the role. Titles
+  and body stay mixed case, sentence case, left-aligned.
 - Captions are terse and editorial: clipped clauses, no exclamation, no
   filler ("Revenue holds; week 9 dip is the holiday shift.").
 - Differentiate with hierarchy (size, weight, spacing), not with colour.
