@@ -1,0 +1,93 @@
+/*
+ * brand-iron — Weave theme derived from the Iron Press design system
+ * (editorial brutalism: warm paper, warm ink, one saffron accent, hairlines,
+ * square corners, Fraunces + JetBrains Mono).
+ *
+ * This file is a MANUAL run of the future design-source adapter: each mapping
+ * below is a decision the adapter would have to make when translating a real
+ * brand's tokens onto the Weave contract. Judgement calls are marked.
+ *
+ * Known-lost signature: Iron Press's paper-grain texture (a body::before
+ * radial overlay in its tokens.css) cannot travel through the :root-only
+ * restricted subset validateThemeCss accepts. Recorded as an adapter learning
+ * in docs/future-directions/design-source-integration.md.
+ */
+:root {
+  /* Structural: paper and ink. Card shares the background surface — Iron
+     Press separates with hairlines, never with fills. */
+  --background: #ede3cc;
+  --foreground: #1c1611;
+  --card: #ede3cc;
+  --card-foreground: #1c1611;
+  --popover: #e5d9bb;
+  --popover-foreground: #1c1611;
+  --primary: #c8721e;
+  --primary-foreground: #ede3cc;
+  --secondary: #e5d9bb;
+  --secondary-foreground: #1c1611;
+  --muted: #e5d9bb;
+  --muted-foreground: #806e58;
+  --accent: rgba(200, 114, 30, 0.1);
+  --accent-foreground: #a85a12;
+  --destructive: #a85a12;
+  --destructive-foreground: #ede3cc;
+  --border: rgba(28, 22, 17, 0.42);
+  --input: rgba(28, 22, 17, 0.42);
+  --ring: #c8721e;
+  --radius: 0rem;
+
+  /* Tones — JUDGEMENT CALL. Iron Press has no semantic palette (one accent
+     only; differentiation through type and rules). Saffron is reserved for
+     what genuinely demands attention: negative and warning states. Positive
+     and info stay understated ink shades. */
+  --tone-positive: #4a3f32;
+  --tone-positive-muted: #e5d9bb;
+  --tone-negative: #a85a12;
+  --tone-negative-muted: rgba(200, 114, 30, 0.1);
+  --tone-warning: #c8721e;
+  --tone-warning-muted: rgba(200, 114, 30, 0.1);
+  --tone-info: #806e58;
+  --tone-info-muted: #e5d9bb;
+
+  /* Charts — JUDGEMENT CALL. A one-accent system has no 8-colour palette.
+     Series 1 is ink, series 2 is the saffron highlight, the rest walk down
+     the ink ramp into the paper tints. The DESIGN.md brief caps charts at
+     two series, so the tail rarely shows. */
+  --chart-1: #1c1611;
+  --chart-2: #c8721e;
+  --chart-3: #4a3f32;
+  --chart-4: #a85a12;
+  --chart-5: #806e58;
+  --chart-6: #a89478;
+  --chart-7: #dccfa8;
+  --chart-8: #e5d9bb;
+
+  /* Type. Fraunces is the body AND display face (the serif body IS the
+     brand); JetBrains Mono covers all mono/signage use. Neither is bundled
+     in the Weave view and url() font loading is (correctly) forbidden, so
+     the system-serif substitutes from Iron Press's own fallback rule
+     (Charter, Georgia) carry the look. */
+  --font-sans: "Fraunces", "Charter", "Georgia", "Times New Roman", serif;
+  --font-display: "Fraunces", "Charter", "Georgia", "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Consolas, "Courier New", monospace;
+  --weave-letter-spacing-overline: 0.12em;
+
+  /* Surfaces: hairlines structure the page. Square corners, no elevation. */
+  --weave-card-padding: 1.25rem;
+  --weave-card-border-width: 1px;
+  --weave-card-shadow: none;
+  --weave-radius-sm: 0rem;
+  --weave-radius-md: 0rem;
+  --weave-radius-lg: 0rem;
+  --weave-radius-code: 0rem;
+
+  /* Chart treatment: rule-faint grid, tertiary-ink labels, solid hairlines. */
+  --weave-chart-grid: rgba(28, 22, 17, 0.1);
+  --weave-chart-axis: #806e58;
+  --weave-chart-label: #806e58;
+  --weave-chart-tooltip-bg: #e5d9bb;
+  --weave-chart-tooltip-fg: #1c1611;
+  --weave-chart-tooltip-radius: 0px;
+  --weave-chart-grid-dasharray: 0;
+  --weave-chart-stroke-width: 1.5;
+}
