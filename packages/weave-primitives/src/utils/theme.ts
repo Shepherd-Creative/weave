@@ -77,3 +77,14 @@ export function resolveChartColor(i: number, fallback = "#10b981"): string {
   const n = (i % 8) + 1;
   return resolveCSSVar(`--chart-${n}`, fallback);
 }
+
+/** Resolve the first defined CSS variable in the list, else the fallback. SSR-safe. */
+export function resolveFirstVar(varNames: string[], fallback: string): string {
+  if (typeof window === "undefined") return fallback;
+  const rootStyle = getComputedStyle(document.documentElement);
+  for (const name of varNames) {
+    const v = rootStyle.getPropertyValue(name).trim();
+    if (v.length > 0) return v;
+  }
+  return fallback;
+}
