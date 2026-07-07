@@ -8,7 +8,7 @@ import {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
 import { invokeTool, TOOLS } from "@shepherd-creative/weave-mcp-server/tools";
-import type { z } from "zod";
+import { z } from "zod";
 import { injectTheme } from "./theme.js";
 
 // When esbuild bundles src/main.ts to dist/index.js, import.meta.filename ends
@@ -40,6 +40,22 @@ export type CreateServerOptions = {
 // configured, nudging the model to read it before composing.
 const GUIDANCE_TOOL_HINT =
   " Brand composition guidance is configured for this host; call get_skill before composing.";
+
+// Every render tool returns { spec } as structuredContent — the View renders
+// from it. Declaring an outputSchema is LOAD-BEARING for Claude Desktop: the
+// MCP spec couples structuredContent to outputSchema, and Desktop does not
+// forward structuredContent to the app view for tools that advertise none
+// (observed 2026-07-07: identical registration without outputSchema produced
+// an invisible zero-height widget; the working mermaid-app reference differs
+// only by declaring one). The full recursive spec union can't be expressed
+// here for the same lazy-union reason as render_dashboard's inputSchema, so
+// the schema is deliberately loose — the spec was already validated by
+// invokeTool before it is returned.
+// Raw shape (not z.object) — registerAppTool's outputSchema takes
+// ZodRawShapeCompat, mirroring its inputSchema parameter.
+const RENDER_OUTPUT_SHAPE = {
+  spec: z.record(z.unknown()).describe("Validated Weave dashboard spec (primitive tree)."),
+};
 
 export function createServer(opts?: CreateServerOptions): McpServer {
   const server = new McpServer({ name: "Weave", version: "0.1.0" });
@@ -79,6 +95,7 @@ export function createServer(opts?: CreateServerOptions): McpServer {
         title: tool.name,
         description,
         inputSchema: shape,
+        outputSchema: RENDER_OUTPUT_SHAPE,
         _meta: { ui: { resourceUri: RESOURCE_URI } },
       },
       async (args: Record<string, unknown>): Promise<CallToolResult> => {

@@ -46,6 +46,17 @@ describe("weave-mcp-app stdio server", () => {
     );
   });
 
+  it("every render tool advertises an outputSchema (Desktop gates structuredContent on it)", async () => {
+    // Claude Desktop only forwards structuredContent to the app view for tools
+    // that declare an outputSchema in tools/list. Without this, the View gets
+    // no spec and collapses to an invisible zero-height widget (2026-07-07).
+    const { tools } = await client.listTools();
+    for (const tool of tools.filter((t) => t.name.startsWith("render_"))) {
+      expect(tool.outputSchema, `${tool.name} missing outputSchema`).toBeDefined();
+      expect((tool.outputSchema as { properties?: object }).properties).toHaveProperty("spec");
+    }
+  });
+
   it("returns the validated spec as structuredContent", async () => {
     // MetricBandSchema.omit({type}) => { items: KPI[]; density? }.
     // Each KPI item requires type:"KPI", label:string, value:number (numeric).
