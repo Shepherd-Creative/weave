@@ -88,6 +88,30 @@ describe("view renders a weave spec standalone", () => {
       // proving cascade order lets the brand theme override the base.
       const bg = await computedRootVar(page, "--background");
       expect(bg).toBe("#ffffff");
+
+      // Contract-v2 variables reach the rendered DOM, not just :root — the
+      // brand's --weave-card-padding: 2rem lands as computed 32px padding on
+      // a card (located via its title so a layout reshuffle can't repoint it).
+      const cardPadding = await page
+        .getByText("Revenue by week", { exact: true })
+        .evaluate((title) => {
+          // title div → <header> → card root div (see ChartCard.tsx).
+          const card = title.parentElement?.parentElement;
+          return card ? getComputedStyle(card).padding : null;
+        });
+      expect(cardPadding).toBe("32px");
+
+      // Chart-treatment vars are resolved at render time by resolveFirstVar
+      // (recharts props can't carry var() references). Gate on the recharts
+      // surface: ResponsiveContainer paints on a later tick than `#root *`.
+      await page.waitForSelector("#root .recharts-surface", { timeout: 10_000 });
+      const gridStroke = await page.evaluate(
+        () =>
+          document.querySelector("#root .recharts-cartesian-grid line")?.getAttribute("stroke") ??
+          null,
+      );
+      expect(gridStroke).toBe("#ff0000");
+
       await page.close();
     } finally {
       rmSync(dir, { recursive: true, force: true });
