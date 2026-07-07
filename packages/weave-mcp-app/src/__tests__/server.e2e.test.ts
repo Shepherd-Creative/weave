@@ -46,6 +46,12 @@ describe("weave-mcp-app stdio server", () => {
     );
   });
 
+  it("percent-fraction hint reaches the advertised inputSchema (the model's only guidance without get_skill)", async () => {
+    const { tools } = await client.listTools();
+    const metricBand = tools.find((t) => t.name === "render_metric_band");
+    expect(JSON.stringify(metricBand?.inputSchema)).toContain("fraction of 1");
+  });
+
   it("every render tool advertises an outputSchema (Desktop gates structuredContent on it)", async () => {
     // Claude Desktop only forwards structuredContent to the app view for tools
     // that declare an outputSchema in tools/list. Without this, the View gets

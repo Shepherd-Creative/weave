@@ -12,16 +12,30 @@ import {
 
 const DeltaToneSchema = z.enum(["positive", "negative", "muted"]);
 
+// Percent formatting treats values as fractions of 1 (Intl semantics):
+// 0.142 renders as "14.2%". The .describe() strings are LOAD-BEARING — they
+// flow into the tools' JSON schemas, which is often the ONLY guidance an LLM
+// sees when composing a call (observed 2026-07-07: a model passing 3.4 for
+// 3.4% rendered "340%").
+const PERCENT_VALUE_HINT =
+  'With format "percent" this is a fraction of 1: 0.034 renders as "3.4%".';
+
 export const KpiDeltaSchema = z.object({
-  value: z.number(),
-  format: z.enum(["percent", "int", "decimal"]).optional(),
+  value: z.number().describe(PERCENT_VALUE_HINT),
+  format: z
+    .enum(["percent", "int", "decimal"])
+    .optional()
+    .describe('"percent" renders value×100 with a % sign — pass fractions (0.142 → "14.2%").'),
   tone: DeltaToneSchema.optional(),
   showSign: z.boolean().optional(),
 });
 
 export const StatDeltaSchema = z.object({
-  value: z.number(),
-  format: z.enum(["percent", "int"]).optional(),
+  value: z.number().describe(PERCENT_VALUE_HINT),
+  format: z
+    .enum(["percent", "int"])
+    .optional()
+    .describe('"percent" renders value×100 with a % sign — pass fractions (0.142 → "14.2%").'),
   tone: ToneSchema.optional(),
 });
 
@@ -40,7 +54,7 @@ export const KpiSparklineSchema = z.object({
 export const KPISchema = z.object({
   type: z.literal("KPI"),
   label: z.string(),
-  value: z.number(),
+  value: z.number().describe(PERCENT_VALUE_HINT),
   format: NumberFormatSchema.optional(),
   precision: z.number().int().min(0).max(10).optional(),
   currency: z.string().length(3).optional(),
@@ -92,8 +106,11 @@ export const DataCellSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("delta"),
-    value: z.number(),
-    format: z.enum(["percent", "int"]).optional(),
+    value: z.number().describe(PERCENT_VALUE_HINT),
+    format: z
+      .enum(["percent", "int"])
+      .optional()
+      .describe('"percent" renders value×100 with a % sign — pass fractions (0.142 → "14.2%").'),
     tone: ToneSchema.optional(),
   }),
   z.object({
