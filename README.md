@@ -33,4 +33,4 @@ pnpm --filter weave-mcp-server dev   # MCP server on :8787
 
 ## License
 
-UNLICENSED during B3–B5 private development. MIT expected at B6 (OSS release).
+MIT. See [LICENSE](LICENSE).

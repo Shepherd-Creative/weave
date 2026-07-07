@@ -2,7 +2,7 @@
   "name": "@shepherd-creative/weave-theme-cli",
   "version": "0.1.0",
   "description": "Deterministic authoring-time lint gate for Weave theme directories.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Shepherd-Creative/weave.git",

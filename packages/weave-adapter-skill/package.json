@@ -2,7 +2,7 @@
   "name": "@shepherd-creative/weave-adapter-skill",
   "version": "0.1.0",
   "description": "SKILL.md teaching an LLM to convert a brand's design source into a validated Weave theme, plus a loader utility.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Shepherd-Creative/weave.git",

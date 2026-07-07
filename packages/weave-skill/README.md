@@ -39,4 +39,4 @@ Design rationale lives in `NOTES.md` (shipped with the package but not shipped t
 
 ## License
 
-UNLICENSED during B3–B5 private development.
+MIT. See [LICENSE](../../LICENSE) at the repository root.
