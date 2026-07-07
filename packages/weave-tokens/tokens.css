@@ -57,4 +57,71 @@
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "Fira Code", Menlo, monospace;
   --font-display: var(--font-sans);
+
+  /*
+   * --- v2 contract additions ---
+   *
+   * Every default below is copied verbatim from a literal currently hard-coded
+   * in a `weave-primitives` component (see packages/weave-primitives/src/utils/style.ts
+   * and the 13 component files under atoms/molecules/organisms). Nothing here
+   * changes rendering yet — primitives still read their own literals until a
+   * later task wires them up to these variables. Defaults must stay byte-identical
+   * to the literals they mirror so that de-hardcoding is provably render-neutral.
+   */
+
+  /* --- Typography scale (v2) --- */
+  --weave-font-size-xs: 0.75rem;
+  --weave-font-size-sm: 0.875rem;
+  --weave-font-size-md: 1rem;
+  --weave-font-size-lg: 1.125rem;
+  --weave-font-size-xl: 1.25rem;
+  --weave-font-size-number-md: 1.5rem;
+  --weave-font-size-number-lg: 2.25rem;
+  --weave-font-size-number-xl: clamp(1.75rem, 8cqi, 3.25rem);
+  --weave-font-size-display: clamp(1.5rem, 6cqi, 2.5rem);
+  --weave-font-size-overline: 0.6875rem;
+  --weave-font-size-code: 0.8125rem;
+  --weave-font-weight-normal: 400;
+  --weave-font-weight-medium: 500;
+  --weave-font-weight-semibold: 600;
+  --weave-font-weight-bold: 700;
+  --weave-line-height-tight: 1.1;
+  --weave-line-height-snug: 1.2;
+  --weave-line-height-normal: 1.4;
+  --weave-line-height-relaxed: 1.55;
+  --weave-letter-spacing-tight: -0.025em;
+  --weave-letter-spacing-wide: 0.03em;
+  --weave-letter-spacing-wider: 0.04em;
+  --weave-letter-spacing-widest: 0.06em;
+  --weave-letter-spacing-overline: 0.08em;
+
+  /* --- Spacing and density (v2) --- */
+  --weave-space-3xs: 0.125rem;
+  --weave-space-2xs: 0.25rem;
+  --weave-space-xs: 0.375rem;
+  --weave-space-sm: 0.5rem;
+  --weave-space-md: 0.75rem;
+  --weave-space-lg: 1rem;
+  --weave-space-xl: 1.5rem;
+  --weave-card-padding: 1rem;
+  --weave-density-compact: 0.5rem;
+  --weave-density-comfortable: 1rem;
+  --weave-density-spacious: 1.5rem;
+
+  /* --- Surfaces (v2) --- */
+  --weave-card-border-width: 1px;
+  --weave-card-shadow: none;
+  --weave-radius-sm: calc(var(--radius) - 0.25rem);
+  --weave-radius-md: var(--radius);
+  --weave-radius-lg: calc(var(--radius) + 0.25rem);
+  --weave-radius-code: 3px;
+
+  /* --- Chart treatment (v2) --- */
+  --weave-chart-grid: var(--border);
+  --weave-chart-axis: var(--muted-foreground);
+  --weave-chart-label: var(--muted-foreground);
+  --weave-chart-tooltip-bg: var(--card);
+  --weave-chart-tooltip-fg: var(--card-foreground);
+  --weave-chart-tooltip-radius: 6px;
+  --weave-chart-grid-dasharray: 3 3;
 }

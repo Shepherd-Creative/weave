@@ -9,7 +9,7 @@ const raw = readFileSync(path.join(tokensDir, "tokens.css"), "utf8");
 const css = raw.replace(/\/\*[\s\S]*?\*\//g, "");
 const manifest = JSON.parse(readFileSync(path.join(tokensDir, "tokens.json"), "utf8"));
 
-const KNOWN_CATEGORIES = ["structural", "tone", "chart", "typography"];
+const KNOWN_CATEGORIES = ["structural", "tone", "chart", "typography", "spacing", "surface"];
 
 describe("tokens.json manifest", () => {
   it("matches tokens.css exactly", () => {
