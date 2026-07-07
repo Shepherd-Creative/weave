@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "brand": "Iron Press",
+  "sources": [
+    "Iron Press design system: tokens.css (warm paper/ink palette, one saffron accent, Fraunces + JetBrains Mono, a paper-grain body::before texture)",
+    "Iron Press brand rules (prose): editorial brutalism, type does the work, never pie, omit icons, one chart max"
+  ],
+  "dropped": [
+    {
+      "signal": "Paper-grain texture: a body::before radial overlay in Iron Press's tokens.css",
+      "reason": "The :root-only restricted subset validateThemeCss accepts carries no pseudo-element rules, so a body::before overlay cannot travel through it.",
+      "type": "non-token-signature"
+    }
+  ],
+  "judgementCalls": [
+    {
+      "id": "tone-derivation",
+      "decision": "Reserve saffron for attention states (--tone-negative, --tone-warning); carry positive and info on quiet ink shades.",
+      "rationale": "Iron Press has no semantic palette: one accent only, with differentiation through type and rules. A single saffron cannot mean both good and bad, so it goes to what genuinely demands attention while positive and info stay understated ink.",
+      "affectedTokens": [
+        "--tone-positive",
+        "--tone-positive-muted",
+        "--tone-negative",
+        "--tone-negative-muted",
+        "--tone-warning",
+        "--tone-warning-muted",
+        "--tone-info",
+        "--tone-info-muted"
+      ]
+    },
+    {
+      "id": "chart-ramp",
+      "decision": "Synthesise the eight-colour chart ramp as ink (series 1), saffron highlight (series 2), then a neutral walk down the ink-to-paper tints; cap charts at two series in the brief.",
+      "rationale": "A one-accent system has no eight-colour categorical palette. Walking the neutral ramp with the accent as the series-2 highlight keeps two series legible, and the DESIGN.md caps charts at two series so the fading tail rarely renders.",
+      "affectedTokens": [
+        "--chart-1",
+        "--chart-2",
+        "--chart-3",
+        "--chart-4",
+        "--chart-5",
+        "--chart-6",
+        "--chart-7",
+        "--chart-8"
+      ]
+    },
+    {
+      "id": "font-fallback-stacks",
+      "decision": "Emit Iron Press's documented fallback stacks (Charter/Georgia for the Fraunces serif role, SF Mono/Consolas for JetBrains Mono) rather than loading the brand web fonts.",
+      "rationale": "url() and @font-face are rejected by the validator, so brand faces render only if installed on the host; the documented fallbacks carry the look everywhere else. applyHostFonts via the MCP Apps host context is the eventual proper channel for the brand faces.",
+      "affectedTokens": ["--font-sans", "--font-display", "--font-mono"]
+    },
+    {
+      "id": "primary-foreground-contrast",
+      "decision": "Put ink text on the saffron --primary (--primary-foreground: #1c1611) instead of cream.",
+      "rationale": "Cream on saffron reads 2.8:1, below the 3:1 floor the theme lint enforces for text pairs. Iron Press differentiates with ink, so saffron surfaces carry ink text at 5.0:1. Mirrors the JUDGEMENT CALL comment in weave-theme.css.",
+      "affectedTokens": ["--primary-foreground"]
+    },
+    {
+      "id": "overline-mono",
+      "decision": "Route uppercase overlines and labels onto the mono face via --weave-font-overline.",
+      "rationale": "Iron Press's overlines run in JetBrains Mono, not the Fraunces serif; uppercase belongs to the mono. The v3 per-role routing token pulls labels and table headers onto the mono while titles and body stay serif.",
+      "affectedTokens": ["--weave-font-overline"]
+    },
+    {
+      "id": "numeric-onum",
+      "decision": "Set --weave-font-numeric to the Fraunces serif and --weave-font-feature-numeric to \"onum\" 1 (oldstyle figures).",
+      "rationale": "Numeric displays stay on the editorial serif with oldstyle figures, visibly distinct from the primitives' hardcoded tabular-nums baseline. Setting the numeric routing token explicitly exercises it end to end rather than via its fallback.",
+      "affectedTokens": ["--weave-font-numeric", "--weave-font-feature-numeric"]
+    }
+  ],
+  "contractGaps": []
+}

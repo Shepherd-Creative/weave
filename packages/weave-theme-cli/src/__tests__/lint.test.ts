@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -108,10 +108,18 @@ describe("shipped example themes", () => {
       const result = lintThemeDir(join(THEMES_DIR, name));
       expect(result.errors).toEqual([]);
       expect(result.ok).toBe(true);
-      // None of the shipped themes ship a drop-report.json yet (a future
-      // stage adds brand-iron's) — that must stay a warning, never an
-      // error, without --require-drop-report.
-      expect(result.warnings.some((w) => w.code === "DROP_REPORT_MISSING")).toBe(true);
+      // A shipped drop-report.json (brand-iron ships one; the others do not
+      // yet) must clear the DROP_REPORT_MISSING warning and validate. A
+      // theme without one keeps that finding as a warning, never an error,
+      // absent --require-drop-report.
+      const hasDropReport = existsSync(join(THEMES_DIR, name, "drop-report.json"));
+      const missing = result.warnings.some((w) => w.code === "DROP_REPORT_MISSING");
+      if (hasDropReport) {
+        expect(missing).toBe(false);
+        expect(result.dropReport).toEqual({ present: true, valid: true });
+      } else {
+        expect(missing).toBe(true);
+      }
     });
   }
 });

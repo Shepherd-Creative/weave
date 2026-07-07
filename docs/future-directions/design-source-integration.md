@@ -1,12 +1,15 @@
 # Future Direction: Design-Source Integration
 
-> **Status:** Largely implemented (2026-07-07) on `feat/mcp-app-design-source`, per the spec at
-> `docs/superpowers/specs/2026-07-06-mcp-app-design-source-design.md`. Shipped: the expanded
-> `--weave-*` token contract (v2), var()-routed primitives, `weave-mcp-app` with
-> `WEAVE_THEME_CSS_PATH` / `WEAVE_DESIGN_GUIDANCE_PATH`, `validateThemeCss` and two demo brands
-> under `examples/themes/`. Still unscheduled: the deterministic format adapter that derives a
-> Weave theme from an arbitrary `DESIGN.md` or design-token repository (hosts currently author
-> `weave-theme.css` by hand), runtime theme switching and multi-brand registries.
+> **Status:** Implemented (2026-07-07). Shipped: the expanded `--weave-*` token contract (v3),
+> var()-routed primitives, `weave-mcp-app` with `WEAVE_THEME_CSS_PATH` /
+> `WEAVE_DESIGN_GUIDANCE_PATH`, `validateThemeCss`, three demo brands under `examples/themes/`, and
+> the format adapter itself. The adapter did not land as the deterministic CLI sketched below: it
+> ships as an LLM skill (`weave-adapter-skill`) gated by a deterministic lint CLI
+> (`weave-theme-cli`), because the brand-iron dry-run showed the mapping decisions (tone
+> derivation, chart-ramp synthesis, font fallbacks, the contrast flip) are judgement calls that
+> need a model, so the model authors the theme and determinism moved to the gate rather than the
+> mapping. Still future work: runtime theme switching, multi-brand registries and host-delivered
+> fonts (`applyHostFonts`).
 
 ## Intent
 
