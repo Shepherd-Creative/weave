@@ -1,6 +1,6 @@
 {
   "name": "@shepherd-creative/weave-primitives",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Theme-neutral React primitives for LLM-composed dashboards.",
   "license": "MIT",
   "repository": {

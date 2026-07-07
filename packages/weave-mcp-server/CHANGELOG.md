@@ -1,5 +1,29 @@
 # @shepherd-creative/weave-mcp-server
 
+## 0.1.2
+
+### Patch Changes
+
+- e45c0eb: Design-source theming: contract v2 and var()-routed primitives.
+
+  - `weave-tokens`: 50 new `--weave-*` variables covering typography scale and weights, spacing and density, card surfaces and chart treatment, each defaulting to the literal previously hard-coded in the components. Ships a machine-readable `tokens.json` manifest of the full token contract.
+  - `weave-primitives`: every themeable inline-style literal in the 13 components now reads `var(--weave-*, <previous literal>)`; recharts props resolve variables at render time. Render-identical when no override is present.
+  - `weave-mcp-server`: new `./tools` subpath export so embedders (the Weave MCP App) can register the render tools on their own server instance.
+
+- 7a71e41: Relicense under MIT (LICENSE file at the repository root; all package licence fields flipped from UNLICENSED).
+- 4af676d: Proactive visuals guidance: render dashboards when an answer is data-shaped instead of waiting to be asked.
+
+  The composition skill gains a "When to visualise unprompted" section (§1.1): render the moment an answer turns data-shaped, before committing it to prose. It carries a per-primitive threshold table, a litmus test (if your prose draft holds a markdown table or a list of figures, render it) and counter-heuristics that keep single scalars, prose questions and mid-conversation clarifications in chat. A closing note flags that host brand guidance may sharpen the thresholds at runtime. The section widens only _when_ the model reaches for Weave, never _what_ it may emit: the no-CSS, no-colours, no-pixels contract is restated, not relaxed.
+
+  Each of the five `render_*` tool descriptions gains one proactive cue so the nudge also reaches a model that never calls `get_skill` (prefer `render_metric_band` over a prose list of three or more KPIs, `render_table_card` over a markdown table, `render_chart_card` when describing a trend and `render_dashboard` for a multi-dimensional status summary; `render_note_card` stays reserved for annotating a rendered dashboard rather than duplicating prose). Description text only, no schema or behaviour change.
+
+- Updated dependencies [e3ec8e0]
+- Updated dependencies [e45c0eb]
+- Updated dependencies [7a71e41]
+- Updated dependencies [4af676d]
+  - @shepherd-creative/weave-primitives@0.2.0
+  - @shepherd-creative/weave-skill@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes

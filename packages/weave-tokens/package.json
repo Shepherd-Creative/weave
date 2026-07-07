@@ -1,6 +1,6 @@
 {
   "name": "@shepherd-creative/weave-tokens",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Default CSS variables for Weave primitives (opt-in).",
   "license": "MIT",
   "repository": {

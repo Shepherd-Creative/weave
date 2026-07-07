@@ -1,5 +1,20 @@
 # @shepherd-creative/weave-primitives
 
+## 0.2.0
+
+### Minor Changes
+
+- e3ec8e0: Contract v3: per-role font routing and numeric font features. `weave-tokens` adds `--weave-font-overline`, `--weave-font-numeric` and `--weave-font-feature-numeric` (defaults identical to the `--font-sans`/`--font-display`/`normal` literals they replace); `weave-primitives` routes Label, KPI, TableCard, Number, Stat and DataRow through the new variables, keeping the existing `font-variant-numeric: tabular-nums` baseline in place.
+- e45c0eb: Design-source theming: contract v2 and var()-routed primitives.
+
+  - `weave-tokens`: 50 new `--weave-*` variables covering typography scale and weights, spacing and density, card surfaces and chart treatment, each defaulting to the literal previously hard-coded in the components. Ships a machine-readable `tokens.json` manifest of the full token contract.
+  - `weave-primitives`: every themeable inline-style literal in the 13 components now reads `var(--weave-*, <previous literal>)`; recharts props resolve variables at render time. Render-identical when no override is present.
+  - `weave-mcp-server`: new `./tools` subpath export so embedders (the Weave MCP App) can register the render tools on their own server instance.
+
+### Patch Changes
+
+- 7a71e41: Relicense under MIT (LICENSE file at the repository root; all package licence fields flipped from UNLICENSED).
+
 ## 0.1.1
 
 ### Patch Changes

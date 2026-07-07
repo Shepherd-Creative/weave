@@ -1,6 +1,6 @@
 {
   "name": "@shepherd-creative/weave-mcp-app",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "MCP App exposing Weave render tools with inline generative UI for Claude Desktop.",
   "type": "module",
