@@ -2,6 +2,7 @@ import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { GUIDANCE_MAX_BYTES, THEME_CSS_MAX_BYTES } from "@shepherd-creative/weave-tokens/validate";
 import { afterEach, describe, expect, it } from "vitest";
 import { lintThemeDir } from "../lint.js";
 
@@ -95,25 +96,18 @@ describe("shipped example themes", () => {
     );
   });
 
-  // Known findings on shipped example themes, keyed by directory name. Empty
-  // array = expected to lint with zero errors. brand-iron carries one real
-  // accessibility finding this tool was built to catch: its saffron
-  // --primary background paired with the pale --primary-foreground text
-  // comes in at ~2.80:1, under the 3.0 floor these thresholds enforce. This
-  // is a genuine finding on the shipped example brand, not a bug in the
-  // linter or an over-tight threshold — see the Stage B2 task report
-  // (status BLOCKED, ratios quoted) for the full readout. Do not "fix" this
-  // by loosening CONTRAST_FAIL's threshold to make the assertion below
-  // convenient; if brand-iron's palette is revisited, update this map to
-  // match reality rather than the other way around.
-  const KNOWN_ERROR_CODES: Readonly<Record<string, readonly string[]>> = {
-    "brand-iron": ["CONTRAST_FAIL"],
-  };
-
+  // Shipped themes are conformance fixtures: every one of them must lint
+  // with ZERO errors (warnings allowed). No per-theme escape map here — a
+  // regression in a shipped theme or an over-tight new check must fail this
+  // test loudly, not hide behind an allowlist. When the linter surfaced
+  // brand-iron's 2.8:1 cream-on-saffron --primary pair, the resolution was
+  // to fix the THEME (ink text on saffron, 5.0:1), not to whitelist the
+  // finding.
   for (const name of dirs) {
-    it(`${name} lints with only known findings`, () => {
+    it(`${name} lints with zero errors`, () => {
       const result = lintThemeDir(join(THEMES_DIR, name));
-      expect(result.errors.map((e) => e.code)).toEqual(KNOWN_ERROR_CODES[name] ?? []);
+      expect(result.errors).toEqual([]);
+      expect(result.ok).toBe(true);
       // None of the shipped themes ship a drop-report.json yet (a future
       // stage adds brand-iron's) — that must stay a warning, never an
       // error, without --require-drop-report.
@@ -132,6 +126,42 @@ describe("weave-theme.css presence", () => {
     ]);
     expect(result.coverage).toEqual([]);
     expect(result.contrast).toEqual({ checked: [], skipped: [] });
+  });
+});
+
+describe("size caps", () => {
+  it("a theme over THEME_CSS_MAX_BYTES is THEME_CSS_TOO_LARGE and skips the CSS checks", () => {
+    // Valid CSS wrapped in comment padding pushes the byte length over the
+    // cap — proving the finding comes from the size gate, not the grammar.
+    // Fixture is generated here, never committed (no 64KiB files in git).
+    const padding = `/* ${"x".repeat(THEME_CSS_MAX_BYTES)} */\n`;
+    const dir = makeThemeDir({
+      "weave-theme.css": `${buildThemeCss()}${padding}`,
+      "DESIGN.md": "# brief\n",
+    });
+    const result = lintThemeDir(dir);
+    expect(result.ok).toBe(false);
+    expect(result.errors).toEqual([
+      expect.objectContaining({ severity: "error", code: "THEME_CSS_TOO_LARGE" }),
+    ]);
+    // Same bail-out behaviour as THEME_MISSING: no coverage or contrast
+    // findings pile on top of an oversized file.
+    expect(result.coverage).toEqual([]);
+    expect(result.contrast).toEqual({ checked: [], skipped: [] });
+  });
+
+  it("a DESIGN.md over GUIDANCE_MAX_BYTES is GUIDANCE_TOO_LARGE", () => {
+    const dir = makeThemeDir({
+      "weave-theme.css": buildThemeCss(),
+      "DESIGN.md": "x".repeat(GUIDANCE_MAX_BYTES + 1),
+    });
+    const result = lintThemeDir(dir);
+    expect(result.ok).toBe(false);
+    expect(result.errors).toEqual([
+      expect.objectContaining({ severity: "error", code: "GUIDANCE_TOO_LARGE" }),
+    ]);
+    // The oversized brief must not suppress the theme checks themselves.
+    expect(result.coverage.length).toBeGreaterThan(0);
   });
 });
 
@@ -250,6 +280,18 @@ describe("drop-report.json", () => {
       expect.objectContaining({ severity: "error", code: "DROP_REPORT_MISSING" }),
     ]);
     expect(result.ok).toBe(false);
+  });
+
+  it("malformed JSON (not schema-invalid — unparseable) is DROP_REPORT_INVALID", () => {
+    const dir = makeThemeDir({
+      "weave-theme.css": buildThemeCss(),
+      "drop-report.json": '{ "version": 1, "brand": "test",', // truncated mid-object
+    });
+    const result = lintThemeDir(dir);
+    const finding = result.errors.find((e) => e.code === "DROP_REPORT_INVALID");
+    expect(finding).toBeDefined();
+    expect(String(finding?.context?.issues)).toContain("invalid JSON");
+    expect(result.dropReport).toEqual({ present: true, valid: false });
   });
 
   it("an invalid enum value in dropped[].type is DROP_REPORT_INVALID", () => {

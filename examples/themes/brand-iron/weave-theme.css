@@ -27,7 +27,10 @@
   --popover: #e5d9bb;
   --popover-foreground: #1c1611;
   --primary: #c8721e;
-  --primary-foreground: #ede3cc;
+  /* JUDGEMENT CALL: cream on saffron reads 2.8:1 — below the 3:1 floor the
+     theme lint enforces for text pairs. Iron Press differentiates with ink,
+     so saffron surfaces carry ink text (5.0:1). */
+  --primary-foreground: #1c1611;
   --secondary: #e5d9bb;
   --secondary-foreground: #1c1611;
   --muted: #e5d9bb;

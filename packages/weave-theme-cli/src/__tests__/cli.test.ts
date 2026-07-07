@@ -1,8 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 
 // packages/weave-theme-cli/src/__tests__/cli.test.ts -> dist/cli.js is two
 // levels up, then into dist/. Requires a build (turbo's test task
@@ -14,6 +15,12 @@ const REPO_ROOT = fileURLToPath(new URL("../../../..", import.meta.url));
 const THEMES_DIR = join(REPO_ROOT, "examples", "themes");
 
 const hasDist = existsSync(CLI_PATH);
+
+const fixtureDirs: string[] = [];
+
+afterAll(() => {
+  for (const dir of fixtureDirs) rmSync(dir, { recursive: true, force: true });
+});
 
 type CliResult = { status: number; stdout: string; stderr: string };
 
@@ -37,8 +44,18 @@ describe.skipIf(!hasDist)(
       expect(result.stdout).toContain("✓ ok");
     });
 
-    it("exits 1 and reports brand-iron's known CONTRAST_FAIL", () => {
-      const result = runCli(["lint", join(THEMES_DIR, "brand-iron")]);
+    it("exits 1 and reports CONTRAST_FAIL for a same-colour text pair", () => {
+      // Fixture, not a shipped theme: shipped themes are conformance
+      // fixtures that must lint clean (see lint.test.ts), so the exit-1
+      // path is exercised with a deliberately broken bg==fg pair.
+      const dir = mkdtempSync(join(tmpdir(), "weave-theme-cli-spawn-"));
+      fixtureDirs.push(dir);
+      writeFileSync(
+        join(dir, "weave-theme.css"),
+        ":root { --background: #111111; --foreground: #111111; }\n",
+        "utf8",
+      );
+      const result = runCli(["lint", dir]);
       expect(result.status).toBe(1);
       expect(result.stdout).toContain("CONTRAST_FAIL");
     });
