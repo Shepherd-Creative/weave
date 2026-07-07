@@ -1,5 +1,5 @@
-import type { TableCardSpec } from "../schemas/organisms.js";
 import { DataRow } from "../molecules/DataRow.js";
+import type { TableCardSpec } from "../schemas/organisms.js";
 import { toneToColorVar } from "../utils/theme.js";
 
 export function TableCard(props: Omit<TableCardSpec, "type">): React.JSX.Element {
@@ -23,7 +23,11 @@ export function TableCard(props: Omit<TableCardSpec, "type">): React.JSX.Element
       }}
     >
       <header
-        style={{ display: "flex", flexDirection: "column", gap: "var(--weave-space-3xs, 0.125rem)" }}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--weave-space-3xs, 0.125rem)",
+        }}
       >
         <div
           style={{

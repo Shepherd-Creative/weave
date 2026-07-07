@@ -1,5 +1,5 @@
-import type { NoteCardSpec } from "../schemas/organisms.js";
 import { Icon } from "../atoms/Icon.js";
+import type { NoteCardSpec } from "../schemas/organisms.js";
 import { toneToColorVar, toneToMutedBgVar } from "../utils/theme.js";
 
 /**
@@ -72,7 +72,9 @@ export function NoteCard(props: Omit<NoteCardSpec, "type">): React.JSX.Element {
             fontWeight: "var(--weave-font-weight-semibold, 600)",
           }}
         >
-          {icon ? <Icon name={icon} size="sm" tone={tone === "default" ? "default" : tone} /> : null}
+          {icon ? (
+            <Icon name={icon} size="sm" tone={tone === "default" ? "default" : tone} />
+          ) : null}
           {title ? <span>{title}</span> : null}
         </header>
       ) : null}

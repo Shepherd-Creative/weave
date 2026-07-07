@@ -10,7 +10,9 @@ export function Label(props: Omit<LabelSpec, "type">): React.JSX.Element {
     <span
       style={{
         display: "inline-block",
-        color: toneToColorVar(tone ?? (role === "caption" || role === "overline" ? "muted" : "default")),
+        color: toneToColorVar(
+          tone ?? (role === "caption" || role === "overline" ? "muted" : "default"),
+        ),
         fontSize: labelFontSize(size, role),
         fontFamily: role === "display" ? "var(--font-display)" : "var(--font-sans)",
         fontWeight: roleStyle.fontWeight,
