@@ -7,14 +7,16 @@ export function Stat(props: Omit<StatSpec, "type">): React.JSX.Element {
   const { label, value, format, precision, size = "md", tone, delta } = props;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.125rem" }}>
+    <div
+      style={{ display: "flex", flexDirection: "column", gap: "var(--weave-space-3xs, 0.125rem)" }}
+    >
       <div
         style={{
           color: "var(--muted-foreground)",
           fontFamily: "var(--font-sans)",
-          fontSize: "0.75rem",
-          fontWeight: 500,
-          letterSpacing: "0.03em",
+          fontSize: "var(--weave-font-size-xs, 0.75rem)",
+          fontWeight: "var(--weave-font-weight-medium, 500)",
+          letterSpacing: "var(--weave-letter-spacing-wide, 0.03em)",
         }}
       >
         {label}
@@ -23,17 +25,17 @@ export function Stat(props: Omit<StatSpec, "type">): React.JSX.Element {
         style={{
           display: "flex",
           alignItems: "baseline",
-          gap: "0.5rem",
+          gap: "var(--weave-space-sm, 0.5rem)",
         }}
       >
         <span
           style={{
             color: toneToColorVar(tone),
             fontSize: numberFontSize(size),
-            fontWeight: 600,
+            fontWeight: "var(--weave-font-weight-semibold, 600)",
             fontVariantNumeric: "tabular-nums",
             fontFamily: "var(--font-display)",
-            lineHeight: 1.2,
+            lineHeight: "var(--weave-line-height-snug, 1.2)",
           }}
         >
           {formatNumber(value, { format, precision })}
@@ -43,8 +45,8 @@ export function Stat(props: Omit<StatSpec, "type">): React.JSX.Element {
             style={{
               color: toneToColorVar(delta.tone),
               fontFamily: "var(--font-sans)",
-              fontSize: "0.75rem",
-              fontWeight: 500,
+              fontSize: "var(--weave-font-size-xs, 0.75rem)",
+              fontWeight: "var(--weave-font-weight-medium, 500)",
               fontVariantNumeric: "tabular-nums",
             }}
           >
