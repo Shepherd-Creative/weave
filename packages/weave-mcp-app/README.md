@@ -16,6 +16,12 @@ pnpm --filter @shepherd-creative/weave-mcp-app build
 
 ## Install in Claude Desktop
 
+> **Pre-merge note:** while `feat/mcp-app-design-source` is unmerged, this package exists only in
+> the worktree — use `/Users/pierregallet/Documents/weave-wt/mcp-app-design-source/packages/weave-mcp-app/dist/index.js`
+> in the config below (and the worktree path for the `examples/themes/` env vars). After the PR
+> merges, run `pnpm install && pnpm build` in the main clone and switch to the
+> `/Users/pierregallet/Documents/weave/...` path, because worktree teardown will kill the old one.
+
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
 
 ```json
