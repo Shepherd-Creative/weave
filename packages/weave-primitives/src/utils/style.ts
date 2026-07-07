@@ -9,37 +9,37 @@ import type { Size } from "../schemas/tokens.js";
 export function numberFontSize(size: Size | undefined): string {
   switch (size) {
     case "xs":
-      return "0.75rem";
+      return "var(--weave-font-size-xs, 0.75rem)";
     case "sm":
-      return "0.875rem";
+      return "var(--weave-font-size-sm, 0.875rem)";
     case "md":
-      return "1.5rem";
+      return "var(--weave-font-size-number-md, 1.5rem)";
     case "lg":
-      return "2.25rem";
+      return "var(--weave-font-size-number-lg, 2.25rem)";
     case "xl":
-      return "clamp(1.75rem, 8cqi, 3.25rem)";
+      return "var(--weave-font-size-number-xl, clamp(1.75rem, 8cqi, 3.25rem))";
     default:
-      return "1.5rem";
+      return "var(--weave-font-size-number-md, 1.5rem)";
   }
 }
 
 /** Font size for Label atom and caption/body copy. */
 export function labelFontSize(size: Size | undefined, role?: string): string {
-  if (role === "display") return "clamp(1.5rem, 6cqi, 2.5rem)";
-  if (role === "overline") return "0.6875rem";
-  if (role === "caption") return "0.75rem";
+  if (role === "display") return "var(--weave-font-size-display, clamp(1.5rem, 6cqi, 2.5rem))";
+  if (role === "overline") return "var(--weave-font-size-overline, 0.6875rem)";
+  if (role === "caption") return "var(--weave-font-size-xs, 0.75rem)";
   switch (size) {
     case "xs":
-      return "0.75rem";
+      return "var(--weave-font-size-xs, 0.75rem)";
     case "sm":
-      return "0.875rem";
+      return "var(--weave-font-size-sm, 0.875rem)";
     case "lg":
-      return "1.125rem";
+      return "var(--weave-font-size-lg, 1.125rem)";
     case "xl":
-      return "1.25rem";
+      return "var(--weave-font-size-xl, 1.25rem)";
     case "md":
     default:
-      return "1rem";
+      return "var(--weave-font-size-md, 1rem)";
   }
 }
 
@@ -62,12 +62,12 @@ export function iconPixelSize(size: "xs" | "sm" | "md" | "lg" | undefined): numb
 export function gapValue(gap: "sm" | "md" | "lg" | undefined): string {
   switch (gap) {
     case "sm":
-      return "0.5rem";
+      return "var(--weave-space-sm, 0.5rem)";
     case "lg":
-      return "1.5rem";
+      return "var(--weave-space-xl, 1.5rem)";
     case "md":
     default:
-      return "1rem";
+      return "var(--weave-space-lg, 1rem)";
   }
 }
 
@@ -90,12 +90,12 @@ export function densityPadding(
 ): string {
   switch (density) {
     case "compact":
-      return "0.5rem";
+      return "var(--weave-density-compact, 0.5rem)";
     case "spacious":
-      return "1.5rem";
+      return "var(--weave-density-spacious, 1.5rem)";
     case "comfortable":
     default:
-      return "1rem";
+      return "var(--weave-density-comfortable, 1rem)";
   }
 }
 
@@ -103,21 +103,28 @@ export function densityPadding(
  * Role → CSS font-weight / letter-spacing tweaks for Label.
  */
 export function labelRoleStyle(role: string | undefined): {
-  fontWeight: number;
+  fontWeight: string;
   letterSpacing?: string;
   textTransform?: "uppercase" | "none";
 } {
   switch (role) {
     case "display":
-      return { fontWeight: 700, letterSpacing: "-0.025em" };
+      return {
+        fontWeight: "var(--weave-font-weight-bold, 700)",
+        letterSpacing: "var(--weave-letter-spacing-tight, -0.025em)",
+      };
     case "title":
-      return { fontWeight: 600 };
+      return { fontWeight: "var(--weave-font-weight-semibold, 600)" };
     case "overline":
-      return { fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase" };
+      return {
+        fontWeight: "var(--weave-font-weight-medium, 500)",
+        letterSpacing: "var(--weave-letter-spacing-overline, 0.08em)",
+        textTransform: "uppercase",
+      };
     case "caption":
-      return { fontWeight: 500 };
+      return { fontWeight: "var(--weave-font-weight-medium, 500)" };
     case "body":
     default:
-      return { fontWeight: 400 };
+      return { fontWeight: "var(--weave-font-weight-normal, 400)" };
   }
 }
