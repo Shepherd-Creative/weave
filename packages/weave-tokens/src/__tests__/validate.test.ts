@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { validateThemeCss } from "../theme.js";
+import tokens from "../../tokens.json";
+import { knownVarsFromManifest, validateThemeCss } from "../validate.js";
 
 const KNOWN = new Set(["--background", "--foreground", "--tone-positive"]);
+
+describe("knownVarsFromManifest", () => {
+  it("mirrors the tokens.json manifest", () => {
+    const vars = knownVarsFromManifest();
+    expect(vars.size).toBe(tokens.variables.length);
+    expect(vars.has("--background")).toBe(true);
+    expect(vars.has("--weave-card-padding")).toBe(true);
+    for (const name of vars) expect(name.startsWith("--")).toBe(true);
+  });
+});
 
 describe("validateThemeCss", () => {
   it("accepts a plain :root block of known variables", () => {

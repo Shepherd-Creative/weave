@@ -42,6 +42,28 @@ Override any of the above in your own stylesheet after importing:
 }
 ```
 
+## Programmatic validation (`./validate`)
+
+The package also ships the deterministic theme-CSS validator used by `weave-mcp-app`, so any consumer can validate a brand stylesheet against the token contract:
+
+```ts
+import {
+  validateThemeCss,
+  knownVarsFromManifest,
+  THEME_CSS_MAX_BYTES,
+  GUIDANCE_MAX_BYTES,
+} from "@shepherd-creative/weave-tokens/validate";
+
+const result = validateThemeCss(css, knownVarsFromManifest());
+// result: { ok, css, applied, stripped, errors }
+```
+
+- `validateThemeCss(source, knownVars)` accepts only comments and `:root { --var: value; }` declarations; at-rules, other selectors and dangerous values are hard rejects, unknown variables are stripped with a warning. Returns a `ThemeValidation`.
+- `knownVarsFromManifest()` builds the known-variable set from this package's own `tokens.json`.
+- `THEME_CSS_MAX_BYTES` / `GUIDANCE_MAX_BYTES` are the size caps hosts should enforce before reading theme and guidance files.
+
+The `./validate` subpath is built output (ESM-only, types included); the `tokens.css` / `tokens.json` exports remain plain static files.
+
 ## Contract v3
 
 Beyond the base palette, primitives read the `--weave-*` variables below for typography, spacing, surfaces, chart treatment and per-role font routing. Every default equals the literal that used to be hard-coded in the components, so leaving them untouched is render-identical to pre-v2 (and now pre-v3). The machine-readable list ships as `tokens.json` (`{ name, category }` per variable); it is what `weave-mcp-app` validates brand themes against.
