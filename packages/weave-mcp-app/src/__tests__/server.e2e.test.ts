@@ -108,6 +108,19 @@ describe("weave-mcp-app stdio server", () => {
     const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
     expect(text.length).toBeGreaterThan(500); // real SKILL.md, not an ENOENT fallback
     expect(result.isError ?? false).toBe(false);
+    // Stage E: the proactive-visuals section ships in the skill...
+    expect(text).toContain("When to visualise unprompted");
+    // ...and it must never silently displace the §2 contract forbidding
+    // CSS/colours/px. These substrings live only in that contract line, so
+    // asserting them guards the contract against being crowded out.
+    expect(text).toContain("emit pixel values");
+    expect(text).toContain("write HTML or CSS");
+  });
+
+  it("advertises the proactive-visuals cue on a render tool description", async () => {
+    const { tools } = await client.listTools();
+    const tableCard = tools.find((t) => t.name === "render_table_card");
+    expect(tableCard?.description).toContain("instead of writing a markdown table");
   });
 
   it("serves the view HTML with an empty theme placeholder by default", async () => {

@@ -26,35 +26,35 @@ export const TOOLS: ToolDescriptor[] = [
   {
     name: "render_metric_band",
     description:
-      'Render a horizontal strip of 1–8 KPIs. Use for the top-of-dashboard "at a glance" row. Pass the KPI items; the tool returns a MetricBand spec.',
+      'Render a horizontal strip of 1–8 KPIs. Use for the top-of-dashboard "at a glance" row. Pass the KPI items; the tool returns a MetricBand spec. Prefer this over a prose list of figures whenever an answer carries three or more KPIs, even if a dashboard was not requested.',
     inputSchema: MetricBandSchema.omit({ type: true }),
     specType: "MetricBand",
   },
   {
     name: "render_chart_card",
     description:
-      "Render a titled chart card. Use for time-series, categorical, or share-of-whole visualisations. Requires a Chart sub-spec with a variant and data.",
+      "Render a titled chart card. Use for time-series, categorical, or share-of-whole visualisations. Requires a Chart sub-spec with a variant and data. Reach for this whenever you describe a trend over time, not only when a chart is explicitly requested.",
     inputSchema: ChartCardSchema.omit({ type: true }),
     specType: "ChartCard",
   },
   {
     name: "render_table_card",
     description:
-      "Render a tabular breakdown with typed cells (text, number, badge, delta, sparkline). Use for ≤40 rows; prefer filtering + summary for longer datasets.",
+      "Render a tabular breakdown with typed cells (text, number, badge, delta, sparkline). Use for ≤40 rows; prefer filtering + summary for longer datasets. Use this instead of writing a markdown table.",
     inputSchema: TableCardSchema.omit({ type: true }),
     specType: "TableCard",
   },
   {
     name: "render_note_card",
     description:
-      "Render a commentary note. Use for explaining the why, surfacing caveats, or recommending a next action — not for restating numbers.",
+      "Render a commentary note. Use for explaining the why, surfacing caveats, or recommending a next action — not for restating numbers. When a rendered dashboard needs a caveat or the reason behind the numbers, annotate it here rather than adding a separate prose paragraph.",
     inputSchema: NoteCardSchema.omit({ type: true }),
     specType: "NoteCard",
   },
   {
     name: "render_dashboard",
     description:
-      "Render a full dashboard composition — a Grid or Stack tree containing organisms. Use when you need more than one organism arranged together. Input is a Grid or Stack node with a children array of organism specs; call get_skill for the full schema.",
+      "Render a full dashboard composition — a Grid or Stack tree containing organisms. Use when you need more than one organism arranged together. Input is a Grid or Stack node with a children array of organism specs; call get_skill for the full schema. Use for any multi-dimensional status or health summary, even when the user did not ask for a dashboard.",
     // Full spec; the LLM supplies its own type discriminator here.
     inputSchema: SpecSchema,
     specType: undefined,
