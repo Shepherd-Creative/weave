@@ -1,9 +1,9 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import tokens from "@shepherd-creative/weave-tokens/tokens.json";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { injectTheme, loadDesignSources } from "../theme.js";
+import { injectTheme, loadDesignSources, validateThemeCss } from "../theme.js";
 
 const KNOWN_VARS = new Set(tokens.variables.map((v) => v.name));
 
@@ -115,6 +115,30 @@ describe("loadDesignSources", () => {
     expect(r.themeCss).toContain("--background: #fff");
     expect(r.themeCss).not.toContain("--totally-unknown");
     expect(KNOWN_VARS.has("--background")).toBe(true);
+  });
+});
+
+describe("shipped demo brand themes", () => {
+  // The demo brands under examples/themes/ are documentation-by-example: they
+  // must validate cleanly with ZERO stripped variables, or the examples teach
+  // brand authors token names the contract does not honour.
+  const themesRoot = path.resolve(__dirname, "../../../../examples/themes");
+  const brands = readdirSync(themesRoot, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+
+  it("at least the two committed demo brands exist", () => {
+    expect(brands).toContain("corporate-light");
+    expect(brands).toContain("terminal-dense");
+  });
+
+  it.each(brands)("%s validates with zero stripped variables", (brand) => {
+    const css = readFileSync(path.join(themesRoot, brand, "weave-theme.css"), "utf8");
+    const result = validateThemeCss(css, KNOWN_VARS);
+    expect(result.errors).toEqual([]);
+    expect(result.ok).toBe(true);
+    expect(result.stripped).toEqual([]);
+    expect(result.applied.length).toBeGreaterThan(0);
   });
 });
 

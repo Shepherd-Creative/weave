@@ -1,0 +1,72 @@
+/*
+ * corporate-light — demo brand theme for Weave.
+ *
+ * White surfaces, navy primary, serif display type, generous spacing and a
+ * soft shadow. Authored against the restricted subset validateThemeCss
+ * accepts: comments plus `:root { --known-token: value; }` only.
+ */
+:root {
+  /* Structural palette */
+  --background: #f7f8fa;
+  --foreground: #1a2333;
+  --card: #ffffff;
+  --card-foreground: #1a2333;
+  --popover: #ffffff;
+  --popover-foreground: #1a2333;
+  --primary: #1e3a8a;
+  --primary-foreground: #ffffff;
+  --secondary: #eef1f6;
+  --secondary-foreground: #1a2333;
+  --muted: #f1f4f8;
+  --muted-foreground: #5b6b82;
+  --accent: #e8edf5;
+  --accent-foreground: #1e3a8a;
+  --destructive: #b91c1c;
+  --destructive-foreground: #ffffff;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #1e3a8a;
+  --radius: 0.75rem;
+
+  /* Semantic tones, light-surface variants */
+  --tone-positive: #15803d;
+  --tone-positive-muted: #e3f4e9;
+  --tone-negative: #b91c1c;
+  --tone-negative-muted: #fbe7e7;
+  --tone-warning: #a16207;
+  --tone-warning-muted: #f9f0dc;
+  --tone-info: #1d4ed8;
+  --tone-info-muted: #e4ebfb;
+
+  /* Muted pastel chart palette */
+  --chart-1: #7c9cd6;
+  --chart-2: #8fbf9f;
+  --chart-3: #d6a97c;
+  --chart-4: #b78fc9;
+  --chart-5: #7cc0d6;
+  --chart-6: #d68f9c;
+  --chart-7: #a9c97c;
+  --chart-8: #c9b27c;
+
+  /* Typography: serif display over a neutral sans body */
+  --font-sans: "Helvetica Neue", Arial, ui-sans-serif, system-ui, sans-serif;
+  --font-display: Georgia, "Times New Roman", ui-serif, serif;
+  --weave-letter-spacing-overline: 0.1em;
+
+  /* Surfaces: generous padding, soft elevation, rounded corners */
+  --weave-card-padding: 1.5rem;
+  --weave-card-shadow: 0 1px 3px rgba(26, 35, 51, 0.08), 0 4px 12px rgba(26, 35, 51, 0.06);
+  --weave-radius-sm: 0.5rem;
+  --weave-radius-md: 0.75rem;
+  --weave-radius-lg: 1rem;
+  --weave-radius-code: 0.375rem;
+
+  /* Chart treatment: quiet grid on white */
+  --weave-chart-grid: #e8edf3;
+  --weave-chart-axis: #94a3b8;
+  --weave-chart-label: #5b6b82;
+  --weave-chart-tooltip-bg: #ffffff;
+  --weave-chart-tooltip-fg: #1a2333;
+  --weave-chart-tooltip-radius: 8px;
+  --weave-chart-grid-dasharray: 4 4;
+}
