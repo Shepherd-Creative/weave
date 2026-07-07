@@ -32,6 +32,7 @@ const CASES: Array<{ name: string; brandDir: string | null }> = [
   { name: "default", brandDir: null },
   { name: "corporate-light", brandDir: path.join(THEMES_ROOT, "corporate-light") },
   { name: "terminal-dense", brandDir: path.join(THEMES_ROOT, "terminal-dense") },
+  { name: "brand-iron", brandDir: path.join(THEMES_ROOT, "brand-iron") },
 ];
 
 describe("three-theme acceptance: one spec, three looks", () => {

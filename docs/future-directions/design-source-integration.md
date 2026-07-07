@@ -102,3 +102,15 @@ The first version should support one configured theme per server process. Runtim
 
 The integration is successful when the same validated dashboard specification can be rendered in materially different brand styles without changing the specification, while the agent's layout and emphasis choices also follow the selected brand guidance.
 
+## Learnings from a manual adapter run (brand-iron, 2026-07-07)
+
+`examples/themes/brand-iron/` was derived by hand from a real design system (Iron Press: editorial brutalism, one saffron accent, hairlines, Fraunces + JetBrains Mono). Each judgement it forced is a requirement on the future adapter:
+
+- **Semantic tones from a one-accent system.** Brands with a single accent have no positive/negative/warning/info palette. The adapter needs a policy for deriving one (here: the accent goes to attention states, ink shades carry the rest) and should surface that decision for human review rather than invent silently.
+- **Chart ramp derivation.** An 8-colour chart palette rarely exists in a restrained brand. Walking the neutral ramp with the accent as series highlight worked, paired with composition guidance capping series count.
+- **Font stacks, not font files.** `url()` loading is (correctly) rejected, so brand faces only apply if installed on the host. The adapter must emit the brand's own documented fallback stack (Iron Press: Charter/Georgia carry the Fraunces role). Host-delivered fonts via the MCP Apps host-context (`applyHostFonts`) is the eventual proper channel.
+- **Non-token signatures do not survive.** Iron Press's paper-grain `body::before` texture cannot travel through the `:root`-only restricted subset. The adapter should list what it dropped.
+- **Contract gaps found.** No per-role font routing (uppercase overlines should be mono in this brand, but labels all follow `--font-sans`); no `font-feature-settings` token (tabular figures for data). Candidate v3 variables.
+- **Composition rules matter as much as CSS.** "Omit icon fields", "never pie", "one chart max" came from the brand's prose rules, not its tokens — the adapter must read both.
+- **What worked as-is:** `rgba()` and `clamp()` values pass the validator; zero stripped variables on first authoring; the brand rendered pairwise-different from all three other looks with no primitive changes. One real bug surfaced: the view never painted `body` with `--background` (invisible on near-white/near-black themes, glaring on warm paper) — fixed in the same change.
+

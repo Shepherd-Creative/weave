@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Weave</title>
+    <style>
+      /* Paint the page with the theme's surface — without this, the area
+         around and between cards is pure white, which is invisible on the
+         near-white and near-black themes but breaks any warm-paper brand. */
+      body {
+        margin: 0;
+        background: var(--background);
+        color: var(--foreground);
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
