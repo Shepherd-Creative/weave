@@ -1,7 +1,7 @@
 # DESIGN-SOURCE ADAPTER SKILL
 
 > **Note to LLM:** This skill teaches you to convert a brand's design source (a
-> `DESIGN.md`, a design-token repository, or a brand CSS file) into a **Weave
+> `DESIGN.md`, a design-token repository or a brand CSS file) into a **Weave
 > theme**: a `weave-theme.css`, a composition-brief `DESIGN.md` and a
 > `drop-report.json`. You are authoring three static files, offline, once per
 > brand. You are not rendering a dashboard and you are not the runtime. Every
@@ -118,7 +118,7 @@ brief.
 **Worked example.** Iron Press shipped a `tokens.css` (paper, ink, one saffron,
 Fraunces + JetBrains Mono, a paper-grain texture) and a set of prose rules
 ("editorial brutalism", "type does the work", "never pie", "omit icons"). The
-tokens became `weave-theme.css`, the prose became `DESIGN.md`, and the texture
+tokens became `weave-theme.css`, the prose became `DESIGN.md` and the texture
 (a `body::before` rule, not a variable) became a drop. All three destinations,
 from one source.
 
@@ -290,7 +290,7 @@ agent's composition, not its styling. Keep it short and specific to the brand.
 Cover:
 
 - **density**: spacious, comfortable or compact, and when;
-- **chart policy**: which variants are allowed, how many charts, and the series cap that pairs with your synthesised ramp;
+- **chart policy**: which variants are allowed, how many charts and the series cap that pairs with your synthesised ramp;
 - **tone discipline**: when to reach for a tone versus staying `default` or `muted`;
 - **terminology and voice**: caption register, sentence case versus uppercase, what to omit (brand-iron omits `icon` fields entirely).
 

@@ -1,7 +1,7 @@
 # @shepherd-creative/weave-adapter-skill
 
 The `SKILL.md` that teaches an LLM to convert a brand's design source (a
-`DESIGN.md`, a design-token repository, or a brand CSS file) into a validated
+`DESIGN.md`, a design-token repository or a brand CSS file) into a validated
 Weave theme, plus a loader utility.
 
 This is an **offline authoring method, not a runtime dependency**. The running

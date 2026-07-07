@@ -16,13 +16,8 @@ pnpm --filter @shepherd-creative/weave-mcp-app build
 
 ## Install in Claude Desktop
 
-> **Pre-merge note:** while `feat/mcp-app-design-source` is unmerged, this package exists only in
-> the worktree — use `/Users/pierregallet/Documents/weave-wt/mcp-app-design-source/packages/weave-mcp-app/dist/index.js`
-> in the config below (and the worktree path for the `examples/themes/` env vars). After the PR
-> merges, run `pnpm install && pnpm build` in the main clone and switch to the
-> `/Users/pierregallet/Documents/weave/...` path, because worktree teardown will kill the old one.
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
+Build first (`pnpm install && pnpm build` from the repo root), then add to
+`~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
 
 ```json
 {
@@ -30,12 +25,18 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
     "weave": {
       "command": "node",
       "args": [
-        "/Users/pierregallet/Documents/weave/packages/weave-mcp-app/dist/index.js",
+        "/absolute/path/to/weave/packages/weave-mcp-app/dist/index.js",
         "--stdio"
       ]
     }
   }
 }
+```
+
+Replace `/absolute/path/to/weave` with your clone's path. From the repo root, this prints the exact string to paste:
+
+```bash
+echo "$(pwd)/packages/weave-mcp-app/dist/index.js"
 ```
 
 Always point the config at the **pre-bundled** `dist/index.js`. Never point it at `tsx`: Claude Desktop's sandbox EPERMs the tsx loader fork on the second call (see HANDOFF.md, Failed Approaches). Restart Claude Desktop after every config change — it reads the file at launch only.
@@ -48,25 +49,25 @@ Switch brand themes with the `weave-theme` CLI rather than hand-editing the conf
 pnpm add -D @shepherd-creative/weave-theme-cli   # if not already installed
 weave-theme list                                  # what's shipped, coverage, what's active
 weave-theme use corporate-light                    # lints the theme, then edits the config
-# restart Claude Desktop — it reads the config at launch only
+# restart Claude Desktop to apply (config is read at launch only)
 weave-theme use --default                         # back to the packaged default theme
 ```
 
-`use` refuses to switch to a theme that fails lint (pass `--force` to override) and backs up the config before every write. See [`weave-theme-cli`'s README](../weave-theme-cli/README.md#use) for the full flag reference, exit codes and backup behaviour. Two ready-made demo brands live in [`examples/themes/`](../../examples/themes): `corporate-light` and `terminal-dense`.
+`use` refuses to switch to a theme that fails lint (pass `--force` to override) and backs up the config before every write. See [`weave-theme-cli`'s README](../weave-theme-cli/README.md#use) for the full flag reference, exit codes and backup behaviour. Three ready-made demo brands live in [`examples/themes/`](../../examples/themes): `corporate-light`, `terminal-dense` and `brand-iron`.
 
 ### How it works (manual fallback)
 
-`weave-theme use` sets two optional env vars in the config entry — edit them by hand if the CLI isn't available (a checkout without `pnpm install`, a locked-down environment) or to understand the mechanism:
+`weave-theme use` sets two optional env vars in the config entry. Edit them by hand if the CLI isn't available (a checkout without `pnpm install`, a locked-down environment) or to understand the mechanism:
 
 ```json
 {
   "mcpServers": {
     "weave": {
       "command": "node",
-      "args": ["/Users/pierregallet/Documents/weave/packages/weave-mcp-app/dist/index.js", "--stdio"],
+      "args": ["/absolute/path/to/weave/packages/weave-mcp-app/dist/index.js", "--stdio"],
       "env": {
-        "WEAVE_THEME_CSS_PATH": "/Users/pierregallet/Documents/weave/examples/themes/corporate-light/weave-theme.css",
-        "WEAVE_DESIGN_GUIDANCE_PATH": "/Users/pierregallet/Documents/weave/examples/themes/corporate-light/DESIGN.md"
+        "WEAVE_THEME_CSS_PATH": "/absolute/path/to/weave/examples/themes/corporate-light/weave-theme.css",
+        "WEAVE_DESIGN_GUIDANCE_PATH": "/absolute/path/to/weave/examples/themes/corporate-light/DESIGN.md"
       }
     }
   }
@@ -76,7 +77,7 @@ weave-theme use --default                         # back to the packaged default
 - `WEAVE_THEME_CSS_PATH` — a brand stylesheet, validated then injected into the View so every rendered dashboard adopts the brand. Cap: 64 KiB.
 - `WEAVE_DESIGN_GUIDANCE_PATH` — a plain-text composition brief appended to the `get_skill` output, steering what the LLM composes (density, chart choice, tone). Cap: 16 KiB.
 
-Either way, restart Claude Desktop afterwards — it reads the config at launch only.
+Either way, restart Claude Desktop afterwards; it reads the config at launch only.
 
 ### Theme-authoring rules
 
@@ -109,10 +110,10 @@ Loading never throws and never blocks boot: on a missing file, an over-cap file 
 pnpm --filter @shepherd-creative/weave-mcp-app test
 ```
 
-- `server.e2e.test.ts` — scripted stdio MCP client against the built server
-- `view.e2e.test.ts` — Playwright render proof of the built View, including brand-var injection
-- `acceptance.e2e.test.ts` — one spec rendered under default + both demo brands, computed styles pairwise different, screenshots in `dist/acceptance/`
-- `theme.test.ts` / `design-sources.test.ts` — validator and loader unit tests
+- `server.e2e.test.ts`: scripted stdio MCP client against the built server
+- `view.e2e.test.ts`: Playwright render proof of the built View, including brand-var injection
+- `acceptance.e2e.test.ts`: one spec rendered under default + all three demo brands (four looks), computed styles pairwise different, screenshots in `dist/acceptance/`
+- `theme.test.ts` / `design-sources.test.ts`: validator and loader unit tests
 
 Playwright downloads Chromium on first `pnpm install`; the e2e specs need the package built first (`turbo` orders this automatically via `pnpm test` at the root).
 

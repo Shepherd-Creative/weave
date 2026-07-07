@@ -2,7 +2,7 @@
 
 Deterministic authoring-time lint gate for Weave theme directories.
 
-The runtime validator (`@shepherd-creative/weave-tokens/validate`) is deliberately forgiving: it silently strips unknown variables, has no notion of coverage and never looks at colour. That is right for a host loading a theme at startup (never break the render), and wrong for authoring — a typo'd variable should fail loudly before the theme ships, not vanish quietly at runtime. `weave-theme lint` is that gate.
+The runtime validator (`@shepherd-creative/weave-tokens/validate`) is deliberately forgiving: it silently strips unknown variables, has no notion of coverage and never looks at colour. That is right for a host loading a theme at startup (never break the render), and wrong for authoring: a typo'd variable should fail loudly before the theme ships, not vanish quietly at runtime. `weave-theme lint` is that gate.
 
 ## Install
 
@@ -39,7 +39,7 @@ weave-theme use --default [--config <path>] [--server <name>]
 
 ### `list`
 
-Enumerates theme directories (any directory containing `weave-theme.css`) and shows a coverage summary, drop-report presence, and which one — if any — is wired up in Claude Desktop's config.
+Enumerates theme directories (any directory containing `weave-theme.css`) and shows a coverage summary, drop-report presence and which one (if any) is wired up in Claude Desktop's config.
 
 | Flag | Effect |
 |---|---|
@@ -48,7 +48,7 @@ Enumerates theme directories (any directory containing `weave-theme.css`) and sh
 | `--server <name>` | `mcpServers` entry name to check for the active theme. Default: `weave` |
 | `--json` | Emit a stable JSON array to stdout instead of a human-readable table |
 
-A missing or unreadable Claude Desktop config is **not** an error for `list` — it just means nothing is marked active, noted in the output. Only a missing/unresolvable themes directory exits non-zero.
+A missing or unreadable Claude Desktop config is **not** an error for `list`: it just means nothing is marked active, noted in the output. Only a missing/unresolvable themes directory exits non-zero.
 
 ```
 $ weave-theme list
@@ -70,23 +70,23 @@ Active theme: corporate-light
 
 ### `use`
 
-Points Claude Desktop's `weave` MCP server at a theme — or back at the packaged default — by editing the two env vars documented in [`weave-mcp-app`'s README](../weave-mcp-app/README.md#brand-theming-design-sources). This is the one-command replacement for hand-editing `claude_desktop_config.json`.
+Points Claude Desktop's `weave` MCP server at a theme (or back at the packaged default) by editing the two env vars documented in [`weave-mcp-app`'s README](../weave-mcp-app/README.md#brand-theming-design-sources). This is the one-command replacement for hand-editing `claude_desktop_config.json`.
 
 `<name|path>`: a bare name (e.g. `corporate-light`) is looked up in the themes directory (same resolution as `list`); anything containing a slash is used as a directory path directly.
 
-**The theme is linted first** (`lintThemeDir`, the same checks as `weave-theme lint`). Lint errors refuse the switch — exit 1 — unless `--force` is given; the config file is not read or written on a refusal. Warnings never block, just print a one-line count.
+**The theme is linted first** (`lintThemeDir`, the same checks as `weave-theme lint`). Lint errors refuse the switch (exit 1) unless `--force` is given; the config file is not read or written on a refusal. Warnings never block, just print a one-line count.
 
 | Flag | Effect |
 |---|---|
 | `--themes-dir <dir>` | Same resolution as `list` |
 | `--config <path>` | Same as `list` |
-| `--server <name>` | Same as `list` — the `mcpServers` entry edited |
+| `--server <name>` | Same as `list`; the `mcpServers` entry edited |
 | `--force` | Proceed even if the theme fails lint |
 | `--default` | Restore the packaged default theme (removes `WEAVE_THEME_CSS_PATH` / `WEAVE_DESIGN_GUIDANCE_PATH`) instead of taking a `<name\|path>` |
 
-Before writing, the existing config file is copied to `<path>.bak-<timestamp>` (ISO 8601 basic, colons/dashes/millis stripped — e.g. `claude_desktop_config.json.bak-20260707T161500Z`; a `-2`, `-3`, ... suffix is appended if two writes land in the same second, so a fast `use` followed by `use --default` never clobbers the first backup). Only `mcpServers.<name>.env.WEAVE_THEME_CSS_PATH` and `.WEAVE_DESIGN_GUIDANCE_PATH` are touched — the rest of the config is a lossless parse/serialise round-trip, so any other server entries, comments-are-moot-because-JSON-has-none, and key order all survive untouched. `WEAVE_DESIGN_GUIDANCE_PATH` is only set when the theme has a `DESIGN.md`; otherwise any existing value is removed and the run notes it.
+Before writing, the existing config file is copied to `<path>.bak-<timestamp>` (ISO 8601 basic, colons/dashes/millis stripped, e.g. `claude_desktop_config.json.bak-20260707T161500Z`; a `-2`, `-3`, ... suffix is appended if two writes land in the same second, so a fast `use` followed by `use --default` never clobbers the first backup). Only `mcpServers.<name>.env.WEAVE_THEME_CSS_PATH` and `.WEAVE_DESIGN_GUIDANCE_PATH` are touched. The rest of the config is a lossless parse/serialise round-trip, so any other server entries, comments-are-moot-because-JSON-has-none and key order all survive untouched. `WEAVE_DESIGN_GUIDANCE_PATH` is only set when the theme has a `DESIGN.md`; otherwise any existing value is removed and the run notes it.
 
-Every successful run ends with exactly this line, since a stdio MCP server only reads its config at launch — `use` cannot hot-swap the running server:
+Every successful run ends with exactly this line, since a stdio MCP server only reads its config at launch; `use` cannot hot-swap the running server:
 
 ```
 Restart Claude Desktop to apply (the config is read at launch only).
@@ -109,7 +109,7 @@ weave-theme use --default   # back to the packaged default theme
 |---|---|
 | 0 | Switched (or restored the default) successfully |
 | 1 | Refused: the theme failed lint and `--force` wasn't given (config untouched, no backup written) |
-| 2 | Usage or IO failure — missing `<name\|path>`, unknown theme, unresolvable themes dir, corrupt/missing config, or no matching `mcpServers` entry (message points at `weave-mcp-app`'s README install instructions) |
+| 2 | Usage or IO failure: missing `<name\|path>`, unknown theme, unresolvable themes dir, corrupt/missing config or no matching `mcpServers` entry (message points at `weave-mcp-app`'s README install instructions) |
 
 ## What it checks
 
@@ -132,20 +132,20 @@ Findings are `{severity, code, message, context?}`. Codes and severities:
 
 ### Coverage buckets
 
-Buckets come from `tokens.json` categories, with the manifest's `chart` category split into `palette` (`--chart-1..8`) and `chart-treatment` (grid, axis, tooltip, ...). `structural`, `tone` and `palette` must be complete; every other bucket (`chart-treatment`, `typography`, `spacing`, `surface`) is report-only — partial coverage there is a legitimate brand choice, not an authoring mistake.
+Buckets come from `tokens.json` categories, with the manifest's `chart` category split into `palette` (`--chart-1..8`) and `chart-treatment` (grid, axis, tooltip, ...). `structural`, `tone` and `palette` must be complete; every other bucket (`chart-treatment`, `typography`, `spacing`, `surface`) is report-only, since partial coverage there is a legitimate brand choice, not an authoring mistake.
 
 ### Contrast pairs and thresholds
 
-WCAG 2.x relative luminance; `rgba()` foregrounds are composited over the resolved opaque background first. A theme value may be `var(--other[, fallback])` — resolved one level (theme, then the shipped defaults, then the fallback literal); deeper indirection is skipped, not failed.
+WCAG 2.x relative luminance; `rgba()` foregrounds are composited over the resolved opaque background first. A theme value may be `var(--other[, fallback])`, resolved one level (theme, then the shipped defaults, then the fallback literal); deeper indirection is skipped, not failed.
 
 | Pair (fg vs bg) | Error below | Warning below |
 |---|---|---|
 | `--foreground` / `--background`, `--card-foreground` / `--card`, `--popover-foreground` / `--popover`, `--primary-foreground` / `--primary`, `--secondary-foreground` / `--secondary`, `--destructive-foreground` / `--destructive` | 3.0 | 4.5 |
-| `--muted-foreground` vs `--background` and `--card` | — | 3.0 |
-| `--tone-{positive,negative,warning,info}` vs `--background` and `--card` | — | 3.0 |
-| `--chart-1`, `--chart-2` vs `--card` | — | 1.5 (`CHART_INVISIBLE`) |
+| `--muted-foreground` vs `--background` and `--card` | n/a | 3.0 |
+| `--tone-{positive,negative,warning,info}` vs `--background` and `--card` | n/a | 3.0 |
+| `--chart-1`, `--chart-2` vs `--card` | n/a | 1.5 (`CHART_INVISIBLE`) |
 
-`--chart-3..8` are deliberately unchecked: series-capped brands legitimately fade the palette tail. Pairs where either side is unparseable (`clamp()`, `oklch()`, named keywords), unset, behind deeper `var()` indirection or on a translucent background are recorded in `skipped[]` with a reason — never an error. Pairs where neither side is themed are not checked at all (the shipped defaults are pre-reviewed).
+`--chart-3..8` are deliberately unchecked: series-capped brands legitimately fade the palette tail. Pairs where either side is unparseable (`clamp()`, `oklch()`, named keywords), unset, behind deeper `var()` indirection or on a translucent background are recorded in `skipped[]` with a reason, never an error. Pairs where neither side is themed are not checked at all (the shipped defaults are pre-reviewed).
 
 ## `--json` shape
 
@@ -165,7 +165,7 @@ WCAG 2.x relative luminance; `rgba()` foregrounds are composited over the resolv
 }
 ```
 
-Contrast findings and `checked[]` entries carry `fgValue`/`bgValue` — the resolved colour strings actually compared. The shape is additive-only; `version` is bumped on any breaking change.
+Contrast findings and `checked[]` entries carry `fgValue`/`bgValue`, the resolved colour strings actually compared. The shape is additive-only; `version` is bumped on any breaking change.
 
 ## Programmatic use (`./lint`)
 
@@ -179,8 +179,8 @@ const result = lintThemeDir("/path/to/theme", {
 // result: { ok, dir, errors, warnings, coverage, contrast, dropReport }
 ```
 
-`lintThemeDir` is pure — no `process.exit`, no console output. The CLI maps its result to exit codes and printing.
+`lintThemeDir` is pure: no `process.exit`, no console output. The CLI maps its result to exit codes and printing.
 
 ## Shipped themes are conformance fixtures
 
-Every theme under `examples/themes/*` must lint with zero errors — the test suite asserts this plainly, with no per-theme allowlist. A regression in a shipped theme, or an over-tight new check, fails the suite loudly. When this linter first ran against `brand-iron` it caught a real 2.8:1 cream-on-saffron text pair; the resolution was to fix the theme, not to whitelist the finding.
+Every theme under `examples/themes/*` must lint with zero errors, and the test suite asserts this plainly, with no per-theme allowlist. A regression in a shipped theme, or an over-tight new check, fails the suite loudly. When this linter first ran against `brand-iron` it caught a real 2.8:1 cream-on-saffron text pair; the resolution was to fix the theme, not to whitelist the finding.

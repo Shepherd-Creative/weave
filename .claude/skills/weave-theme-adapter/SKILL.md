@@ -3,7 +3,7 @@ name: weave-theme-adapter
 description: >-
   Convert a brand's design source into a validated Weave theme. Use when
   adapting a brand to Weave, or when the user says "create a weave theme from
-  my DESIGN.md", "adapt my brand", "brand my dashboards", or points at a
+  my DESIGN.md", "adapt my brand", "brand my dashboards" or points at a
   design-token repository or brand CSS and wants Weave to render in that look.
   Produces a weave-theme.css, a composition-brief DESIGN.md and a
   drop-report.json, gated by the weave-theme lint CLI.
