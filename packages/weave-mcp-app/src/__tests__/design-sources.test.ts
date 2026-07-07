@@ -31,8 +31,12 @@ beforeAll(() => {
   writeFileSync(invalidTheme, ".foo { color: red; }\n:root { --background: #fff; }");
 
   oversizeTheme = path.join(dir, "oversize.css");
-  // > 64 KiB of otherwise-valid declarations.
-  writeFileSync(oversizeTheme, `:root { --background: #fff; }\n/* ${"x".repeat(70 * 1024)} */`);
+  // > 64 KiB of genuinely VALID CSS: one real declaration repeated enough times
+  // to clear the cap, so the size gate is proven against real content (not a
+  // comment that the validator would collapse away).
+  const decl = "  --background: #ffffff;\n";
+  const declCount = Math.ceil((70 * 1024) / decl.length);
+  writeFileSync(oversizeTheme, `:root {\n${decl.repeat(declCount)}}`);
 
   validGuidance = path.join(dir, "DESIGN.md");
   writeFileSync(validGuidance, "# Brand guidance\n\nLead with a metric band.");

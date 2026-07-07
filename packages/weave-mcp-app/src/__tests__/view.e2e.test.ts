@@ -3,9 +3,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { SpecSchema } from "@shepherd-creative/weave-primitives/schemas";
 import tokens from "@shepherd-creative/weave-tokens/tokens.json";
-import { type Browser, chromium, type Page } from "playwright";
+import { type Browser, chromium } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { injectTheme, validateThemeCss } from "../theme.js";
+import { computedRootVar, openSpecPage } from "./view-helpers.js";
 
 const HTML = path.resolve(__dirname, "../../dist/mcp-app.html");
 const rawSpec = readFileSync(path.resolve(__dirname, "fixtures/dashboard-spec.json"), "utf8");
@@ -13,42 +14,6 @@ const rawSpec = readFileSync(path.resolve(__dirname, "fixtures/dashboard-spec.js
 // Verified locally before committing to this approach: file:// URLs on this
 // Chromium build (v1228 / Chrome for Testing 149) preserve query strings
 // fine, so no throwaway http server is needed to carry ?spec= to the page.
-
-export interface SpecPage {
-  page: Page;
-  consoleErrors: string[];
-  pageErrors: string[];
-}
-
-// NOTE for future chart-geometry assertions: gate on
-// `page.waitForSelector("#root .recharts-surface")` rather than `#root *` —
-// recharts' ResponsiveContainer paints on a later tick, and the race surfaces
-// on slow CI.
-export async function openSpecPage(
-  browser: Browser,
-  htmlPath: string,
-  spec: string,
-): Promise<SpecPage> {
-  const page = await browser.newPage();
-  const consoleErrors: string[] = [];
-  page.on("console", (msg) => {
-    if (msg.type() === "error") consoleErrors.push(msg.text());
-  });
-  const pageErrors: string[] = [];
-  page.on("pageerror", (err) => pageErrors.push(err.message));
-
-  const b64 = Buffer.from(spec).toString("base64");
-  await page.goto(`file://${htmlPath}?spec=${encodeURIComponent(b64)}`);
-  await page.waitForSelector("#root *", { timeout: 10_000 });
-  return { page, consoleErrors, pageErrors };
-}
-
-export function computedRootVar(page: Page, name: string): Promise<string> {
-  return page.evaluate(
-    (varName) => getComputedStyle(document.documentElement).getPropertyValue(varName).trim(),
-    name,
-  );
-}
 
 describe("view renders a weave spec standalone", () => {
   let browser: Browser;
