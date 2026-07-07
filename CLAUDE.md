@@ -17,7 +17,13 @@ pnpm test                              # turbo run test (vitest per-package)
 pnpm lint                              # biome check .
 pnpm format                            # biome format --write .
 pnpm --filter weave-mcp-server dev     # MCP server on :8787
+node packages/weave-theme-cli/dist/cli.js list                        # themes + which is active in Claude Desktop
+node packages/weave-theme-cli/dist/cli.js use <name>                  # lint-first switch (restart Claude Desktop after)
+node packages/weave-theme-cli/dist/cli.js use --default               # back to the packaged default theme
+node packages/weave-theme-cli/dist/cli.js lint <dir> --require-drop-report   # gate an adapter-authored theme
 ```
+
+Brand adaptation: the `weave-theme-adapter` skill (auto-discovered from `.claude/skills/`) turns a brand DESIGN.md or token CSS into a theme directory; see `packages/weave-adapter-skill/SKILL.md`.
 
 ## Verification
 

@@ -1,8 +1,8 @@
 # Handoff: Design-source adapter, theme tooling and public release
 
-**Generated**: 2026-05-04 (rewritten 2026-07-07 after the adapter batch)
+**Generated**: 2026-05-04 (rewritten 2026-07-07 after the adapter batch; updated same day post-release-prep)
 **Branch**: `feat/design-source-adapter` (main clone, sequential session)
-**Status**: All build stages complete, gate green (15 turbo test tasks). PR pending. Two decisions held for Pierre: the repo visibility flip and whether to rewrite history for the previously tracked `.memsearch/` session notes.
+**Status**: Ready for review. All build stages complete, gate green (15 turbo test tasks, 217 tests). **PR #5 open** (<https://github.com/Shepherd-Creative/weave/pull/5>), awaiting Pierre's review/merge (human gate, do not auto-merge). Both held decisions RESOLVED 2026-07-07: history was rewritten with `git filter-repo` to purge `.memsearch/` (every SHA changed; old clones elsewhere must be RE-CLONED, never pulled) and the repo is now **PUBLIC** with topics and a `protect-main` branch ruleset (no force push, no deletion, PR required, 0 approvals; no bypass actors, so disable the ruleset before any future history surgery).
 
 ## What this branch delivers (13+ commits, each stage two-stage reviewed)
 
@@ -17,10 +17,12 @@
 
 `pnpm typecheck` 13/13 tasks, `pnpm test` 15/15 tasks: theme-cli 102, mcp-app 43 (incl. 4-theme acceptance e2e + proactive assertions), primitives 33, tokens 10, adapter-skill 5, skill 5, mcp-server 19. All three shipped themes lint exit-0; brand-iron also passes `--require-drop-report`. Live smoke of `use`/`list`/round-trip/refusal against a fixture config: all green. gitleaks full-history scan: clean (60 commits).
 
-## Held decisions (Pierre's explicit go required)
+## Release sequencing (current human gates)
 
-1. **Repo visibility flip** (`gh repo edit --visibility public`) after PR merge. History is secrets-clean per gitleaks; personal paths remain in historical docs (`docs/superpowers/plans/*`, this file's history) and in git history generally.
-2. **`.memsearch` history**: the session-notes file is untracked going forward but exists in history. Options: accept (content is low-sensitivity dev notes about this repo) or `git filter-repo` before the flip (heavier; invalidates clones).
+1. **Merge PR #5** (the adapter batch). This puts the public landing README live on main.
+2. **Then merge PR #4** (the Changesets bot's "chore: version packages"): the bot auto-updates it after #5 lands so one merge cuts a single clean release (version bumps + CHANGELOGs + GitHub Packages publish). Merging #4 before #5 would cut a release missing the entire batch.
+3. Formerly-held decisions, both executed 2026-07-07: `.memsearch/` purged from all history via `git filter-repo` (mirror-rewrite, force-pushed heads + tags; pre-rewrite backup mirror in the session scratchpad until Pierre deletes it) and the visibility flip to public. Branch protection ruleset `protect-main` active.
+4. Aftercare: any clone elsewhere (VPS, OpenClaw) must be re-cloned; the two stale `.claude/worktrees/` checkouts point at pre-rewrite SHAs, tear down from the main clone when convenient.
 
 ## Still open from the earlier MCP App handoff
 
@@ -38,7 +40,7 @@ Preserved from the MCP App build; all still apply:
 - **cloudflared named tunnel with non-Cloudflare DNS** cannot resolve (`cfargotunnel.com` is Cloudflare-private); quick tunnels only.
 - **Inventing API fields from memory**: read `/tmp/mcp-ext-apps/src/spec.types.ts` before promising MCP Apps API surface.
 - **`session_id`/`SessionEnd` for lifecycle automation**: see the global session-concurrency protocol; warn-only mechanisms.
-- New this batch: **`CMD="node x.js"; $CMD` fails under zsh** (no word splitting); use direct invocation or arrays. **Turbo package-level `inputs` overrides replace, not merge** the root array; `$TURBO_DEFAULT$` avoids the drift. **Backup filenames keyed on wall-clock seconds collide** under rapid successive writes; suffix on collision.
+- New this batch: **`CMD="node x.js"; $CMD` fails under zsh** (no word splitting); use direct invocation or arrays. **Turbo package-level `inputs` overrides replace, not merge** the root array; `$TURBO_DEFAULT$` avoids the drift. **Backup filenames keyed on wall-clock seconds collide** under rapid successive writes; suffix on collision. **`git filter-repo` removes the `origin` remote as a safety default**; re-add before force-pushing, and push explicit `refs/heads/*` + `refs/tags/*` rather than `--mirror` (mirror push trips on GitHub's read-only `refs/pull/*`).
 
 ## Files to know
 
