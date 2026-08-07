@@ -54,7 +54,7 @@ export const TOOLS: ToolDescriptor[] = [
   {
     name: "render_dashboard",
     description:
-      "Render a full dashboard composition — a Grid or Stack tree containing organisms. Use when you need more than one organism arranged together. Input is a Grid or Stack node with a children array of organism specs; call get_skill for the full schema. Use for any multi-dimensional status or health summary, even when the user did not ask for a dashboard.",
+      "Render a full dashboard composition — a Grid or Stack tree containing organisms. Use when you need more than one organism arranged together. Input is a Grid or Stack node whose children array holds organism specs (MetricBand, ChartCard, TableCard, NoteCard) or further Grid/Stack nodes. Use for any multi-dimensional status or health summary, even when the user did not ask for a dashboard.",
     // Full spec; the LLM supplies its own type discriminator here.
     inputSchema: SpecSchema,
     specType: undefined,
@@ -66,11 +66,33 @@ export const TOOLS_BY_NAME: Record<string, ToolDescriptor> = Object.fromEntries(
   TOOLS.map((t) => [t.name, t]),
 );
 
+/**
+ * Where a model reading THIS package's surfaces can fetch the composition
+ * skill. Both surfaces are the same Hono app, which serves the skill at
+ * `GET /skill.md` (see packages/weave-mcp-server/src/app.ts).
+ *
+ * The descriptions in `TOOLS` are deliberately surface-neutral: the array is
+ * also imported by the MCP App, which is stdio-only (no HTTP route to point
+ * at) and registers its own `get_skill` tool instead. A pointer baked into the
+ * shared descriptor would be false on whichever surface it was not written
+ * for — which is exactly how the old `call get_skill` instruction came to
+ * advertise a tool this server never registered.
+ */
+export const SKILL_ENDPOINT_HINT =
+  " The full composition guide is served by this server at `GET /skill.md`.";
+
+/** A tool's description as advertised by this package's REST and MCP surfaces. */
+export function describeForHttpSurface(tool: ToolDescriptor): string {
+  return tool.name === "render_dashboard"
+    ? tool.description + SKILL_ENDPOINT_HINT
+    : tool.description;
+}
+
 /** Convert each tool's Zod schema to JSON Schema for the `/tools` endpoint. */
 export function toolsJsonManifest() {
   return TOOLS.map((t) => ({
     name: t.name,
-    description: t.description,
+    description: describeForHttpSurface(t),
     inputSchema: zodToJsonSchema(t.inputSchema, { target: "jsonSchema7" }),
   }));
 }
@@ -88,11 +110,16 @@ export class DepthLimitError extends Error {
 
 /**
  * Max recursion depth allowed on `render_dashboard` inputs.
- * Depth here counts nested Grid/Stack containers. The SKILL.md examples cap
- * at depth 3; anything beyond 6 is almost certainly an LLM hallucination
- * and existed as an F1 OOM vector (see a5-mcp-stress-test-results.md) before
- * SpecSchema switched to z.discriminatedUnion. Kept as belt-and-braces
- * against future Zod version regressions and misbehaving clients.
+ * Depth here counts nested Grid/Stack containers. The worked examples in
+ * packages/weave-skill/SKILL.md cap at depth 3; anything beyond 6 is almost
+ * certainly an LLM hallucination and was an F1 OOM vector before SpecSchema
+ * switched to z.discriminatedUnion. Kept as belt-and-braces against future
+ * Zod version regressions and misbehaving clients.
+ *
+ * Evidence for the OOM claim now lives in the repository, not in an external
+ * design doc: the "parses depth-20 specs fast via discriminatedUnion"
+ * regression test in packages/weave-mcp-server/src/__tests__/app.test.ts, and
+ * the 0.1.1 entry in packages/weave-mcp-server/CHANGELOG.md.
  */
 const MAX_DASHBOARD_DEPTH = 6;
 

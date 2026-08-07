@@ -18,7 +18,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { AnyZodObject } from "zod";
-import { TOOLS, invokeTool } from "./tools.js";
+import { TOOLS, describeForHttpSurface, invokeTool } from "./tools.js";
 
 /**
  * Construct a fresh McpServer with all 5 render tools registered.
@@ -36,7 +36,9 @@ function buildServer(): McpServer {
     mcp.registerTool(
       tool.name,
       {
-        description: tool.description,
+        // Same skill pointer the REST manifest advertises: this transport is
+        // served by the same Hono app, so `GET /skill.md` is reachable here.
+        description: describeForHttpSurface(tool),
         // SDK accepts either a Zod shape (`{ k: z.string() }`) or an
         // AnySchema (`z.object({ … })`). Our TOOLS list uses full
         // object schemas, which match the AnySchema branch.
