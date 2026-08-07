@@ -2,7 +2,7 @@
 
 Theme-neutral React primitives for LLM-composed dashboards.
 
-> **Status:** B3 pre-release. 12 of 18 primitives shipped. Not yet published to npm.
+> **Status:** B3 pre-release. 13 primitives shipped. Not yet published to npm.
 
 ## What it does
 
@@ -33,7 +33,9 @@ import { Weave } from "@shepherd-creative/weave-primitives";
 | Organisms | `MetricBand`, `ChartCard`, `TableCard`, `NoteCard` |
 | Layouts | `Grid`, `Stack` |
 
-Deferred to B5: `Sparkline`, `ProgressBar`, `Badge`, `Divider`, `Comparison`.
+Planned next: `Sparkline`, `ProgressBar`, `Badge`.
+
+Nothing else is committed. Whitespace and sectioning are owned by `Grid`/`Stack` gaps and density rather than by a dedicated primitive, and a two-value comparison composes today as a `Stack` of two `KPI`s.
 
 ## Install
 
