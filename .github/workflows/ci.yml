@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+  # Keeps the main-branch result visible so a PR's baseline comparison always
+  # has a known-good reference point to reason about.
+  push:
+    branches:
+      - main
+
+# A new push to the same PR supersedes the in-flight run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck, test and lint
+    runs-on: ubuntu-latest
+    steps:
+      # fetch-depth: 0 so the Biome gate can check out the base ref in a
+      # worktree and compare findings against it.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          # The repo-level .npmrc references NODE_AUTH_TOKEN for the
+          # @shepherd-creative scope on GitHub Packages. Workspace packages
+          # resolve locally, but the variable must exist for pnpm to parse it.
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # weave-mcp-app's Playwright suites need a browser. Cached across runs by
+      # the browser revision, so a normal PR pays the download once per bump.
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --filter @shepherd-creative/weave-mcp-app exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install --with-deps chromium
+
+      # Each step runs on its own so a failure names the gate that failed.
+      # Never chained with `||`, which would mask a real failure.
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      # The repository carries a known baseline of Biome findings. This gate
+      # fails only on findings this change introduced; see
+      # scripts/biome-new-findings.mjs for how the comparison is made.
+      - name: Biome (new findings only)
+        run: node scripts/biome-new-findings.mjs "origin/${{ github.base_ref || github.event.repository.default_branch }}"
