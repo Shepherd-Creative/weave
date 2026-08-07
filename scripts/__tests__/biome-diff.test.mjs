@@ -178,31 +178,145 @@ describe("findIntroduced", () => {
     assert.deepEqual(introduced, []);
   });
 
-  it("tolerates a pre-existing finding on a line the change itself edited", () => {
-    // The gate exists so a PR is not blocked by debt in the region it touched:
-    // the finding survives inside the rewritten hunk, so it stays pre-existing.
-    const diffText = [
-      "diff --git a/src/Chart.tsx b/src/Chart.tsx",
-      "--- a/src/Chart.tsx",
-      "+++ b/src/Chart.tsx",
-      "@@ -148,4 +148,4 @@",
-      "-  const rows = props.rows;",
-      "-  return rows.map((r, i) => <li key={i}>{r.name}</li>);",
-      "-  // trailing",
-      "-  // comment",
-      "+  const rows = props.data;",
-      "+  return rows.map((r, i) => <li key={i}>{r.label}</li>);",
-      "+  // trailing",
-      "+  // comment",
+  describe("inside a rewritten hunk", () => {
+    // A `-U0` hunk deletes every base line and adds every head line, so sharing
+    // one proves nothing on its own. The only identity evidence available is
+    // the offending source line itself: Biome's JSON reporter carries no source
+    // text and no stable diagnostic id (its `advices` are another position plus
+    // generic prose), so the gate reads both trees and compares.
+    const REWRITE = [
+      "diff --git a/src/List.tsx b/src/List.tsx",
+      "--- a/src/List.tsx",
+      "+++ b/src/List.tsx",
+      "@@ -10,3 +10,3 @@",
+      "-  <li key={i}>",
+      "-  <span>a</span>",
+      "-  <span>b</span>",
+      "+  <li key={row.id}>",
+      "+  <span>a</span>",
+      "+  <em>{items.map((x, i) => <b key={i}>{x}</b>)}</em>",
     ].join("\n");
 
-    const introduced = findIntroduced({
-      baseDiagnostics: [diag("src/Chart.tsx", 149)],
-      headDiagnostics: [diag("src/Chart.tsx", 149)],
-      fileDiffs: parseUnifiedDiff(diffText),
+    /** A file whose line `n` holds `text`; the rest is filler. */
+    const fileWith = (n, text) =>
+      Array.from({ length: n + 5 }, (_, i) => (i + 1 === n ? text : `// line ${i + 1}`)).join("\n");
+
+    it("REPRO: does NOT claim a baseline finding merely for sharing the hunk", () => {
+      // The reviewer's exact call: a three-line replacement that deletes the
+      // baseline finding at line 10 and introduces an identical one at line 12,
+      // with no source available. Without evidence the two are the same
+      // finding, the gate must fail closed and report it.
+      const introduced = findIntroduced({
+        baseDiagnostics: [diag("src/List.tsx", 10)],
+        headDiagnostics: [diag("src/List.tsx", 12)],
+        fileDiffs: parseUnifiedDiff(REWRITE),
+      });
+
+      assert.deepEqual(introducedLines(introduced), [12]);
     });
 
-    assert.deepEqual(introduced, []);
+    it("REPRO: reports an in-hunk replacement when the offending line differs", () => {
+      const introduced = findIntroduced({
+        baseDiagnostics: [diag("src/List.tsx", 10)],
+        headDiagnostics: [diag("src/List.tsx", 12)],
+        fileDiffs: parseUnifiedDiff(REWRITE),
+        baseSources: new Map([["src/List.tsx", fileWith(10, "  <li key={i}>")]]),
+        headSources: new Map([
+          ["src/List.tsx", fileWith(12, "  <em>{items.map((x, i) => <b key={i}>{x}</b>)}</em>")],
+        ]),
+      });
+
+      assert.deepEqual(introducedLines(introduced), [12]);
+    });
+
+    it("claims a finding that moved inside the hunk on a byte-identical line", () => {
+      // The one case where identity IS proven in a rewritten region: the
+      // offending source line is unchanged, so this is the same finding.
+      const introduced = findIntroduced({
+        baseDiagnostics: [diag("src/List.tsx", 10)],
+        headDiagnostics: [diag("src/List.tsx", 12)],
+        fileDiffs: parseUnifiedDiff(REWRITE),
+        baseSources: new Map([["src/List.tsx", fileWith(10, "  <li key={i}>")]]),
+        headSources: new Map([["src/List.tsx", fileWith(12, "  <li key={i}>")]]),
+      });
+
+      assert.deepEqual(introduced, []);
+    });
+
+    it("reports a finding whose own line the change edited (fail closed)", () => {
+      // The sensitivity cost of the rule above: edit the line carrying a
+      // pre-existing finding and the finding is reported, because nothing
+      // proves the head finding is the base one. Fixing it is the remedy.
+      const diffText = [
+        "diff --git a/src/Chart.tsx b/src/Chart.tsx",
+        "--- a/src/Chart.tsx",
+        "+++ b/src/Chart.tsx",
+        "@@ -148,4 +148,4 @@",
+        "-  const rows = props.rows;",
+        "-  return rows.map((r, i) => <li key={i}>{r.name}</li>);",
+        "-  // trailing",
+        "-  // comment",
+        "+  const rows = props.data;",
+        "+  return rows.map((r, i) => <li key={i}>{r.label}</li>);",
+        "+  // trailing",
+        "+  // comment",
+      ].join("\n");
+
+      const introduced = findIntroduced({
+        baseDiagnostics: [diag("src/Chart.tsx", 149)],
+        headDiagnostics: [diag("src/Chart.tsx", 149)],
+        fileDiffs: parseUnifiedDiff(diffText),
+        baseSources: new Map([
+          [
+            "src/Chart.tsx",
+            fileWith(149, "  return rows.map((r, i) => <li key={i}>{r.name}</li>);"),
+          ],
+        ]),
+        headSources: new Map([
+          [
+            "src/Chart.tsx",
+            fileWith(149, "  return rows.map((r, i) => <li key={i}>{r.label}</li>);"),
+          ],
+        ]),
+      });
+
+      assert.deepEqual(introducedLines(introduced), [149]);
+    });
+
+    it("keeps claiming a multi-line finding whose anchor line is untouched", () => {
+      // organizeImports spans the whole import block but starts at the first
+      // import. Adding an import lower down rewrites the block without moving
+      // that anchor, so the finding stays pre-existing.
+      const organize = (line) => ({
+        severity: "error",
+        message: "The imports and exports are not sorted.",
+        category: "assist/source/organizeImports",
+        location: { path: "src/app.ts", start: { line, column: 1 }, end: { line: 30, column: 1 } },
+      });
+      const diffText = [
+        "diff --git a/src/app.ts b/src/app.ts",
+        "--- a/src/app.ts",
+        "+++ b/src/app.ts",
+        "@@ -1,3 +1,4 @@",
+        '-import { a } from "./a.js";',
+        '-import { b } from "./b.js";',
+        '-import { c } from "./c.js";',
+        '+import { a } from "./a.js";',
+        '+import { b } from "./b.js";',
+        '+import { c } from "./c.js";',
+        '+import { d } from "./d.js";',
+      ].join("\n");
+
+      const introduced = findIntroduced({
+        baseDiagnostics: [organize(1)],
+        headDiagnostics: [organize(1)],
+        fileDiffs: parseUnifiedDiff(diffText),
+        baseSources: new Map([["src/app.ts", fileWith(1, 'import { a } from "./a.js";')]]),
+        headSources: new Map([["src/app.ts", fileWith(1, 'import { a } from "./a.js";')]]),
+      });
+
+      assert.deepEqual(introduced, []);
+    });
   });
 
   it("carries a pre-existing finding across a rename", () => {

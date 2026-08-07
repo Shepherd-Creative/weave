@@ -30,7 +30,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -112,12 +112,35 @@ try {
   die(`could not diff ${baseRef} against the working tree`, err?.stderr ?? err);
 }
 
+/**
+ * Full text of every file carrying a diagnostic, so the matcher can compare
+ * the offending source line across the two trees. An unreadable file is simply
+ * absent, which the matcher treats as "identity unknown" — it never claims on
+ * a missing anchor.
+ */
+function sourcesFor(root, diagnostics) {
+  const sources = new Map();
+  for (const d of diagnostics) {
+    const file = diagnosticFile(d);
+    if (sources.has(file)) continue;
+    try {
+      sources.set(file, readFileSync(path.join(root, file), "utf-8"));
+    } catch {
+      /* unreadable on this side: the matcher falls back to reporting */
+    }
+  }
+  return sources;
+}
+
 const workdir = mkdtempSync(path.join(tmpdir(), "biome-base-"));
 const baseTree = path.join(workdir, "tree");
 let baseDiagnostics;
+let baseSources;
 try {
   git(["worktree", "add", "--detach", baseTree, baseSha]);
   baseDiagnostics = biomeDiagnostics(baseTree, "base");
+  // Read before the worktree goes away in `finally`.
+  baseSources = sourcesFor(baseTree, baseDiagnostics);
 } finally {
   // Removed from the repo root, never from inside the worktree being removed.
   try {
@@ -133,7 +156,13 @@ const headDiagnostics = biomeDiagnostics(REPO_ROOT, "head");
 const baseTotal = baseDiagnostics.length;
 const headTotal = headDiagnostics.length;
 
-const introduced = findIntroduced({ baseDiagnostics, headDiagnostics, fileDiffs });
+const introduced = findIntroduced({
+  baseDiagnostics,
+  headDiagnostics,
+  fileDiffs,
+  baseSources,
+  headSources: sourcesFor(REPO_ROOT, headDiagnostics),
+});
 
 console.log(`Biome baseline (${baseRef} @ ${baseSha.slice(0, 8)}): ${baseTotal} diagnostics`);
 console.log(`Biome head: ${headTotal} diagnostics`);

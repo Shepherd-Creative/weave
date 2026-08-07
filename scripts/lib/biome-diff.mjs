@@ -153,35 +153,82 @@ const withinHeadSide = (hunk, line) =>
   line >= hunk.headStart && line <= hunk.headStart + hunk.headLines - 1;
 
 /**
+ * Reads the offending source line for a diagnostic — the only identity
+ * evidence available, since Biome's JSON reporter carries no source text and
+ * no stable diagnostic id (its `advices` are another position plus generic
+ * prose).
+ *
+ * Trimmed, so re-indenting a line does not make it a different finding.
+ * Returns null whenever the line cannot be read, which callers must treat as
+ * "identity unknown" and never as a match.
+ */
+function anchorReader(sources) {
+  const cache = new Map();
+  return (file, line) => {
+    if (!(line >= 1)) return null;
+    let lines = cache.get(file);
+    if (lines === undefined) {
+      const text = sources.get(file);
+      lines = typeof text === "string" ? text.split("\n") : null;
+      cache.set(file, lines);
+    }
+    const raw = lines?.[line - 1];
+    return typeof raw === "string" ? raw.trim() : null;
+  };
+}
+
+/**
  * Head diagnostics the base did not already have.
  *
- * Identity is file + rule + message + *position tracked through the diff*. A
- * baseline finding can be claimed by a head finding in exactly two ways:
+ * Identity is file + rule + message + *evidence that this is the same
+ * finding*. A baseline finding can be claimed by a head finding in exactly two
+ * ways:
  *
  *  1. the code holding it was not touched, so git's hunks say the finding
  *     simply shifted to a known new line — matched there, exactly;
- *  2. the change rewrote the very region holding it, so its line has no image
- *     — matched anywhere inside the head side of that same hunk.
+ *  2. the change rewrote the region holding it, AND the offending source line
+ *     is byte-identical (after trimming) on both sides — the same code, moved
+ *     within the region it was rewritten in.
  *
- * Anything else is new. That is the point: a baseline finding deleted at line
- * 150 cannot be spent on a finding introduced at line 301, because 301 is
- * neither its mapped line nor inside the hunk that removed it — even though
- * file, rule and message are identical.
+ * Anything else is new. Sharing a rewritten hunk is explicitly NOT enough: a
+ * `-U0` hunk deletes every base line and adds every head line, so a baseline
+ * finding deleted at line 10 and an identical one introduced at line 12 of the
+ * same rewritten hunk are indistinguishable by position alone. Where identity
+ * cannot be proven the gate fails closed and reports the finding, because a
+ * false positive costs a fix while a false negative is a silent pass.
  *
  * Trade-offs, deliberately taken:
- * - Rule 2 is bounded by the hunk, not by the file. A change that rewrites a
- *   whole file in one hunk therefore does degrade to file-level matching; that
- *   is the honest limit of positional evidence, and such a diff is loud in
- *   review.
+ * - Sensitivity: edit the very line carrying a pre-existing finding and, if
+ *   the finding survives, it is reported as new. That is the cost of rule 2's
+ *   evidence requirement, and the remedy is cheap — fix the finding on the
+ *   line you were already editing. It is far narrower than `--changed`, which
+ *   fails a PR for any pre-existing finding anywhere in a file it touched.
+ * - Residual ambiguity: an offending line moved verbatim inside a rewritten
+ *   hunk is treated as the same finding. The bytes are identical, so no
+ *   evidence distinguishes "survived a reshuffle" from "removed and retyped",
+ *   and calling identical code a new finding would flag pure reorderings.
  * - Raw line equality is never used on its own. Line numbers are only ever
  *   compared after being mapped through the diff, so an unrelated edit above a
  *   finding shifts it without flagging it.
+ * - Anchors are trimmed, so re-indentation does not manufacture new findings.
  * - Biome emits one file-level `format` diagnostic per file (line 0), so this
  *   gate cannot distinguish "already unformatted" from "made worse" inside a
- *   file that was already failing `format`. Unchanged from before, and out of
- *   this gate's reach: the fix is to format the file.
+ *   file that was already failing `format`. Out of this gate's reach: the fix
+ *   is to format the file.
+ *
+ * `baseSources` / `headSources` map a file path to its full text on that side.
+ * Omitting them is safe but maximally conservative: with no source to compare,
+ * rule 2 can never apply.
  */
-export function findIntroduced({ baseDiagnostics, headDiagnostics, fileDiffs = new Map() }) {
+export function findIntroduced({
+  baseDiagnostics,
+  headDiagnostics,
+  fileDiffs = new Map(),
+  baseSources = new Map(),
+  headSources = new Map(),
+}) {
+  const baseAnchor = anchorReader(baseSources);
+  const headAnchor = anchorReader(headSources);
   // Renames: base diagnostics belong to the file's head path.
   const headPathOf = new Map();
   for (const [headPath, entry] of fileDiffs) {
@@ -201,11 +248,19 @@ export function findIntroduced({ baseDiagnostics, headDiagnostics, fileDiffs = n
   /** fingerprint -> claimable baseline findings, in base order. */
   const claimable = new Map();
   for (const d of baseDiagnostics) {
-    const headPath = headPathOf.get(diagnosticFile(d)) ?? diagnosticFile(d);
-    const placed = mapperFor(headPath)(diagnosticLine(d));
+    const basePath = diagnosticFile(d);
+    const headPath = headPathOf.get(basePath) ?? basePath;
+    const baseLine = diagnosticLine(d);
+    const placed = mapperFor(headPath)(baseLine);
     const key = fingerprint(d, headPath);
     const pool = claimable.get(key);
-    const candidate = { line: placed.line, hunk: placed.hunk, claimed: false };
+    const candidate = {
+      line: placed.line,
+      hunk: placed.hunk,
+      // Only rule 2 needs the anchor, and only rule 2 pays to read it.
+      anchor: placed.hunk === null ? null : baseAnchor(basePath, baseLine),
+      claimed: false,
+    };
     if (pool) pool.push(candidate);
     else claimable.set(key, [candidate]);
   }
@@ -214,9 +269,19 @@ export function findIntroduced({ baseDiagnostics, headDiagnostics, fileDiffs = n
   for (const d of headDiagnostics) {
     const pool = claimable.get(fingerprint(d)) ?? [];
     const line = diagnosticLine(d);
-    const match =
-      pool.find((c) => !c.claimed && c.line === line) ??
-      pool.find((c) => !c.claimed && c.hunk !== null && withinHeadSide(c.hunk, line));
+
+    let match = pool.find((c) => !c.claimed && c.line === line);
+    if (!match) {
+      const anchor = headAnchor(diagnosticFile(d), line);
+      // `anchor === null` means the head line could not be read, so identity is
+      // unknown: no claim, and the finding is reported.
+      if (anchor !== null) {
+        match = pool.find(
+          (c) =>
+            !c.claimed && c.hunk !== null && withinHeadSide(c.hunk, line) && c.anchor === anchor,
+        );
+      }
+    }
     if (match) {
       match.claimed = true;
       continue;
