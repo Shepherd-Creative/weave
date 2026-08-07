@@ -1,8 +1,8 @@
 # Handoff: Primitive Portfolio — Wave 0 (truth, documentation and CI gate)
 
-**Generated**: 2026-08-07 · **Updated**: 2026-08-08 (review remediation)
+**Generated**: 2026-08-07 · **Updated**: 2026-08-08 (second review remediation)
 **Branch**: `feature/primitive-portfolio-wave-0` (worktree `/Users/pierregallet/Documents/weave-wave-0`)
-**Status**: Implemented, independently reviewed, and all three review findings remediated. **Blocked on the exit gate** — nothing pushed, no PR, so `ci.yml` has still never executed on GitHub.
+**Status**: Implemented, independently reviewed **twice**, and all findings from both rounds remediated. **Blocked on the exit gate** — nothing pushed, no PR, so `ci.yml` has still never executed on GitHub.
 
 > Supersedes the previous HANDOFF.md (design-source adapter / PR #5 batch), which is merged and recoverable from git history on `main`.
 
@@ -12,7 +12,7 @@ Wave 0 of the approved plan at `.hermes/plans/2026-08-07_223240-primitive-portfo
 
 ## Completed
 
-11 commits on `main@b9b1617`, tree clean, **nothing pushed**.
+13 commits on `main@b9b1617`, tree clean, **nothing pushed**.
 
 Wave 0 implementation (8 commits):
 
@@ -27,11 +27,16 @@ Wave 0 implementation (8 commits):
 - [x] `.claude/settings.json` Stop hook schema repaired (was silently inert)
 - [x] Changeset added (minor × 3)
 
-Review remediation, 2026-08-08 (3 commits — see next section for the findings):
+Review remediation round 1, 2026-08-08 (3 commits — see next section for the findings):
 
 - [x] `7c6a5f8` Biome gate matches through the diff, not a position-blind fingerprint
 - [x] `e3da150` Citation grammar widened; cited evidence must resolve inside the repository
 - [x] `d5c33ee` Composition skill registered as the MCP resource `weave://skill.md`
+
+Review remediation round 2, 2026-08-08 (2 commits — a second review found both round-1 fixes incomplete):
+
+- [x] `543f9ec` Gate requires source evidence before claiming a finding inside a rewritten hunk
+- [x] `ec75fd1` Citation grammar requires a boundary after the extension
 
 ## The independent review, and what was done about it
 
@@ -50,7 +55,9 @@ Correct, and reproduced end to end. The fingerprint was `file :: category :: mes
 
 Anything else is new. The diff is a required input: if it cannot be computed the gate exits 2, never 0. Renames are followed, so a moved file no longer reports its whole baseline as new.
 
-**Trade-off taken.** Rule 2 is bounded by the hunk, not the file, so a change that rewrites an entire file in one hunk degrades to file-level matching. That is the honest limit of positional evidence and such a diff is loud in review. Raw line equality is never used on its own — lines are only compared after being mapped through the diff, which is what keeps harmless shifts from flagging. Biome's file-level `format` diagnostic (one per file, line 0) still cannot distinguish "already unformatted" from "made worse"; unchanged from before and out of the gate's reach — the fix is to format the file.
+> ⚠️ **Superseded by round-2 finding A below.** Rule 2 as stated here — "matched anywhere inside the head side of that same hunk" — was still a silent pass for a same-hunk relocation, and the trade-off recorded at the time ("bounded by the hunk, that is the honest limit of positional evidence") was wrong: position inside a `-U0` hunk is not evidence at all. Rule 2 now additionally requires the offending source line to be byte-identical. Read this section for the cross-hunk case it did fix, and finding A for the current rule.
+
+Raw line equality is never used on its own — lines are only compared after being mapped through the diff, which is what keeps harmless shifts from flagging. Biome's file-level `format` diagnostic (one per file, line 0) still cannot distinguish "already unformatted" from "made worse"; unchanged from before and out of the gate's reach — the fix is to format the file.
 
 ### 2. Medium — both `doc-citations` tests: grammar too narrow, resolution too generous
 
@@ -70,6 +77,39 @@ It does support it, narrowly: this package already depends on `weave-skill` and 
 
 The pointer names both channels, because a client can only follow one of them and both are true of this server: MCP clients read the resource, REST callers reading `/tools` use `GET /skill.md`. It stays out of the shared `TOOLS` descriptor — the stdio MCP App imports that array and serves neither channel, so a pointer baked in there would be the same false promise the old `get_skill` instruction made. The surface-neutrality guard now covers the resource URI as well as the route.
 
+## The second review, and what was done about it
+
+A second independent review proved **both** round-1 fixes incomplete. Neither was wrong in direction; both stopped one step short of real evidence. Findings verbatim:
+
+### A. High — `scripts/lib/biome-diff.mjs:219`: same-hunk relocation still consumed
+
+> The matcher still permits a relocation bypass when the original diagnostic and the newly introduced identical diagnostic are in the **same rewritten `-U0` hunk**. A baseline finding whose original line was deleted gets `line: null` and its hunk retained; line 219 then claims it for *any* same-fingerprint head finding inside that hunk. I executed `findIntroduced` with a three-line replacement that removed the baseline lint finding at line 10 and added the same finding at line 12; it returned `introduced: 0`.
+
+Reproduced exactly (`introduced: 0`). Round 1 documented "bounded by the hunk" as an accepted trade-off; that was the wrong call, because inside the hunk it was still claiming on position alone.
+
+**What evidence exists.** Checked before designing: Biome's JSON reporter emits only `severity`, `message`, `category`, `location{path,start,end}` and `advices` — and `advices` is another position plus generic prose (`"Check the React documentation."`). **No source text, no stable diagnostic id.** So the only identity evidence is what the gate reads from the two trees itself.
+
+**Fix.** Rule 2 now claims a baseline finding only when the **offending source line is byte-identical (trimmed) on both sides**. Base sources are read from the base worktree before it is torn down; an unreadable file yields no anchor, and no anchor means no claim. Where identity cannot be proven the gate **fails closed** and reports the finding.
+
+**Sensitivity trade-off.** Edit the very line carrying a pre-existing finding and, if the finding survives, it is now reported as new. The remedy is cheap — fix the finding on the line you were already editing — and it is far narrower than `--changed`, which fails a PR for any pre-existing finding anywhere in a file it touched. A multi-line finding is unaffected while its *anchor* line is untouched, which is why adding an import does not flag a file's `organizeImports` finding (pinned by a test).
+
+**Residual, stated plainly.** A line moved **verbatim** inside a rewritten hunk is still treated as the same finding. The bytes are identical, so nothing distinguishes "survived a reshuffle" from "removed and retyped", and calling identical code a new finding would flag pure reorderings.
+
+**Falsified end to end on real code** — one identical planted tree, a baseline `noArrayIndexKey` removed at `NoteCard.tsx:19` and a *different* one introduced at `:20`, both inside the single hunk `@@ -19 +19,2 @@`:
+
+| Matcher | Result |
+|---|---|
+| round-1 (`git show HEAD:`) | **exit 0** — "No new Biome findings" |
+| round-2 | **exit 1** — `NoteCard.tsx:20` reported |
+
+### B. Medium — both `doc-citations` tests: no boundary after the extension
+
+> Neither citation regex requires a boundary after the extension. Consequently, a nonexistent cited target such as `README.md.bak` is harvested as `README.md`; because the repository's `README.md` exists, `resolves()` accepts it. I executed both regexes against bare and Markdown-link examples and both returned `README.md`.
+
+Reproduced exactly, in both the bare and the link form. The extension must now end the path, and any suffix that follows stays **attached** to the citation — so the malformed citation is reported as unresolvable rather than silently resolving to a file the comment never named. The trailing part cannot end on a `.`, so a citation at the end of a sentence still stops before the full stop.
+
+Measured before committing: across both packages' real sources the new grammar harvests **exactly the same 13 citations** as the old one — nothing added, nothing removed. The change bites only on the malformed case. It immediately caught one real unresolvable citation: the fix's own explanatory comment, which had named a suffixed path in prose. The comments now describe the shape instead of citing it.
+
 ## Not Yet Done — this is the exit gate
 
 - [ ] **Push the branch and open a PR against `main`** so `ci.yml` executes for the first time. It has never run on GitHub.
@@ -83,7 +123,9 @@ The pointer names both channels, because a client can only follow one of them an
 - **Trusting the first green baseline.** Turbo replayed cache entries from the *parent* checkout, so the first `pnpm typecheck` was a cache hit, not a real run. Always `TURBO_FORCE=true` in this worktree.
 - **`pnpm exec playwright install chromium` from the repo root** installed revision 1208; `weave-mcp-app` pins playwright 1.61.1 and needs **1228**. Install from the package: `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
 - **`biome check --changed --since=<base>` as the CI lint gate.** Rejected: it still fails a PR for pre-existing findings inside a file the PR merely touched.
-- **A position-blind fingerprint as the gate's identity.** The first version of the replacement. See finding 1 — it is bypassable by relocation, and the bypass looks exactly like a clean pass.
+- **A position-blind fingerprint as the gate's identity.** The first version of the replacement. See round-1 finding 1 — bypassable by relocation, and the bypass looks exactly like a clean pass.
+- **Treating "same rewritten hunk" as proof two findings are the same.** The second version. See round-2 finding A — a `-U0` hunk deletes every base line and adds every head line, so it proves nothing on its own. Documenting it as an accepted trade-off did not make it one.
+- **Naming a malformed example path in a comment** while explaining the citation guard: the guard scans comments, so the example became a real unresolvable citation and failed the suite. Describe the shape; keep examples in string literals.
 - **Harvesting bare absolute paths as citations.** Measured: it flags `GET /skill.md` (a route this server really serves) as a missing file. See finding 2.
 - **`node --test scripts/__tests__/`** (directory argument) fails with `MODULE_NOT_FOUND` on Node 22.23. Pass the glob: `node --test scripts/__tests__/*.test.mjs`.
 - **Naming the rejected primitives in the README** while explaining why they don't exist: the guard forbids the strings `Divider`/`Spacer` anywhere in that file.
@@ -92,7 +134,8 @@ The pointer names both channels, because a client can only follow one of them an
 
 | Decision | Rationale |
 |---|---|
-| Gate identity = file + rule + message + **diff-mapped position** | A position-blind identity cannot tell a shifted finding from a relocated one, and that gap is a silent pass. Bounded by the hunk, so an in-place edit still does not fail a PR on debt it merely touched. |
+| Gate identity = file + rule + message + **diff-mapped position, plus the offending source line inside a rewritten hunk** | A position-blind identity cannot tell a shifted finding from a relocated one. Neither can position *inside* a `-U0` hunk, which deletes every base line and adds every head line — so the hunk bound alone was still a silent pass (second review, finding A). |
+| Where identity cannot be proven, **fail closed** | A false positive costs a fix; a false negative is a silent pass. This is why editing a line that carries a finding now reports it. |
 | The diff is a **required** gate input | Without it the comparison is guesswork. No diff → exit 2. A broken gate must never look like a clean pass. |
 | Gate matcher extracted to `scripts/lib/biome-diff.mjs` | The decision "is this finding new?" is the part worth testing, and it can be tested without running Biome or git. `pnpm test` now also runs `node --test` over `scripts/`. |
 | Citations must resolve **inside** the repository | `existsSync` alone confirms files this checkout does not contain — a citation that resolves for the wrong reason, on one machine only. |
@@ -109,10 +152,11 @@ The pointer names both channels, because a client can only follow one of them an
 | Gate | Result |
 |---|---|
 | `TURBO_FORCE=true pnpm typecheck` | exit 0 |
-| `TURBO_FORCE=true pnpm test` | exit 0 — **279 passed** (266 vitest + 13 `node --test`); baseline 240 |
+| `TURBO_FORCE=true pnpm test` | exit 0 — **289 passed** (272 vitest + 17 `node --test`); baseline 240 |
 | `TURBO_FORCE=true pnpm build` | exit 0 |
 | `node scripts/biome-new-findings.mjs main` | exit 0 — head 46, base 48, **0 new** |
 | `pnpm lint` | exit 1 — **46 diagnostics** (31 errors / 6 warnings / 9 infos) |
+| `git diff --check` | exit 0 |
 
 `pnpm lint` exit 1 is the **pre-existing baseline**, not a regression. The baseline dropped 48 → 46 because formatting the `weave-mcp-server` files this work already had to touch cleared two pre-existing findings (one `format`, one `organizeImports`). Judge lint by `scripts/biome-new-findings.mjs`, never by the raw exit code.
 
@@ -125,7 +169,7 @@ The pointer names both channels, because a client can only follow one of them an
 | File | Why It Matters |
 |---|---|
 | `scripts/lib/biome-diff.mjs` | The gate's identity rules: diff parsing, base→head line mapping, and the two ways a baseline finding can be claimed. Documents its own limits. |
-| `scripts/__tests__/biome-diff.test.mjs` | 13 `node --test` cases, including the two relocation repros that were RED before the fix. |
+| `scripts/__tests__/biome-diff.test.mjs` | 17 `node --test` cases, including the cross-hunk and same-hunk relocation repros that were RED before their fixes. |
 | `scripts/biome-new-findings.mjs` | The gate's I/O: worktrees the base ref, runs Biome twice, computes the diff. Exit 0/1/2. |
 | `.github/workflows/ci.yml` | The PR gate. Never executed on GitHub yet. |
 | `packages/weave-mcp-server/src/mcp.ts` | Registers the 5 tools **and** the `weave://skill.md` resource; declares the `resources` capability. |
@@ -138,9 +182,16 @@ The pointer names both channels, because a client can only follow one of them an
 The gate's two claim rules, from `scripts/lib/biome-diff.mjs`:
 
 ```js
-const match =
-  pool.find((c) => !c.claimed && c.line === line) ??                        // shifted, untouched code
-  pool.find((c) => !c.claimed && c.hunk !== null && withinHeadSide(c.hunk, line)); // the change rewrote its region
+let match = pool.find((c) => !c.claimed && c.line === line);        // shifted, untouched code
+if (!match) {
+  const anchor = headAnchor(diagnosticFile(d), line);
+  // null anchor = identity unknown = no claim, so the finding is reported
+  if (anchor !== null) {
+    match = pool.find(
+      (c) => !c.claimed && c.hunk !== null && withinHeadSide(c.hunk, line) && c.anchor === anchor,
+    );
+  }
+}
 ```
 
 Citation containment, from both `doc-citations.test.ts` files:
@@ -163,12 +214,12 @@ node scripts/biome-new-findings.mjs origin/main
 
 ## Resume Instructions
 
-1. `cd /Users/pierregallet/Documents/weave-wave-0` and confirm the tree is clean at `d5c33ee`.
+1. `cd /Users/pierregallet/Documents/weave-wave-0` and confirm the tree is clean at `ec75fd1`.
 2. Re-verify before trusting anything:
    ```bash
    TURBO_FORCE=true pnpm typecheck && TURBO_FORCE=true pnpm test
    ```
-   - Expected: exit 0, **266 vitest tests + 13 `node --test`**.
+   - Expected: exit 0, **272 vitest tests + 17 `node --test`**.
    - If Playwright suites fail with `Executable doesn't exist ... chromium_headless_shell-1228`: run `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
 3. Confirm the lint position is unchanged:
    ```bash
