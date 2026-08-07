@@ -18,11 +18,15 @@ Wave 0: make the public claims true, and guard them with tests.
   forthcoming list drops `Divider` and `Comparison` and keeps only `Sparkline`,
   `ProgressBar` and `Badge`.
 - **`weave-mcp-server`: no tool is advertised that this surface does not
-  register.** `render_dashboard`'s description told models to "call get_skill",
-  a tool only the MCP App registers. The REST and MCP JSON-RPC surfaces now
-  point at `GET /skill.md`, which this server really serves, and the shared
-  `TOOLS` descriptors stay transport-neutral so embedders cannot inherit a
-  false pointer. New exports: `SKILL_ENDPOINT_HINT` and
+  register, and the guidance it points at is reachable.** `render_dashboard`'s
+  description told models to "call get_skill", a tool only the MCP App
+  registers. The REST and MCP JSON-RPC surfaces now point at `GET /skill.md`,
+  which this server really serves, **and the composition guide is registered as
+  the MCP resource `weave://skill.md`** so a JSON-RPC client — which has no
+  base URL to resolve a relative route against — can read it over the protocol
+  it speaks. The server therefore advertises the `resources` capability. The
+  shared `TOOLS` descriptors stay transport-neutral so embedders cannot inherit
+  a false pointer. New exports: `SKILL_ENDPOINT_HINT`, `SKILL_RESOURCE_URI` and
   `describeForHttpSurface`.
 - **Documentation reconciled with the code.** The primitives README claimed
   "12 of 18 primitives" against a Spec union of 13. Catalogue, count and

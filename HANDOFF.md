@@ -1,8 +1,8 @@
 # Handoff: Primitive Portfolio — Wave 0 (truth, documentation and CI gate)
 
-**Generated**: 2026-08-07
+**Generated**: 2026-08-07 · **Updated**: 2026-08-08 (review remediation)
 **Branch**: `feature/primitive-portfolio-wave-0` (worktree `/Users/pierregallet/Documents/weave-wave-0`)
-**Status**: Implemented and locally verified. **Blocked on the exit gate** — nothing pushed, no PR, no independent Codex review.
+**Status**: Implemented, independently reviewed, and all three review findings remediated. **Blocked on the exit gate** — nothing pushed, no PR, so `ci.yml` has still never executed on GitHub.
 
 > Supersedes the previous HANDOFF.md (design-source adapter / PR #5 batch), which is merged and recoverable from git history on `main`.
 
@@ -12,12 +12,14 @@ Wave 0 of the approved plan at `.hermes/plans/2026-08-07_223240-primitive-portfo
 
 ## Completed
 
-7 commits on `main@b9b1617`, tree clean at `3716146`, **nothing pushed**.
+11 commits on `main@b9b1617`, tree clean, **nothing pushed**.
 
-- [x] Test-first drift/version guards (+23 assertions) in `weave-primitives`, `weave-skill`, `weave-mcp-server`
+Wave 0 implementation (8 commits):
+
+- [x] Test-first drift/version guards in `weave-primitives`, `weave-skill`, `weave-mcp-server`
 - [x] README + SKILL catalogues reconciled with the actual 13-member Spec union
 - [x] `Comparison` recommendation removed → `Stack` of two `KPI`s (it was never built)
-- [x] `get_skill` guidance corrected: HTTP/MCP surfaces now point at `GET /skill.md`, which they really serve
+- [x] `get_skill` guidance corrected (see the review remediation below, which finished the job)
 - [x] B5 counts reconciled; `Spacer`/`Divider` promises removed across 4 CHANGELOGs
 - [x] Three misleading `0.0.0` version constants removed (nothing consumed them)
 - [x] Five stale doc citations repaired (comment-only edits, zero behaviour change)
@@ -25,88 +27,134 @@ Wave 0 of the approved plan at `.hermes/plans/2026-08-07_223240-primitive-portfo
 - [x] `.claude/settings.json` Stop hook schema repaired (was silently inert)
 - [x] Changeset added (minor × 3)
 
-## Not Yet Done — these are the exit gate
+Review remediation, 2026-08-08 (3 commits — see next section for the findings):
+
+- [x] `7c6a5f8` Biome gate matches through the diff, not a position-blind fingerprint
+- [x] `e3da150` Citation grammar widened; cited evidence must resolve inside the repository
+- [x] `d5c33ee` Composition skill registered as the MCP resource `weave://skill.md`
+
+## The independent review, and what was done about it
+
+An independent adversarial review of the Wave 0 diff returned three real defects. All three are fixed, each RED-first.
+
+### 1. High — `scripts/biome-new-findings.mjs`: baseline fingerprint ignores range
+
+> Its baseline fingerprint ignores range, so a PR can remove a baseline diagnostic and introduce the same category/message elsewhere in that file without being detected.
+
+Correct, and reproduced end to end. The fingerprint was `file :: category :: message`, with line and column deliberately excluded so unrelated edits could shift a pre-existing finding without failing the PR. A change that deleted one baseline diagnostic and introduced an identical one elsewhere in the same file spent its own budget and reported a clean pass.
+
+**Fix.** Identity is now file + rule + message + *position tracked through `git diff -U0`*. A baseline finding is claimable by a head finding in exactly two ways:
+
+1. the code holding it was untouched, so git's hunks say it merely shifted — matched at its mapped line, exactly;
+2. the change rewrote the very region holding it, so its line has no image — matched anywhere inside the **head side of that same hunk**.
+
+Anything else is new. The diff is a required input: if it cannot be computed the gate exits 2, never 0. Renames are followed, so a moved file no longer reports its whole baseline as new.
+
+**Trade-off taken.** Rule 2 is bounded by the hunk, not the file, so a change that rewrites an entire file in one hunk degrades to file-level matching. That is the honest limit of positional evidence and such a diff is loud in review. Raw line equality is never used on its own — lines are only compared after being mapped through the diff, which is what keeps harmless shifts from flagging. Biome's file-level `format` diagnostic (one per file, line 0) still cannot distinguish "already unformatted" from "made worse"; unchanged from before and out of the gate's reach — the fix is to format the file.
+
+### 2. Medium — both `doc-citations` tests: grammar too narrow, resolution too generous
+
+> Expand the documented citation grammar to catch quoted, bracketed and Markdown-link path citations. Add negative RED tests for unresolved forms. Reject absolute paths and repository-escaping traversal; cited evidence must resolve inside this repository.
+
+Both halves confirmed. The grammar only recognised a citation preceded by whitespace, `(` or a backtick, so `"quoted"`, `[bracketed]` and `<angled>` citations were never scanned — a stale citation in those forms passed by not being seen. Worse, `resolves()` joined the cited path onto the repo root and the citing file's directory and asked only whether *something* exists there, so `../../../..` traversal resolved against files **outside** the checkout.
+
+**Fix.** Grammar now covers bare, backticked, parenthesised, quoted, bracketed, angled and Markdown-link forms. Cited evidence must be a real file **inside** this repository: absolute paths are rejected even when they exist, and traversal is allowed only while it stays in the tree.
+
+**Trade-off taken.** Bare absolute-looking tokens are still deliberately not harvested: in prose `/skill.md` is an HTTP route far more often than a file, and this server serves exactly that one. Measured before deciding — a grammar that harvests bare absolute tokens picks up `/skill.md` ×3 from `weave-mcp-server`'s own comments and fails the guard on a correct comment. Absolute paths that arrive by Markdown link are rejected at resolution instead, and a test pins the route exclusion so it cannot be quietly widened.
+
+### 3. Low — the MCP skill pointer is not actionable for a generic MCP client
+
+> Generic MCP clients cannot action a relative `GET /skill.md` hint. Prefer a real MCP resource/tool only if the existing server architecture supports it narrowly and testably without scope growth.
+
+It does support it, narrowly: this package already depends on `weave-skill` and `loadSkill()` already backs the HTTP route in the same Hono app, and the pinned SDK (1.29.0) exposes `registerResource`. So the guide is now also registered as the MCP resource **`weave://skill.md`**, and the server advertises the `resources` capability. That is a custom scheme, not a URL — an MCP resource URI is an opaque handle the server resolves itself, so **no public base URL and no new configuration was invented**.
+
+The pointer names both channels, because a client can only follow one of them and both are true of this server: MCP clients read the resource, REST callers reading `/tools` use `GET /skill.md`. It stays out of the shared `TOOLS` descriptor — the stdio MCP App imports that array and serves neither channel, so a pointer baked in there would be the same false promise the old `get_skill` instruction made. The surface-neutrality guard now covers the resource URI as well as the route.
+
+## Not Yet Done — this is the exit gate
 
 - [ ] **Push the branch and open a PR against `main`** so `ci.yml` executes for the first time. It has never run on GitHub.
-- [ ] **Obtain the independent Codex adversarial review** required by the plan's shared execution rule 4. See Failed Approaches — use `task --background`.
+- [x] ~~Obtain the independent adversarial review~~ — obtained; its three findings are remediated above.
 - [ ] Only then declare the Wave 0 gate closed and start Wave 1.
 
 ## Failed Approaches (Don't Repeat These)
 
-- **Codex review, 3 attempts, no retrievable output.** (1) Via the `codex:rescue` subagent: the companion call hit the 120 s foreground timeout, was backgrounded, and left a 0-byte output with no job registered. (2) Direct `node codex-companion.mjs task "<prompt>"`: registered job `task-msjgx6tc-a2qisz` but the worker is a **child of the invoking shell**, so it died when that shell was stopped — only `Starting Codex Task.` was ever written to its log. (3) `task --background --fresh`: exited **144** without registering a job. **Root cause for (2):** `scripts/codex-companion.mjs:643-650` only detaches (`detached: true` + `child.unref()`) under `--background`. **Next attempt must pass `--background`, then poll `status --json` and fetch with `result`.** Also note `task --help` is not parsed as a flag — it registers a job titled `--help`.
+- **Codex review, 3 attempts, no retrievable output.** (1) Via the `codex:rescue` subagent: the companion call hit the 120 s foreground timeout, was backgrounded, and left a 0-byte output with no job registered. (2) Direct `node codex-companion.mjs task "<prompt>"`: registered job `task-msjgx6tc-a2qisz` but the worker is a **child of the invoking shell**, so it died when that shell was stopped. **Root cause:** `scripts/codex-companion.mjs:643-650` only detaches (`detached: true` + `child.unref()`) under `--background`. (3) `task --background --fresh` exited **144** without registering a job. The review that produced the three findings above came from elsewhere; no further Codex attempt was made.
 - **`pnpm typecheck -- --force`** to bypass the turbo cache: the `--force` is forwarded to `tsc`, which dies. Use `TURBO_FORCE=true pnpm typecheck` instead.
-- **Trusting the first green baseline.** Turbo replayed cache entries from the *parent* checkout (`/Users/pierregallet/Documents/weave`), so the first `pnpm typecheck` was a cache hit, not a real run. Always `TURBO_FORCE=true` in this worktree.
+- **Trusting the first green baseline.** Turbo replayed cache entries from the *parent* checkout, so the first `pnpm typecheck` was a cache hit, not a real run. Always `TURBO_FORCE=true` in this worktree.
 - **`pnpm exec playwright install chromium` from the repo root** installed revision 1208; `weave-mcp-app` pins playwright 1.61.1 and needs **1228**. Install from the package: `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
-- **`biome check --changed --since=<base>` as the CI lint gate.** Rejected: it still fails a PR for pre-existing findings inside a file the PR merely touched, and the 48 baseline findings sit exactly in the files Waves 1–3 will edit most. Replaced with a base-vs-head fingerprint diff.
-- **`for f in $FILES`** (space-joined string) in zsh — no word splitting, so the loop body received one giant filename and silently did nothing. Use an array: `files=(a b c); for f in "${files[@]}"`.
-- **Naming the rejected primitives in the README** while explaining why they don't exist: the guard forbids the strings `Divider`/`Spacer` anywhere in that file. The explanation is phrased positively instead ("`Grid`/`Stack` gaps and density own whitespace").
+- **`biome check --changed --since=<base>` as the CI lint gate.** Rejected: it still fails a PR for pre-existing findings inside a file the PR merely touched.
+- **A position-blind fingerprint as the gate's identity.** The first version of the replacement. See finding 1 — it is bypassable by relocation, and the bypass looks exactly like a clean pass.
+- **Harvesting bare absolute paths as citations.** Measured: it flags `GET /skill.md` (a route this server really serves) as a missing file. See finding 2.
+- **`node --test scripts/__tests__/`** (directory argument) fails with `MODULE_NOT_FOUND` on Node 22.23. Pass the glob: `node --test scripts/__tests__/*.test.mjs`.
+- **Naming the rejected primitives in the README** while explaining why they don't exist: the guard forbids the strings `Divider`/`Spacer` anywhere in that file.
 
 ## Key Decisions
 
 | Decision | Rationale |
 |---|---|
-| **Remove** the `0.0.0` constants rather than inject build-time metadata | tsup `define` would make the constant a build artifact that vitest (which never runs tsup) can't see, so the guard would test the wrong thing. Nothing consumed the constants. `package.json` is already the source of truth. |
-| Skill pointer is **surface-local**, not in the shared `TOOLS` descriptor | `TOOLS` is imported by both `weave-mcp-server` (HTTP, serves `/skill.md`) and `weave-mcp-app` (stdio, registers `get_skill`). A pointer baked into the shared array is false on whichever surface it wasn't written for — exactly how the original `get_skill` defect arose. |
-| Biome gate = base-vs-head fingerprint diff, fingerprint excludes line/column | Unrelated edits shift line numbers; a shifted pre-existing finding is not a new finding. |
+| Gate identity = file + rule + message + **diff-mapped position** | A position-blind identity cannot tell a shifted finding from a relocated one, and that gap is a silent pass. Bounded by the hunk, so an in-place edit still does not fail a PR on debt it merely touched. |
+| The diff is a **required** gate input | Without it the comparison is guesswork. No diff → exit 2. A broken gate must never look like a clean pass. |
+| Gate matcher extracted to `scripts/lib/biome-diff.mjs` | The decision "is this finding new?" is the part worth testing, and it can be tested without running Biome or git. `pnpm test` now also runs `node --test` over `scripts/`. |
+| Citations must resolve **inside** the repository | `existsSync` alone confirms files this checkout does not contain — a citation that resolves for the wrong reason, on one machine only. |
+| Bare absolute tokens are not citations | Routes and absolute paths are indistinguishable in prose, and this repo's comments legitimately cite a route. Rejected at resolution instead, and pinned by a test. |
+| Skill exposed as an **MCP resource**, not a new tool or a URL | The surface already loads the skill; `registerResource` is in the pinned SDK. A resource URI is an opaque handle, so nothing invents a base URL or new config. A tool would duplicate the MCP App's `get_skill` on a surface that already serves the content. |
+| Skill pointer is **surface-local**, not in the shared `TOOLS` descriptor | `TOOLS` is imported by both this server and the stdio MCP App. A pointer baked into the shared array is false on whichever surface it wasn't written for — exactly how the original `get_skill` defect arose. |
 | Gate exits **2** (never 0) when it cannot run | A broken gate must never be mistaken for a clean pass. |
-| README drops the "of 18" denominator | The denominator was invented and is itself a drift generator; the shipped count is asserted against the union instead. |
-| CHANGELOG history preserved, corrections appended | The stale sentences are dated forward-looking promises; the bare `12` for a 13-item list is a plain arithmetic error and was fixed in place. |
-| SKILL/README/CHANGELOG-only scope | Wave 0 explicitly excludes schema and renderer work. Confirmed: the only `src/` diffs outside tests are **comment-only**. |
+| CHANGELOG history preserved, corrections appended | The stale sentences are dated forward-looking promises. |
 
 ## Current State
 
-**Working**: everything. Tree clean, 7 commits, all four gates re-run after the falsification cycles:
+**Working**: everything. Tree clean, 11 commits. All gates re-run on the committed tree after the falsification cycles:
 
 | Gate | Result |
 |---|---|
-| `pnpm typecheck` | exit 0 |
-| `pnpm test` | exit 0 — **240 passed** (baseline 217) |
-| `pnpm build` | exit 0 |
-| `pnpm lint` | exit 1 — **48 diagnostics, 0 new** |
+| `TURBO_FORCE=true pnpm typecheck` | exit 0 |
+| `TURBO_FORCE=true pnpm test` | exit 0 — **279 passed** (266 vitest + 13 `node --test`); baseline 240 |
+| `TURBO_FORCE=true pnpm build` | exit 0 |
+| `node scripts/biome-new-findings.mjs main` | exit 0 — head 46, base 48, **0 new** |
+| `pnpm lint` | exit 1 — **46 diagnostics** (31 errors / 6 warnings / 9 infos) |
 
-`pnpm lint` exit 1 is the **pre-existing baseline** (33 errors / 6 warnings / 9 infos), not a regression. Confirmed two ways: per-category diff against a JSON baseline captured before any edit, and `node scripts/biome-new-findings.mjs main` reporting `No new Biome findings`.
+`pnpm lint` exit 1 is the **pre-existing baseline**, not a regression. The baseline dropped 48 → 46 because formatting the `weave-mcp-server` files this work already had to touch cleared two pre-existing findings (one `format`, one `organizeImports`). Judge lint by `scripts/biome-new-findings.mjs`, never by the raw exit code.
 
-**Broken**: nothing locally. The unproven items are the un-run GitHub workflow and the missing Codex review.
+**Broken**: nothing locally. The only unproven item is the un-run GitHub workflow.
 
-**Uncommitted Changes**: none in this worktree. The plan file in the **parent** checkout (`/Users/pierregallet/Documents/weave/.hermes/plans/2026-08-07_223240-primitive-portfolio.md`) was updated with a Wave 0 execution record and is uncommitted there.
+**Uncommitted Changes**: none in this worktree. The plan file in the **parent** checkout (`/Users/pierregallet/Documents/weave/.hermes/plans/2026-08-07_223240-primitive-portfolio.md`) carries the Wave 0 execution record plus the remediation record, and is uncommitted there.
 
 ## Files to Know
 
 | File | Why It Matters |
 |---|---|
-| `scripts/biome-new-findings.mjs` | The new-findings-only Biome gate. Worktrees the base ref, fingerprints both sides. Exit 0/1/2. |
+| `scripts/lib/biome-diff.mjs` | The gate's identity rules: diff parsing, base→head line mapping, and the two ways a baseline finding can be claimed. Documents its own limits. |
+| `scripts/__tests__/biome-diff.test.mjs` | 13 `node --test` cases, including the two relocation repros that were RED before the fix. |
+| `scripts/biome-new-findings.mjs` | The gate's I/O: worktrees the base ref, runs Biome twice, computes the diff. Exit 0/1/2. |
 | `.github/workflows/ci.yml` | The PR gate. Never executed on GitHub yet. |
-| `packages/weave-mcp-server/src/tools.ts` | `SKILL_ENDPOINT_HINT` + `describeForHttpSurface`. Shared `TOOLS` stays transport-neutral. |
-| `packages/*/src/__tests__/catalogue-drift.test.ts` | Union/catalogue/version guards (3 packages). |
-| `packages/*/src/__tests__/doc-citations.test.ts` | Comment-citation scanners (2 packages). |
-| `packages/weave-skill/SKILL.md` | Model-facing. §5.3 two-KPI guidance, §9 catalogue. |
+| `packages/weave-mcp-server/src/mcp.ts` | Registers the 5 tools **and** the `weave://skill.md` resource; declares the `resources` capability. |
+| `packages/weave-mcp-server/src/tools.ts` | `SKILL_RESOURCE_URI` + `SKILL_ENDPOINT_HINT` + `describeForHttpSurface`. Shared `TOOLS` stays transport-neutral. |
+| `packages/*/src/__tests__/catalogue-drift.test.ts` | Union/catalogue/version guards, plus surface-neutrality of the shared descriptors. |
+| `packages/*/src/__tests__/doc-citations.test.ts` | Citation grammar + containment scanners (2 packages, mirrored). |
 
 ## Code Context
 
-The Spec union is enumerated from Zod internals; it **throws** rather than returning an empty set, so the guard cannot pass by measuring nothing:
+The gate's two claim rules, from `scripts/lib/biome-diff.mjs`:
+
+```js
+const match =
+  pool.find((c) => !c.claimed && c.line === line) ??                        // shifted, untouched code
+  pool.find((c) => !c.claimed && c.hunk !== null && withinHeadSide(c.hunk, line)); // the change rewrote its region
+```
+
+Citation containment, from both `doc-citations.test.ts` files:
 
 ```ts
-function specUnionMembers(): string[] {
-  const lazyDef = (SpecSchema as unknown as { _def?: { getter?: () => unknown } })._def;
-  const inner = typeof lazyDef?.getter === "function" ? lazyDef.getter() : SpecSchema;
-  const optionsMap = (inner as { _def?: { optionsMap?: Map<string, unknown> } })._def?.optionsMap;
-  if (!optionsMap || optionsMap.size === 0) throw new Error("Zod internals changed — update this guard");
-  return [...optionsMap.keys()];   // 13 members
+function resolves(cited: string, citingFile: string): boolean {
+  if (path.isAbsolute(cited)) return false;
+  return [path.resolve(REPO_ROOT, cited), path.resolve(path.dirname(citingFile), cited)].some(
+    (candidate) => insideRepo(candidate) && existsSync(candidate),
+  );
 }
 ```
 
-Surface-local skill pointer (`packages/weave-mcp-server/src/tools.ts`), consumed by `toolsJsonManifest()` and by `mcp.ts`:
-
-```ts
-export const SKILL_ENDPOINT_HINT =
-  " The full composition guide is served by this server at `GET /skill.md`.";
-
-export function describeForHttpSurface(tool: ToolDescriptor): string {
-  return tool.name === "render_dashboard" ? tool.description + SKILL_ENDPOINT_HINT : tool.description;
-}
-```
-
-Biome gate contract:
+Gate contract:
 
 ```bash
 node scripts/biome-new-findings.mjs origin/main
@@ -115,43 +163,34 @@ node scripts/biome-new-findings.mjs origin/main
 
 ## Resume Instructions
 
-1. `cd /Users/pierregallet/Documents/weave-wave-0` and confirm the tree is clean at `3716146`.
+1. `cd /Users/pierregallet/Documents/weave-wave-0` and confirm the tree is clean at `d5c33ee`.
 2. Re-verify before trusting anything:
    ```bash
    TURBO_FORCE=true pnpm typecheck && TURBO_FORCE=true pnpm test
    ```
-   - Expected: exit 0, **240 tests passed**.
+   - Expected: exit 0, **266 vitest tests + 13 `node --test`**.
    - If Playwright suites fail with `Executable doesn't exist ... chromium_headless_shell-1228`: run `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
 3. Confirm the lint position is unchanged:
    ```bash
    node scripts/biome-new-findings.mjs main
    ```
-   - Expected: `No new Biome findings. 48 pre-existing finding(s) left untouched.` exit 0.
-   - If it reports new findings, `pnpm format` **only the files you touched** — never repo-wide, that would commit 48 files of unrelated churn.
-4. Get the Codex review (**required before the gate closes**):
-   ```bash
-   node "$HOME/.claude/plugins/cache/openai-codex/codex/1.0.4/scripts/codex-companion.mjs" \
-     task --background --fresh "<review prompt>"
-   node "$HOME/.claude/plugins/cache/openai-codex/codex/1.0.4/scripts/codex-companion.mjs" status --json
-   node "$HOME/.claude/plugins/cache/openai-codex/codex/1.0.4/scripts/codex-companion.mjs" result
-   ```
-   - `--background` is load-bearing; without it the worker dies with your shell.
-   - Focus it on the Biome gate failing open and on the HTTP/MCP skill guidance.
-5. Push and open the PR (this is what closes the gate's first item):
+   - Expected: `No new Biome findings. 48 pre-existing finding(s) left untouched.` exit 0 (head 46).
+   - If it reports new findings, `pnpm format` **only the files you touched** — never repo-wide.
+4. Push and open the PR (this is what closes the gate):
    ```bash
    git push -u origin feature/primitive-portfolio-wave-0
    gh pr create -R Shepherd-Creative/weave --base main
    ```
    - Expected: the **CI** workflow starts on the PR and all four steps pass.
-   - If `Install Playwright Chromium` fails: check the `Resolve Playwright version` step parsed `1.61.1` from `playwright --version`.
-   - If the Biome step exits 2: `origin/${{ github.base_ref }}` did not resolve — verify `actions/checkout` ran with `fetch-depth: 0`.
-6. Reconcile any Codex findings, then update the plan's Wave 0 execution record to close the gate.
+   - If `Install Playwright Chromium` fails: check the `Resolve Playwright version` step parsed `1.61.1`.
+   - If the Biome step exits 2: `origin/${{ github.base_ref }}` did not resolve, or `git diff` against it failed — verify `actions/checkout` ran with `fetch-depth: 0`.
+5. Then update the plan's Wave 0 execution record to close the gate.
 
 ## Warnings
 
 - **Do not merge without Pierre's review.** Human gate; `main` has a `protect-main` ruleset (PR required, no force push).
 - **Turbo cache is shared with the parent checkout.** A bare `pnpm test` here can replay results computed in `/Users/pierregallet/Documents/weave`. Use `TURBO_FORCE=true` for any run you intend to trust.
-- **`pnpm lint` exits 1 by design.** 48 pre-existing findings. Judge lint by `scripts/biome-new-findings.mjs`, not by the raw exit code.
-- **`packages/weave-mcp-app/dist/weave-skill.md` is a build copy of SKILL.md** (gitignored, refreshed by `pnpm build`). If you edit SKILL.md, rebuild before testing the MCP App, or the app serves the stale skill.
+- **`pnpm lint` exits 1 by design.** 46 pre-existing findings. Judge lint by `scripts/biome-new-findings.mjs`.
+- **The gate now needs a real diff, not just a reachable base ref.** In a shallow clone `git rev-parse` can succeed while `git diff` has nothing to compare; the gate exits 2 rather than guessing.
+- **`packages/weave-mcp-app/dist/weave-skill.md` is a build copy of SKILL.md** (gitignored, refreshed by `pnpm build`). If you edit SKILL.md, rebuild before testing the MCP App.
 - **The `weave-skill` catalogue is cross-checked from `weave-mcp-server`**, not from `weave-skill` itself — that package has no dependency on `weave-primitives` and adding one was deliberately avoided.
-- The adversarial pass recorded in the plan is the **implementer's own**, not independent. Treat it as unverified until Codex or a second reviewer confirms it.
