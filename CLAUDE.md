@@ -13,7 +13,7 @@ pnpm install
 pnpm build                            # turbo run build
 pnpm dev                               # turbo run dev --parallel
 pnpm typecheck                         # turbo run typecheck
-pnpm test                              # turbo run test (vitest per-package)
+pnpm test                              # turbo run test (vitest per-package) + node --test for scripts/
 pnpm lint                              # biome check .
 pnpm format                            # biome format --write .
 pnpm --filter weave-mcp-server dev     # MCP server on :8787

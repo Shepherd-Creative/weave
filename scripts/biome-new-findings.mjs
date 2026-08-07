@@ -9,8 +9,12 @@
  * a PR for pre-existing findings inside a file the PR merely touched.
  *
  * So: run the SAME Biome binary over the base ref and over the working tree,
- * fingerprint every diagnostic, and fail only on fingerprints the base did not
- * already have.
+ * and fail only on diagnostics the base did not already have.
+ *
+ * "Already have" is decided against `git diff -U0` between the two trees, not
+ * against a position-blind fingerprint: a baseline finding is claimable by a
+ * head finding only at its diff-mapped line, or inside the hunk that rewrote
+ * it. See scripts/lib/biome-diff.mjs for the identity rules and their limits.
  *
  * Usage:   node scripts/biome-new-findings.mjs <base-ref>
  * Example: node scripts/biome-new-findings.mjs origin/main
@@ -30,6 +34,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { diagnosticFile, findIntroduced, parseUnifiedDiff } from "./lib/biome-diff.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BIOME_BIN = path.join(REPO_ROOT, "node_modules", "@biomejs", "biome", "bin", "biome");
@@ -43,7 +48,11 @@ function die(message, detail) {
 }
 
 function git(args, cwd = REPO_ROOT) {
-  return execFileSync("git", args, { cwd, encoding: "utf-8" }).trim();
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf-8",
+    maxBuffer: 64 * 1024 * 1024,
+  }).trim();
 }
 
 /**
@@ -80,30 +89,6 @@ function biomeDiagnostics(cwd, label) {
   return parsed.diagnostics;
 }
 
-function diagnosticFile(d) {
-  const p = d.location?.path;
-  if (typeof p === "string") return p;
-  return typeof p?.file === "string" ? p.file : "<unknown>";
-}
-
-/**
- * Line and column are deliberately excluded: unrelated edits shift them, and a
- * shifted pre-existing finding is not a new finding.
- */
-function fingerprint(d) {
-  const message = typeof d.message === "string" ? d.message : JSON.stringify(d.message ?? null);
-  return [diagnosticFile(d), d.category ?? "<none>", message].join(" :: ");
-}
-
-function tally(diagnostics) {
-  const counts = new Map();
-  for (const d of diagnostics) {
-    const key = fingerprint(d);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return counts;
-}
-
 const baseRef = process.argv[2];
 if (!baseRef) die("no base ref given (usage: biome-new-findings.mjs <base-ref>)");
 
@@ -114,12 +99,25 @@ try {
   die(`could not resolve base ref ${baseRef}`, err?.stderr ?? err);
 }
 
+// Positional evidence for the comparison. Without it the gate cannot tell a
+// shifted finding from a relocated one, so a failure here is exit 2, never a
+// pass. `-U0` keeps hunks minimal (no context lines), which keeps the
+// "the change rewrote this region" window as tight as git can make it.
+let fileDiffs;
+try {
+  fileDiffs = parseUnifiedDiff(
+    git(["-c", "core.quotePath=false", "diff", "-U0", "-M", baseSha, "--"]),
+  );
+} catch (err) {
+  die(`could not diff ${baseRef} against the working tree`, err?.stderr ?? err);
+}
+
 const workdir = mkdtempSync(path.join(tmpdir(), "biome-base-"));
 const baseTree = path.join(workdir, "tree");
-let baseCounts;
+let baseDiagnostics;
 try {
   git(["worktree", "add", "--detach", baseTree, baseSha]);
-  baseCounts = tally(biomeDiagnostics(baseTree, "base"));
+  baseDiagnostics = biomeDiagnostics(baseTree, "base");
 } finally {
   // Removed from the repo root, never from inside the worktree being removed.
   try {
@@ -132,22 +130,10 @@ try {
 
 const headDiagnostics = biomeDiagnostics(REPO_ROOT, "head");
 
-const baseTotal = [...baseCounts.values()].reduce((a, b) => a + b, 0);
+const baseTotal = baseDiagnostics.length;
 const headTotal = headDiagnostics.length;
 
-// Each head diagnostic consumes one occurrence of its fingerprint from the
-// baseline budget. Anything left once the budget is spent is new.
-const budget = new Map(baseCounts);
-const introduced = [];
-for (const d of headDiagnostics) {
-  const key = fingerprint(d);
-  const left = budget.get(key) ?? 0;
-  if (left > 0) {
-    budget.set(key, left - 1);
-    continue;
-  }
-  introduced.push(d);
-}
+const introduced = findIntroduced({ baseDiagnostics, headDiagnostics, fileDiffs });
 
 console.log(`Biome baseline (${baseRef} @ ${baseSha.slice(0, 8)}): ${baseTotal} diagnostics`);
 console.log(`Biome head: ${headTotal} diagnostics`);
