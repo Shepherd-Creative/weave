@@ -23,7 +23,7 @@
 
   Shipped in this version:
 
-  - **`weave-primitives`** — 12 primitives (atoms: `Number`, `Label`, `Icon`;
+  - **`weave-primitives`** — 13 primitives (atoms: `Number`, `Label`, `Icon`;
     molecules: `KPI`, `Stat`, `DataRow`, `Chart`; organisms: `MetricBand`,
     `ChartCard`, `TableCard`, `NoteCard`; layouts: `Grid`, `Stack`) with Zod
     schemas and a recursive renderer. Container-query sizing + ellipsis
@@ -46,6 +46,13 @@
 
   Six primitives (`Sparkline`, `ProgressBar`, `Badge`, `Divider`, `Comparison`,
   plus `Spacer`) remain deferred to the B5 milestone.
+
+  > **Corrected 2026-08-07.** That roadmap did not survive portfolio review, and
+  > the count was wrong: 13 primitives shipped, not 12 of 18. `Sparkline`,
+  > `ProgressBar` and `Badge` are still planned. `Divider` and `Spacer` are
+  > rejected — `Grid`/`Stack` gaps and density own whitespace, and semantic
+  > sectioning becomes a `Section` organism. `Comparison` is deferred behind
+  > unmet entry criteria; two `KPI`s in a `Stack` cover the need today.
 
 ## 0.0.0 (unreleased — B3)
 
