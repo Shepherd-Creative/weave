@@ -4,7 +4,7 @@ import { SpecSchema } from "@shepherd-creative/weave-primitives/schemas";
 import { loadSkill } from "@shepherd-creative/weave-skill";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
-import { TOOLS, TOOLS_BY_NAME, toolsJsonManifest } from "../tools.js";
+import { SKILL_RESOURCE_URI, TOOLS, TOOLS_BY_NAME, toolsJsonManifest } from "../tools.js";
 
 // F6/F9 drift guards for the model-facing surface this package serves.
 //
@@ -84,6 +84,12 @@ describe("tool descriptions advertise only what this surface registers", () => {
       expect(tool.description, `${tool.name} bakes in a transport-specific pointer`).not.toContain(
         "/skill.md",
       );
+      // The MCP resource is registered by this package's `/mcp` transport only,
+      // so naming it in the shared descriptor would promise the stdio MCP App a
+      // resource it does not serve.
+      expect(tool.description, `${tool.name} bakes in this server's resource URI`).not.toContain(
+        SKILL_RESOURCE_URI,
+      );
     }
   });
 
@@ -96,6 +102,9 @@ describe("tool descriptions advertise only what this surface registers", () => {
     // packages/weave-mcp-server/src/app.ts. The `get_skill` MCP tool exists
     // only in the MCP App package, so nothing here may name it.
     expect((dashboard as { description: string }).description).toContain("/skill.md");
+    // Both channels this server actually serves, so a REST reader and an MCP
+    // client each find one they can follow.
+    expect((dashboard as { description: string }).description).toContain(SKILL_RESOURCE_URI);
     expect((dashboard as { description: string }).description).not.toContain("get_skill");
   });
 

@@ -17,8 +17,9 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { loadSkill } from "@shepherd-creative/weave-skill";
 import type { AnyZodObject } from "zod";
-import { TOOLS, describeForHttpSurface, invokeTool } from "./tools.js";
+import { SKILL_RESOURCE_URI, TOOLS, describeForHttpSurface, invokeTool } from "./tools.js";
 
 /**
  * Construct a fresh McpServer with all 5 render tools registered.
@@ -29,7 +30,25 @@ import { TOOLS, describeForHttpSurface, invokeTool } from "./tools.js";
 function buildServer(): McpServer {
   const mcp = new McpServer(
     { name: "weave-mcp-server", version: "0.1.0" },
-    { capabilities: { tools: {} } },
+    { capabilities: { tools: {}, resources: {} } },
+  );
+
+  // The composition guide, reachable over the protocol itself. The tool
+  // descriptions also mention `GET /skill.md`, but a client that only speaks
+  // JSON-RPC here has no base URL to resolve that route against, so the same
+  // content is registered as a resource it can read directly.
+  mcp.registerResource(
+    "weave-skill",
+    SKILL_RESOURCE_URI,
+    {
+      title: "Weave composition guide",
+      description:
+        "How to compose Weave primitives into a dashboard spec: which primitive to reach for, how to nest Grid/Stack, and what not to emit.",
+      mimeType: "text/markdown",
+    },
+    async (uri: URL) => ({
+      contents: [{ uri: uri.href, mimeType: "text/markdown", text: loadSkill() }],
+    }),
   );
 
   for (const tool of TOOLS) {
@@ -53,9 +72,7 @@ function buildServer(): McpServer {
           // `structuredContent` for clients that read that field
           // (CopilotKit's BuiltInAgent does — saves a parse step).
           return {
-            content: [
-              { type: "text" as const, text: JSON.stringify(spec) },
-            ],
+            content: [{ type: "text" as const, text: JSON.stringify(spec) }],
             structuredContent: spec as Record<string, unknown>,
           };
         } catch (err) {

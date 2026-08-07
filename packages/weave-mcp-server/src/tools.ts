@@ -67,19 +67,35 @@ export const TOOLS_BY_NAME: Record<string, ToolDescriptor> = Object.fromEntries(
 );
 
 /**
+ * URI of the composition skill as an MCP resource, registered by `mcp.ts`.
+ *
+ * A custom scheme, not a URL: MCP resource URIs are opaque handles the server
+ * resolves itself, so this names something a client can act on without knowing
+ * where the server is deployed.
+ */
+export const SKILL_RESOURCE_URI = "weave://skill.md";
+
+/**
  * Where a model reading THIS package's surfaces can fetch the composition
- * skill. Both surfaces are the same Hono app, which serves the skill at
- * `GET /skill.md` (see packages/weave-mcp-server/src/app.ts).
+ * skill. Both surfaces are the same Hono app: it serves the skill at
+ * `GET /skill.md` (see packages/weave-mcp-server/src/app.ts) and registers it
+ * as the `weave://skill.md` MCP resource (see
+ * packages/weave-mcp-server/src/mcp.ts).
+ *
+ * Both channels are named because a client can only follow one of them. A
+ * client speaking JSON-RPC to `/mcp` has no base URL and cannot act on a
+ * relative route, so pointing it at `GET /skill.md` alone would be advice it
+ * cannot take; a REST caller reading the `/tools` manifest cannot issue
+ * `resources/read`. Each statement is true of this server either way.
  *
  * The descriptions in `TOOLS` are deliberately surface-neutral: the array is
- * also imported by the MCP App, which is stdio-only (no HTTP route to point
- * at) and registers its own `get_skill` tool instead. A pointer baked into the
- * shared descriptor would be false on whichever surface it was not written
- * for — which is exactly how the old `call get_skill` instruction came to
- * advertise a tool this server never registered.
+ * also imported by the MCP App, which is stdio-only (it serves neither the
+ * route nor this resource) and registers its own `get_skill` tool instead. A
+ * pointer baked into the shared descriptor would be false on whichever surface
+ * it was not written for — which is exactly how the old `call get_skill`
+ * instruction came to advertise a tool this server never registered.
  */
-export const SKILL_ENDPOINT_HINT =
-  " The full composition guide is served by this server at `GET /skill.md`.";
+export const SKILL_ENDPOINT_HINT = ` The full composition guide is available from this server: MCP clients can read the resource \`${SKILL_RESOURCE_URI}\`; over HTTP it is served at \`GET /skill.md\`.`;
 
 /** A tool's description as advertised by this package's REST and MCP surfaces. */
 export function describeForHttpSurface(tool: ToolDescriptor): string {
