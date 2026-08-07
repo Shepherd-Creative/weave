@@ -1,63 +1,157 @@
-# Handoff: Design-source adapter, theme tooling and public release
+# Handoff: Primitive Portfolio — Wave 0 (truth, documentation and CI gate)
 
-**Generated**: 2026-05-04 (rewritten 2026-07-07 after the adapter batch; updated same day post-release-prep)
-**Branch**: `feat/design-source-adapter` (main clone, sequential session)
-**Status**: Ready for review. All build stages complete, gate green (15 turbo test tasks, 217 tests). **PR #5 open** (<https://github.com/Shepherd-Creative/weave/pull/5>), awaiting Pierre's review/merge (human gate, do not auto-merge). Both held decisions RESOLVED 2026-07-07: history was rewritten with `git filter-repo` to purge `.memsearch/` (every SHA changed; old clones elsewhere must be RE-CLONED, never pulled) and the repo is now **PUBLIC** with topics and a `protect-main` branch ruleset (no force push, no deletion, PR required, 0 approvals; no bypass actors, so disable the ruleset before any future history surgery).
+**Generated**: 2026-08-07
+**Branch**: `feature/primitive-portfolio-wave-0` (worktree `/Users/pierregallet/Documents/weave-wave-0`)
+**Status**: Implemented and locally verified. **Blocked on the exit gate** — nothing pushed, no PR, no independent Codex review.
 
-## What this branch delivers (13+ commits, each stage two-stage reviewed)
+> Supersedes the previous HANDOFF.md (design-source adapter / PR #5 batch), which is merged and recoverable from git history on `main`.
 
-1. **Contract v3** (`weave-tokens` 91 vars, manifest `version: 3`): per-role font routing (`--weave-font-overline`, `--weave-font-numeric`) and `--weave-font-feature-numeric`, routed through Label, KPI, TableCard, Number, Stat and DataRow with defaults behaviour-identical to the replaced literals. brand-iron exercises all three (mono overlines, oldstyle figures) and the acceptance e2e proves them in-browser.
-2. **Shared validator**: `validateThemeCss` moved verbatim into `@shepherd-creative/weave-tokens/validate` (single implementation repo-wide; security comments intact). weave-tokens gained its first real build. Turbo cache correctness fixed twice ($TURBO_DEFAULT$ inputs; `examples/themes/**` hashed by both consumer packages).
-3. **`weave-theme-cli`** (`weave-theme` bin, 102 tests): `lint` (coverage policy: structural/tone/palette enforced; WCAG contrast tiers with translucent-skip and resolved values in findings; Levenshtein did-you-mean; drop-report zod schema; `--json`), `list` (coverage summary + active marker) and `use` (lint-first Claude Desktop config switching, timestamped collision-safe backups, `--default` restore, exact restart reminder). The lint gate caught a real defect pre-ship: brand-iron's cream-on-saffron `--primary` pair at 2.8:1, fixed to ink at 5.0:1.
-4. **`weave-adapter-skill`**: SKILL.md 8-step method encoding the seven brand-iron learnings (tone derivation, chart ramps, font fallback stacks, drops, prose rules, muted variants, the lint gate), plus `.claude/skills/weave-theme-adapter` stub for Claude Code auto-discovery. brand-iron carries the exemplar `drop-report.json` (six judgement calls) and passes `--require-drop-report`.
-5. **Proactive visuals**: SKILL.md §1.1 "When to visualise unprompted" (data-shape heuristics, litmus test, counter-heuristics, contract restated), one proactive cue per render-tool description, per-brand "Proactive triggers" in all three example briefs.
-6. **Public readiness**: MIT LICENSE and fields everywhere; `.memsearch/` untracked and gitignored; landing README (four-brand screenshot grid in `docs/assets/`, Mermaid pipeline diagram, seven-package table); `docs/quickstart-byob.md` (clone → themed dashboard, 8 steps); `CONTRIBUTING.md`; repo topics set; `pnpm lint` unblocked (`.claude/worktrees` biome excludes); zero personal paths, em dashes or Oxford-comma lists in branch-authored public prose.
+## Goal
 
-## Verification (2026-07-07)
+Wave 0 of the approved plan at `.hermes/plans/2026-08-07_223240-primitive-portfolio.md` (parent checkout `/Users/pierregallet/Documents/weave`): make Weave's public claims true, and add the PR CI that protects every later contract wave. No schema, renderer or primitive changes — those are Wave 1+.
 
-`pnpm typecheck` 13/13 tasks, `pnpm test` 15/15 tasks: theme-cli 102, mcp-app 43 (incl. 4-theme acceptance e2e + proactive assertions), primitives 33, tokens 10, adapter-skill 5, skill 5, mcp-server 19. All three shipped themes lint exit-0; brand-iron also passes `--require-drop-report`. Live smoke of `use`/`list`/round-trip/refusal against a fixture config: all green. gitleaks full-history scan: clean (60 commits).
+## Completed
 
-## Release sequencing (current human gates)
+7 commits on `main@b9b1617`, tree clean at `3716146`, **nothing pushed**.
 
-1. **Merge PR #5** (the adapter batch). This puts the public landing README live on main.
-2. **Then merge PR #4** (the Changesets bot's "chore: version packages"): the bot auto-updates it after #5 lands so one merge cuts a single clean release (version bumps + CHANGELOGs + GitHub Packages publish). Merging #4 before #5 would cut a release missing the entire batch.
-3. Formerly-held decisions, both executed 2026-07-07: `.memsearch/` purged from all history via `git filter-repo` (mirror-rewrite, force-pushed heads + tags; pre-rewrite backup mirror in the session scratchpad until Pierre deletes it) and the visibility flip to public. Branch protection ruleset `protect-main` active.
-4. Aftercare: any clone elsewhere (VPS, OpenClaw) must be re-cloned; the two stale `.claude/worktrees/` checkouts point at pre-rewrite SHAs, tear down from the main clone when convenient.
+- [x] Test-first drift/version guards (+23 assertions) in `weave-primitives`, `weave-skill`, `weave-mcp-server`
+- [x] README + SKILL catalogues reconciled with the actual 13-member Spec union
+- [x] `Comparison` recommendation removed → `Stack` of two `KPI`s (it was never built)
+- [x] `get_skill` guidance corrected: HTTP/MCP surfaces now point at `GET /skill.md`, which they really serve
+- [x] B5 counts reconciled; `Spacer`/`Divider` promises removed across 4 CHANGELOGs
+- [x] Three misleading `0.0.0` version constants removed (nothing consumed them)
+- [x] Five stale doc citations repaired (comment-only edits, zero behaviour change)
+- [x] `.github/workflows/ci.yml` — `pull_request` gate: typecheck, test, build, new-Biome-findings-only
+- [x] `.claude/settings.json` Stop hook schema repaired (was silently inert)
+- [x] Changeset added (minor × 3)
 
-## Still open from the earlier MCP App handoff
+## Not Yet Done — these are the exit gate
 
-- **Phase 3 — Interactivity**: spec inspector, chart variant switcher, theme toggle, send-back-to-Claude.
-- **Phase 4 — Polish**: fullscreen via `app.requestDisplayMode`, `validate_spec` tool, recharts tree-shaking.
-- **Runtime theme switching / multi-brand registries / `applyHostFonts`**: explicitly out of scope, documented in `docs/future-directions/design-source-integration.md`.
-- **Cloudflared cleanup (open question)**: kill leftover daemons, delete the named tunnel `mcp-app` from Cloudflare Zero Trust, remove `~/.cloudflared/config.yml.named-tunnel-bak` + creds JSON, delete dead CNAME `mcp-app.brandiron.co.za` on HostServ.
+- [ ] **Push the branch and open a PR against `main`** so `ci.yml` executes for the first time. It has never run on GitHub.
+- [ ] **Obtain the independent Codex adversarial review** required by the plan's shared execution rule 4. See Failed Approaches — use `task --background`.
+- [ ] Only then declare the Wave 0 gate closed and start Wave 1.
 
-## Failed approaches (do not repeat)
+## Failed Approaches (Don't Repeat These)
 
-Preserved from the MCP App build; all still apply:
+- **Codex review, 3 attempts, no retrievable output.** (1) Via the `codex:rescue` subagent: the companion call hit the 120 s foreground timeout, was backgrounded, and left a 0-byte output with no job registered. (2) Direct `node codex-companion.mjs task "<prompt>"`: registered job `task-msjgx6tc-a2qisz` but the worker is a **child of the invoking shell**, so it died when that shell was stopped — only `Starting Codex Task.` was ever written to its log. (3) `task --background --fresh`: exited **144** without registering a job. **Root cause for (2):** `scripts/codex-companion.mjs:643-650` only detaches (`detached: true` + `child.unref()`) under `--background`. **Next attempt must pass `--background`, then poll `status --json` and fetch with `result`.** Also note `task --help` is not parsed as a flag — it registers a job titled `--help`.
+- **`pnpm typecheck -- --force`** to bypass the turbo cache: the `--force` is forwarded to `tsc`, which dies. Use `TURBO_FORCE=true pnpm typecheck` instead.
+- **Trusting the first green baseline.** Turbo replayed cache entries from the *parent* checkout (`/Users/pierregallet/Documents/weave`), so the first `pnpm typecheck` was a cache hit, not a real run. Always `TURBO_FORCE=true` in this worktree.
+- **`pnpm exec playwright install chromium` from the repo root** installed revision 1208; `weave-mcp-app` pins playwright 1.61.1 and needs **1228**. Install from the package: `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
+- **`biome check --changed --since=<base>` as the CI lint gate.** Rejected: it still fails a PR for pre-existing findings inside a file the PR merely touched, and the 48 baseline findings sit exactly in the files Waves 1–3 will edit most. Replaced with a base-vs-head fingerprint diff.
+- **`for f in $FILES`** (space-joined string) in zsh — no word splitting, so the loop body received one giant filename and silently did nothing. Use an array: `files=(a b c); for f in "${files[@]}"`.
+- **Naming the rejected primitives in the README** while explaining why they don't exist: the guard forbids the strings `Divider`/`Spacer` anywhere in that file. The explanation is phrased positively instead ("`Grid`/`Stack` gaps and density own whitespace").
 
-- **`tsx`-at-runtime for stdio install**: Claude Desktop's sandbox EPERMs the tsx loader fork on the second call. Always pre-bundle to `dist/index.js` with esbuild and point the config at `node .../dist/index.js`.
-- **Naming the server in chat prompts** triggers the connector-marketplace detour; name the tool directly ("call render_metric_band with ...").
-- **cloudflared named tunnel with non-Cloudflare DNS** cannot resolve (`cfargotunnel.com` is Cloudflare-private); quick tunnels only.
-- **Inventing API fields from memory**: read `/tmp/mcp-ext-apps/src/spec.types.ts` before promising MCP Apps API surface.
-- **`session_id`/`SessionEnd` for lifecycle automation**: see the global session-concurrency protocol; warn-only mechanisms.
-- New this batch: **`CMD="node x.js"; $CMD` fails under zsh** (no word splitting); use direct invocation or arrays. **Turbo package-level `inputs` overrides replace, not merge** the root array; `$TURBO_DEFAULT$` avoids the drift. **Backup filenames keyed on wall-clock seconds collide** under rapid successive writes; suffix on collision. **`git filter-repo` removes the `origin` remote as a safety default**; re-add before force-pushing, and push explicit `refs/heads/*` + `refs/tags/*` rather than `--mirror` (mirror push trips on GitHub's read-only `refs/pull/*`).
+## Key Decisions
 
-## Files to know
+| Decision | Rationale |
+|---|---|
+| **Remove** the `0.0.0` constants rather than inject build-time metadata | tsup `define` would make the constant a build artifact that vitest (which never runs tsup) can't see, so the guard would test the wrong thing. Nothing consumed the constants. `package.json` is already the source of truth. |
+| Skill pointer is **surface-local**, not in the shared `TOOLS` descriptor | `TOOLS` is imported by both `weave-mcp-server` (HTTP, serves `/skill.md`) and `weave-mcp-app` (stdio, registers `get_skill`). A pointer baked into the shared array is false on whichever surface it wasn't written for — exactly how the original `get_skill` defect arose. |
+| Biome gate = base-vs-head fingerprint diff, fingerprint excludes line/column | Unrelated edits shift line numbers; a shifted pre-existing finding is not a new finding. |
+| Gate exits **2** (never 0) when it cannot run | A broken gate must never be mistaken for a clean pass. |
+| README drops the "of 18" denominator | The denominator was invented and is itself a drift generator; the shipped count is asserted against the union instead. |
+| CHANGELOG history preserved, corrections appended | The stale sentences are dated forward-looking promises; the bare `12` for a 13-item list is a plain arithmetic error and was fixed in place. |
+| SKILL/README/CHANGELOG-only scope | Wave 0 explicitly excludes schema and renderer work. Confirmed: the only `src/` diffs outside tests are **comment-only**. |
 
-| File | Why |
-|------|-----|
-| `docs/future-directions/design-source-integration.md` | The adapter's requirements seed and current status (skill+lint delivered; remaining future work listed) |
-| `packages/weave-adapter-skill/SKILL.md` | The adapter method; `examples/themes/brand-iron/` is its worked example |
-| `packages/weave-tokens/src/validate.ts` | The single validator implementation (security comments load-bearing) |
-| `packages/weave-theme-cli/src/lint.ts` | The deterministic gate; finding codes are long-lived contract |
-| `packages/weave-mcp-app/src/theme.ts` | Runtime loading/injection (env vars → validated `:root` block) |
-| `docs/quickstart-byob.md` | The public bring-your-own-brand walkthrough |
-| `~/Library/Logs/Claude/mcp-server-<name>.log` | First stop when debugging Claude Desktop MCP issues |
+## Current State
 
-## Resume instructions
+**Working**: everything. Tree clean, 7 commits, all four gates re-run after the falsification cycles:
 
-1. `cd ~/Documents/weave && git status` — expect `feat/design-source-adapter` (or main after merge).
-2. Gate: `pnpm typecheck && pnpm test` (quote output; biome has ~33 pre-existing findings, run `pnpm format` to distinguish).
-3. If the PR is open: review comments land there; each fix keeps the gate green.
-4. After merge: tear down any stale worktrees from the main clone, then ask Pierre for the visibility-flip go and the memsearch-history decision (§Held decisions).
-5. Next build candidates: MCP App phases 3-4, runtime theme switching (needs a concrete host requirement), `applyHostFonts` for real brand faces.
+| Gate | Result |
+|---|---|
+| `pnpm typecheck` | exit 0 |
+| `pnpm test` | exit 0 — **240 passed** (baseline 217) |
+| `pnpm build` | exit 0 |
+| `pnpm lint` | exit 1 — **48 diagnostics, 0 new** |
+
+`pnpm lint` exit 1 is the **pre-existing baseline** (33 errors / 6 warnings / 9 infos), not a regression. Confirmed two ways: per-category diff against a JSON baseline captured before any edit, and `node scripts/biome-new-findings.mjs main` reporting `No new Biome findings`.
+
+**Broken**: nothing locally. The unproven items are the un-run GitHub workflow and the missing Codex review.
+
+**Uncommitted Changes**: none in this worktree. The plan file in the **parent** checkout (`/Users/pierregallet/Documents/weave/.hermes/plans/2026-08-07_223240-primitive-portfolio.md`) was updated with a Wave 0 execution record and is uncommitted there.
+
+## Files to Know
+
+| File | Why It Matters |
+|---|---|
+| `scripts/biome-new-findings.mjs` | The new-findings-only Biome gate. Worktrees the base ref, fingerprints both sides. Exit 0/1/2. |
+| `.github/workflows/ci.yml` | The PR gate. Never executed on GitHub yet. |
+| `packages/weave-mcp-server/src/tools.ts` | `SKILL_ENDPOINT_HINT` + `describeForHttpSurface`. Shared `TOOLS` stays transport-neutral. |
+| `packages/*/src/__tests__/catalogue-drift.test.ts` | Union/catalogue/version guards (3 packages). |
+| `packages/*/src/__tests__/doc-citations.test.ts` | Comment-citation scanners (2 packages). |
+| `packages/weave-skill/SKILL.md` | Model-facing. §5.3 two-KPI guidance, §9 catalogue. |
+
+## Code Context
+
+The Spec union is enumerated from Zod internals; it **throws** rather than returning an empty set, so the guard cannot pass by measuring nothing:
+
+```ts
+function specUnionMembers(): string[] {
+  const lazyDef = (SpecSchema as unknown as { _def?: { getter?: () => unknown } })._def;
+  const inner = typeof lazyDef?.getter === "function" ? lazyDef.getter() : SpecSchema;
+  const optionsMap = (inner as { _def?: { optionsMap?: Map<string, unknown> } })._def?.optionsMap;
+  if (!optionsMap || optionsMap.size === 0) throw new Error("Zod internals changed — update this guard");
+  return [...optionsMap.keys()];   // 13 members
+}
+```
+
+Surface-local skill pointer (`packages/weave-mcp-server/src/tools.ts`), consumed by `toolsJsonManifest()` and by `mcp.ts`:
+
+```ts
+export const SKILL_ENDPOINT_HINT =
+  " The full composition guide is served by this server at `GET /skill.md`.";
+
+export function describeForHttpSurface(tool: ToolDescriptor): string {
+  return tool.name === "render_dashboard" ? tool.description + SKILL_ENDPOINT_HINT : tool.description;
+}
+```
+
+Biome gate contract:
+
+```bash
+node scripts/biome-new-findings.mjs origin/main
+# exit 0 = no new findings   exit 1 = new findings   exit 2 = gate could not run
+```
+
+## Resume Instructions
+
+1. `cd /Users/pierregallet/Documents/weave-wave-0` and confirm the tree is clean at `3716146`.
+2. Re-verify before trusting anything:
+   ```bash
+   TURBO_FORCE=true pnpm typecheck && TURBO_FORCE=true pnpm test
+   ```
+   - Expected: exit 0, **240 tests passed**.
+   - If Playwright suites fail with `Executable doesn't exist ... chromium_headless_shell-1228`: run `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
+3. Confirm the lint position is unchanged:
+   ```bash
+   node scripts/biome-new-findings.mjs main
+   ```
+   - Expected: `No new Biome findings. 48 pre-existing finding(s) left untouched.` exit 0.
+   - If it reports new findings, `pnpm format` **only the files you touched** — never repo-wide, that would commit 48 files of unrelated churn.
+4. Get the Codex review (**required before the gate closes**):
+   ```bash
+   node "$HOME/.claude/plugins/cache/openai-codex/codex/1.0.4/scripts/codex-companion.mjs" \
+     task --background --fresh "<review prompt>"
+   node "$HOME/.claude/plugins/cache/openai-codex/codex/1.0.4/scripts/codex-companion.mjs" status --json
+   node "$HOME/.claude/plugins/cache/openai-codex/codex/1.0.4/scripts/codex-companion.mjs" result
+   ```
+   - `--background` is load-bearing; without it the worker dies with your shell.
+   - Focus it on the Biome gate failing open and on the HTTP/MCP skill guidance.
+5. Push and open the PR (this is what closes the gate's first item):
+   ```bash
+   git push -u origin feature/primitive-portfolio-wave-0
+   gh pr create -R Shepherd-Creative/weave --base main
+   ```
+   - Expected: the **CI** workflow starts on the PR and all four steps pass.
+   - If `Install Playwright Chromium` fails: check the `Resolve Playwright version` step parsed `1.61.1` from `playwright --version`.
+   - If the Biome step exits 2: `origin/${{ github.base_ref }}` did not resolve — verify `actions/checkout` ran with `fetch-depth: 0`.
+6. Reconcile any Codex findings, then update the plan's Wave 0 execution record to close the gate.
+
+## Warnings
+
+- **Do not merge without Pierre's review.** Human gate; `main` has a `protect-main` ruleset (PR required, no force push).
+- **Turbo cache is shared with the parent checkout.** A bare `pnpm test` here can replay results computed in `/Users/pierregallet/Documents/weave`. Use `TURBO_FORCE=true` for any run you intend to trust.
+- **`pnpm lint` exits 1 by design.** 48 pre-existing findings. Judge lint by `scripts/biome-new-findings.mjs`, not by the raw exit code.
+- **`packages/weave-mcp-app/dist/weave-skill.md` is a build copy of SKILL.md** (gitignored, refreshed by `pnpm build`). If you edit SKILL.md, rebuild before testing the MCP App, or the app serves the stale skill.
+- **The `weave-skill` catalogue is cross-checked from `weave-mcp-server`**, not from `weave-skill` itself — that package has no dependency on `weave-primitives` and adding one was deliberately avoided.
+- The adversarial pass recorded in the plan is the **implementer's own**, not independent. Treat it as unverified until Codex or a second reviewer confirms it.
