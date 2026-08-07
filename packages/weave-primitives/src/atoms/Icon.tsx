@@ -32,7 +32,9 @@ import type { IconName, IconSpec } from "../schemas/index.js";
 import { iconPixelSize } from "../utils/style.js";
 import { toneToColorVar } from "../utils/theme.js";
 
-// Curated name → lucide icon. See primitive-taxonomy.md §5.5.
+// Curated name → lucide icon. The accepted names are the single source of
+// truth in IconNameSchema (packages/weave-primitives/src/schemas/tokens.ts);
+// every key here must appear there and vice versa.
 const ICON_MAP: Record<IconName, LucideIcon> = {
   "trend-up": TrendingUp,
   "trend-down": TrendingDown,
