@@ -61,10 +61,21 @@ function comments(source: string): string {
  * `/skill.md` is an HTTP route far more often than a file, and this repository
  * really does serve one. An absolute path that reaches `resolves` by another
  * route — a Markdown link target, say — is rejected there instead.
+ *
+ * The extension must end the path. `TRAILING` keeps any suffix that follows it
+ * — a backup copy, an editor swap file — attached to the citation, instead of
+ * stopping at the extension and resolving against a shorter file the comment
+ * never cited. It cannot end on a `.`, so a citation at the end of a sentence
+ * still stops before the full stop.
  */
+const TRAILING = /(?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?/.source;
+
 function citations(commentText: string): string[] {
-  const inline = /(?:^|[\s([{<"'`])([A-Za-z0-9._-][A-Za-z0-9._/-]*\.(?:md|ts|tsx))/g;
-  const markdownLink = /\]\(([^)\s]+\.(?:md|ts|tsx))\)/g;
+  const inline = new RegExp(
+    `(?:^|[\\s([{<"'\`])([A-Za-z0-9._-][A-Za-z0-9._/-]*\\.(?:md|ts|tsx)${TRAILING})`,
+    "g",
+  );
+  const markdownLink = new RegExp(`\\]\\(([^)\\s]+\\.(?:md|ts|tsx)${TRAILING})\\)`, "g");
   const found = new Set<string>();
   for (const m of commentText.matchAll(inline)) found.add(m[1] as string);
   for (const m of commentText.matchAll(markdownLink)) found.add(m[1] as string);
@@ -125,6 +136,31 @@ describe("citation grammar", () => {
 
   it("harvests paths containing underscores", () => {
     expect(citations("// see docs/design_notes.md")).toContain("docs/design_notes.md");
+  });
+
+  it("does not truncate a suffix-bearing path to a shorter real file", () => {
+    // A path carrying a suffix after its extension is not the shorter path.
+    // Truncating it resolves the citation against a file the comment never
+    // cited, so a stale citation passes while looking checked — the exact
+    // shape this guard exists to catch. (The examples live in string literals,
+    // not in this comment, because this scanner reads comments.)
+    expect(citations("// see README.md.bak for the old copy")).not.toContain("README.md");
+    expect(citations("// see [the readme](README.md.bak)")).not.toContain("README.md");
+  });
+
+  it("harvests the whole suffix-bearing path, so it is reported rather than ignored", () => {
+    expect(citations("// see README.md.bak for the old copy")).toContain("README.md.bak");
+    expect(citations("// see [the readme](README.md.bak)")).toContain("README.md.bak");
+    expect(resolves("README.md.bak", CITING)).toBe(false);
+  });
+
+  it("still ends a citation at sentence and delimiter punctuation", () => {
+    expect(citations("// the guide is packages/weave-skill/SKILL.md.")).toContain(
+      "packages/weave-skill/SKILL.md",
+    );
+    expect(citations("// see spec.ts, then tokens.ts;")).toContain("spec.ts");
+    expect(citations("// see spec.ts, then tokens.ts;")).toContain("tokens.ts");
+    expect(citations("// evidence in app.test.ts proves it")).toContain("app.test.ts");
   });
 
   it("does not harvest an HTTP route as a file citation", () => {
