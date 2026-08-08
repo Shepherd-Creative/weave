@@ -12,16 +12,35 @@
  * and fail only on diagnostics the base did not already have.
  *
  * "Already have" is decided against `git diff -U0` between the two trees, not
- * against a position-blind fingerprint: a baseline finding is claimable by a
- * head finding only at its diff-mapped line, or inside the hunk that rewrote
- * it. See scripts/lib/biome-diff.mjs for the identity rules and their limits.
+ * against a position-blind fingerprint. A baseline finding is claimable by a
+ * head finding in exactly two ways:
+ *
+ *   1. the code holding it was not touched, so git's hunks give it one known
+ *      head line, and the head finding sits exactly there;
+ *   2. the change rewrote the region holding it, AND the offending source line
+ *      is byte-identical (trimmed) on both sides, AND that line pairs the two
+ *      findings ONE TO ONE — the head finding has exactly one such candidate
+ *      and that candidate has exactly one suitor.
+ *
+ * Sharing a rewritten hunk is NOT enough, and neither is a matching source line
+ * on its own: a `-U0` hunk deletes every base line and adds every head line,
+ * and two identical lines are identical evidence, so an anchor appearing twice
+ * in one hunk identifies a set rather than a finding.
+ *
+ * The contract is therefore FAIL CLOSED: wherever identity cannot be proven —
+ * unreadable source, an edited anchor line, or an ambiguous one — the finding
+ * is REPORTED AS INTRODUCED. That deliberately reports some pre-existing debt
+ * you merely carried through a rewrite; a false positive costs a fix, while a
+ * false negative is a silent pass. See scripts/lib/biome-diff.mjs for the rules
+ * in full and every trade-off they carry.
  *
  * Usage:   node scripts/biome-new-findings.mjs <base-ref>
  * Example: node scripts/biome-new-findings.mjs origin/main
  *
  * Exit codes:
  *   0 - no new findings (pre-existing ones are reported, not failed on)
- *   1 - new findings introduced
+ *   1 - new findings introduced, OR carried through a change that makes their
+ *       identity unprovable (see the fail-closed contract above)
  *   2 - the gate itself could not run (never confused with a clean pass)
  *
  * Note: a PR that tightens biome.json runs the base with the base config and
@@ -178,4 +197,12 @@ for (const d of introduced) {
   console.error(`  ${diagnosticFile(d)}${line}  [${d.category}] ${d.message}`);
 }
 console.error("\nRun `pnpm format` and re-check, or fix the reported rule violations.");
+console.error(
+  "\nA finding is claimed as pre-existing only on an untouched line, or on a\n" +
+    "byte-identical source line that pairs one-to-one inside the hunk that\n" +
+    "rewrote it. This gate fails closed: if your change edited the line carrying\n" +
+    "a finding, or rewrote a region holding two identical offending lines, its\n" +
+    "identity cannot be proven and it is reported here even though you did not\n" +
+    "introduce it. Fix it rather than loosening the gate.",
+);
 process.exit(1);
