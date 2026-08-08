@@ -62,13 +62,26 @@ function comments(source: string): string {
  * really does serve one. An absolute path that reaches `resolves` by another
  * route — a Markdown link target, say — is rejected there instead.
  *
- * The extension must end the path. `TRAILING` keeps any suffix that follows it
- * — a backup copy, an editor swap file — attached to the citation, instead of
- * stopping at the extension and resolving against a shorter file the comment
- * never cited. It cannot end on a `.`, so a citation at the end of a sentence
- * still stops before the full stop.
+ * The extension must end the path, and `TRAILING` keeps whatever follows it
+ * attached to the citation rather than stopping at the extension and resolving
+ * against a shorter file the comment never cited.
+ *
+ * That suffix grammar is stated as what ENDS a citation, never as a list of
+ * characters a suffix may contain. The direction is the whole point: an
+ * allowlist admits only the suffixes someone thought of and silently truncates
+ * every other one, and each truncation is a stale citation that resolves for
+ * the wrong reason. Stated the other way round it is closed by construction —
+ * anything not named below continues the path, so an unanticipated suffix stays
+ * attached and gets reported.
+ *
+ * A citation ends at `BREAK`: whitespace, the delimiters a comment wraps a
+ * citation in, the `:` of a `path:line` reference, and the characters a path
+ * cannot carry. `TAIL_ONLY` characters are legal inside a path but never last,
+ * so a citation closing a sentence still stops before the full stop.
  */
-const TRAILING = /(?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?/.source;
+const BREAK = "\\s()\\[\\]{}<>\"'`,;:|\\\\?*";
+const TAIL_ONLY = ".!";
+const TRAILING = new RegExp(`(?:[^${BREAK}]*[^${BREAK}${TAIL_ONLY}])?`).source;
 
 function citations(commentText: string): string[] {
   const inline = new RegExp(
@@ -152,6 +165,50 @@ describe("citation grammar", () => {
     expect(citations("// see README.md.bak for the old copy")).toContain("README.md.bak");
     expect(citations("// see [the readme](README.md.bak)")).toContain("README.md.bak");
     expect(resolves("README.md.bak", CITING)).toBe(false);
+  });
+
+  it("does not truncate an editor-backup suffix to a shorter real file", () => {
+    // The tilde suffix an editor leaves behind is the canonical case: the
+    // shorter path really exists, so truncating produces a citation that
+    // resolves to a file the comment never named. (Examples live in string
+    // literals — this scanner reads comments.)
+    expect(citations("// see README.md~ for the old copy")).not.toContain("README.md");
+    expect(citations("// see [the readme](README.md~)")).not.toContain("README.md");
+  });
+
+  it("harvests the whole backup-suffixed path, so it is reported rather than ignored", () => {
+    expect(citations("// see README.md~ for the old copy")).toContain("README.md~");
+    expect(citations("// see [the readme](README.md~)")).toContain("README.md~");
+    expect(resolves("README.md~", CITING)).toBe(false);
+  });
+
+  it("keeps any non-delimiter suffix attached, not only the anticipated ones", () => {
+    // The suffix grammar is defined by what ENDS a citation, not by a list of
+    // characters a suffix may contain. An allowlist silently truncates every
+    // suffix nobody thought of, and each truncation is a stale citation that
+    // passes while looking checked.
+    for (const suffix of ["~", "#", "%", "+", "@", "=", "&", "^", "$", "-old", ".orig", "!x"]) {
+      expect(citations(`// see README.md${suffix} in passing`)).toContain(`README.md${suffix}`);
+      expect(citations(`// see [it](README.md${suffix})`)).toContain(`README.md${suffix}`);
+    }
+  });
+
+  it("still ends a citation at every delimiter it may be wrapped in", () => {
+    // The other half of the same grammar: these characters terminate a path,
+    // so widening the suffix must not swallow them.
+    expect(citations("// evidence: (docs/paren.md)")).toContain("docs/paren.md");
+    expect(citations("// evidence: [docs/bracket.md]")).toContain("docs/bracket.md");
+    expect(citations("// evidence: {docs/brace.md}")).toContain("docs/brace.md");
+    expect(citations("// evidence: <docs/angle.md>")).toContain("docs/angle.md");
+    expect(citations("// evidence: `docs/tick.md`")).toContain("docs/tick.md");
+    expect(citations('// evidence: "docs/quote.md"')).toContain("docs/quote.md");
+    expect(citations("// evidence: 'docs/apos.md'")).toContain("docs/apos.md");
+  });
+
+  it("still stops a citation before a line reference", () => {
+    // `path:line` is how comments point at a specific line; the colon ends the
+    // path, so the citation still resolves to the file.
+    expect(citations("// proved at doc-citations.test.ts:12")).toContain("doc-citations.test.ts");
   });
 
   it("still ends a citation at sentence and delimiter punctuation", () => {
