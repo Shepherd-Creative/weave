@@ -2,7 +2,7 @@
 
 **Generated**: 2026-08-08
 **Branch**: `feature/primitive-portfolio-wave-1` (worktree `/Users/pierregallet/Documents/weave-wave-1`)
-**Status**: Implemented, reviewed **four times**, remediated after each round, locally verified, committed. **Pushed — [PR #9](https://github.com/Shepherd-Creative/weave/pull/9) is open against `main`.** Its first CI run was red (a test-side `JSON.stringify` overflow); that is fixed, and the fix's own blind spot is fixed on top of it. Awaiting Hermes' independent verification of the reviewed head before merge.
+**Status**: Implemented, reviewed **four times**, remediated after each round, locally verified, committed. **Pushed — [PR #9](https://github.com/Shepherd-Creative/weave/pull/9) is open against `main`.** Its first CI run was red (a test-side `JSON.stringify` overflow); that is fixed, and the fix's own blind spot is fixed on top of it. **Hermes' independent read-only review of `3419bc7` returned APPROVE** with no blocking code findings; this commit is the documentation-integrity correction it asked for, and is the only change on top of the approved head. Merge is Pierre's call.
 
 > Supersedes the Wave 0 handoff. Wave 0 is **merged** — `0568b4f Wave 0: truth, documentation and CI gate (#7)` is this branch's base — so its one open exit-gate item (a PR starting `ci.yml`) is closed.
 
@@ -150,7 +150,40 @@ The rewritten transport test asserted only `status 200` + `result.isError === tr
 
 The 2,000-level case is kept and honestly renamed to what it actually proves: the server answers a payload too deep for the SDK's own parse in a controlled way and still serves the next caller. Its comment no longer claims to bound the walk.
 
-**Both suites verified under a genuinely reduced worker stack**, which is the part that needed its own control. `node --stack-size=N node_modules/vitest/vitest.mjs` does **not** reach the forked worker — a planted control reproducing the old overflow **passed** at `--stack-size=400`, so a suite run under that flag proves nothing. Reducing the worker's own stack (`poolOptions.forks.execArgv`) turns the control red with the exact CI error, and under *that* harness `app.test.ts` (64) and `document.test.ts` (65) both pass at 400 and 250.
+**Both suites verified under a genuinely reduced worker stack.** The first version of this paragraph asserted the result without giving the command, and an independent reviewer could not reproduce it — their direct attempts timed out. That was a fair hit: the obvious commands do not work, and two of them fail *silently*. The exact recipe is therefore below, with the traps named.
+
+- **`node --stack-size=N node_modules/vitest/vitest.mjs` does not reach the forked worker.** A planted control reproducing the old overflow **passed** at `--stack-size=400`, so any suite run under that flag proves nothing. The flag has to go to the worker via `poolOptions.forks.execArgv`.
+- **`--poolOptions.forks.execArgv=--stack-size=60` on the CLI hangs.** A stack that small breaks the worker's own bootstrap; it does not fail, it stops responding. This is the likeliest thing the reviewer hit. Use a config file and a survivable size.
+- **Do not wrap the invocation in a shell function.** zsh does not word-split an unquoted expansion, so `${cfg:+--config "$cfg"}` arrives as one argument, vitest matches no test file, and the run prints **no summary line at all** — which reads as "nothing to report" rather than as a broken harness. This cost two runs here.
+
+```bash
+# From the package dir. Repeat per package (weave-primitives needs
+# environment: "jsdom" and setupFiles: ["./vitest.setup.ts"]).
+cat > vitest.stack.config.ts <<'EOF'
+import { defineConfig } from "vitest/config";
+export default defineConfig({
+  test: {
+    environment: "node",
+    globals: true,
+    pool: "forks",
+    poolOptions: { forks: { execArgv: ["--stack-size=400"] } },
+  },
+});
+EOF
+node node_modules/vitest/vitest.mjs run --config vitest.stack.config.ts src/__tests__/app.test.ts
+rm vitest.stack.config.ts     # throwaway; never commit it
+```
+
+**Run the non-vacuity control first, or the green means nothing.** A throwaway test carrying the original CI fixture — `let root = {type:"NoteCard",body:"x"}; for (let i=0;i<5_000;i++) root={nested:root}; JSON.stringify(...)` — must **pass** at the default worker stack and **fail** under the reduced one. Observed, at both sizes:
+
+| Run | `--stack-size=400` | `--stack-size=250` |
+|---|---|---|
+| control @ default worker stack | 1 passed | 1 passed |
+| control @ reduced worker stack | **1 failed**, `RangeError: Maximum call stack size exceeded` | **1 failed**, same error |
+| `weave-mcp-server` `app.test.ts` | 64 passed | 64 passed |
+| `weave-primitives` `document.test.ts` | 65 passed | 65 passed |
+
+Re-run in full on `3419bc7` after the independent review asked for a reproducible command, not carried over from the earlier session.
 
 **Lesson, compounding the wave's others:** the previous rounds learned that a typed rejection assertion is not evidence. This one adds that *a refusal is not evidence of which thing refused*. When a test cannot name the mechanism it is pinning, the mechanism it actually exercises is whatever fails first — and here that was a caught stack overflow in someone else's library.
 
@@ -306,10 +339,19 @@ Restored from a backup taken **after** the fix, `diff -q` identical, both fixed 
 
 - [x] **Independent adversarial review of the diff** (shared execution rule 4). Round 1 against `0806ac8`: verdict "do not approve", three proven blockers plus a whitespace note — see "The review, and what it broke". Round 2 against `fe70778`: one remaining blocker, the conflicting-`type` normalisation, plus the false-positive tests that had hidden it — see "The second review round". Round 3 against `0df4dba`: one remaining blocker, the non-strict `render_dashboard` gateway — see "The third review round". Everything else rounds 2 and 3 exercised (ingress budget, strict node schemas, stdio framing, the reserved-key rule, the full gate) held.
 - [x] **Push, open a PR, and let `ci.yml` run against Wave 1.** Done — PR #9. The first run went red on a test-side stack overflow; see "The CI round" above for the diagnosis, the fix, and the fourth review round that fixed the fix.
-- [ ] Hermes independently verifies the reviewed head and closes the Wave 1 gate. **Do not merge from this worktree** — `main` carries a `protect-main` ruleset and the merge decision is Pierre's.
+- [x] **Independent review of the pushed diff.** Hermes reviewed the immutable head `3419bc7` read-only and returned **APPROVE**, no blocking code findings, having re-derived `code=depth` and `code=nesting` itself. Its one finding was the stale documentation this commit fixes.
+- [ ] Hermes confirms the documentation-correction head and closes the Wave 1 gate, then Pierre merges. **Do not merge from this worktree** — `main` carries a `protect-main` ruleset and the merge decision is Pierre's.
 - [ ] Only then start Wave 2, in its own branch and worktree.
 
-**Review round 4 was the implementer's own.** One bounded Codex adversarial review was dispatched against `4fc162e..0b04d39` and did not complete: it was terminated mid-run by OpenAI's content filter while patching a file to falsify a guard, producing no findings and no verdict. Before dying it independently reproduced the central measurement (the `/mcp` response reading `Maximum call stack size exceeded`). It also left a live sabotage in gitignored build output — `git status` was clean and proved nothing; a `--no-ignore-files` sweep found it in `packages/weave-primitives/dist/schemas/index.js`, and a forced rebuild cleared it. **Anything Codex ran after that point is suspect and was re-measured from scratch**, including its reduced-stack suite runs, which turn out to have used a flag that never reaches the vitest worker.
+**Round 4's remediation was the implementer's own; it has since been independently approved.** One bounded Codex adversarial review was dispatched against `4fc162e..0b04d39` and did not complete: it was terminated mid-run by OpenAI's content filter while patching a file to falsify a guard, producing no findings and no verdict. Before dying it independently reproduced the central measurement (the `/mcp` response reading `Maximum call stack size exceeded`). It also left a live sabotage in gitignored build output — `git status` was clean and proved nothing; a `--no-ignore-files` sweep found it in `packages/weave-primitives/dist/schemas/index.js`, and a forced rebuild cleared it. **Anything Codex ran after that point is suspect and was re-measured from scratch**, including its reduced-stack suite runs, which used a flag that never reaches the vitest worker.
+
+**Hermes' independent read-only review of the immutable head `3419bc7` returned APPROVE, with no blocking code findings.** It did not take the claims on trust — it re-derived the mechanisms:
+
+- the depth-7 `/mcp` fixture **passes Zod** and is refused by Weave with **`code=depth`** — i.e. it genuinely reaches the structural walk, which is the whole point of adding it;
+- the 20,000-deep array fixture is refused with **`code=nesting`**;
+- the focused tests pass, CI is green, and workspace and ignored-output fingerprints were **unchanged** by the review — the check that would have caught another dist-only sabotage.
+
+Its one non-code finding was documentation integrity, and it was right: the Resume instructions still said five commits and 495 tests and told the reader to open a PR that already existed, and the reduced-worker-stack claim gave no command, so the reviewer could not reproduce it and their attempts timed out. All of that is corrected above — the stack recipe now carries the exact config, the two silent-failure traps, and the control that makes the result falsifiable.
 
 ## Residual limits, stated rather than hidden
 
@@ -356,12 +398,12 @@ Written with the review's lesson in mind: **a documented limitation that makes a
 
 ## Resume instructions
 
-1. `cd /Users/pierregallet/Documents/weave-wave-1`, confirm the tree is clean and 5 commits ahead of `0568b4f`.
+1. `cd /Users/pierregallet/Documents/weave-wave-1`, confirm the tree is clean and **7 commits** ahead of `0568b4f` (`git rev-list --count 0568b4f..HEAD` → `7`).
 2. Re-verify before trusting anything:
    ```bash
    TURBO_FORCE=true pnpm typecheck && TURBO_FORCE=true pnpm test
    ```
-   Expected exit 0, 495 vitest + 26 `node --test`.
+   Expected exit 0, **496 vitest + 26 `node --test` = 522**.
    If Playwright fails with `Executable doesn't exist … chromium_headless_shell-1228`:
    `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
 3. Confirm the lint position:
@@ -369,8 +411,8 @@ Written with the review's lesson in mind: **a documented limitation that makes a
    node scripts/biome-new-findings.mjs 0568b4f      # NOT `main` — see the warning above
    ```
    Expected: `No new Biome findings. 46 pre-existing finding(s) left untouched.`, exit 0, head 37.
-4. Push, open the PR, and let `ci.yml` run against Wave 1.
-5. Then update the plan's Wave 1 record to close the gate.
+4. **The PR already exists — do not open another.** [PR #9](https://github.com/Shepherd-Creative/weave/pull/9) is open against `main` and its CI is **green**. Update it by ordinary fast-forward push to `feature/primitive-portfolio-wave-1`; never force-push or rewrite history.
+5. **Next step belongs to Hermes, not to this worktree**: independent verification of the exact reviewed head, then Pierre's merge decision. Only after the Wave 1 gate is closed does Wave 2 start — in its own branch and worktree, never here.
 
 ## Warnings
 
