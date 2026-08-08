@@ -1,14 +1,10 @@
+import { assertPayloadWithinLimit } from "@shepherd-creative/weave-primitives/schemas";
 import { loadSkill } from "@shepherd-creative/weave-skill";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
 import { handleMcpRequest } from "./mcp.js";
-import {
-  DepthLimitError,
-  TOOLS_BY_NAME,
-  invokeTool,
-  toolsJsonManifest,
-} from "./tools.js";
+import { invokeTool, TOOLS_BY_NAME, toolsJsonManifest, WeaveDocumentError } from "./tools.js";
 
 /**
  * Hono app factory. Separated from `server.ts` so tests can call
@@ -52,16 +48,23 @@ export function createApp() {
       return c.json({ error: `Unknown tool: ${name}` }, 404);
     }
 
+    // Read the body as text so its size is known BEFORE it is parsed: an
+    // oversized payload is refused without ever being materialised as objects.
     let args: unknown;
     try {
-      args = await c.req.json();
-    } catch {
+      const raw = await c.req.text();
+      assertPayloadWithinLimit(raw);
+      args = JSON.parse(raw);
+    } catch (err) {
+      if (err instanceof WeaveDocumentError) {
+        return c.json({ error: err.message }, 413);
+      }
       return c.json({ error: "Request body must be valid JSON." }, 400);
     }
 
     try {
-      const spec = invokeTool(name, args);
-      return c.json({ spec });
+      const document = invokeTool(name, args);
+      return c.json({ document });
     } catch (err) {
       if (err instanceof z.ZodError) {
         return c.json(
@@ -72,13 +75,12 @@ export function createApp() {
           400,
         );
       }
-      if (err instanceof DepthLimitError) {
-        return c.json({ error: err.message }, 400);
+      if (err instanceof WeaveDocumentError) {
+        // `payload` is the one policy breach with a status of its own; every
+        // other is a malformed request, not an oversized one.
+        return c.json({ error: err.message }, err.code === "payload" ? 413 : 400);
       }
-      return c.json(
-        { error: err instanceof Error ? err.message : String(err) },
-        500,
-      );
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
     }
   });
 

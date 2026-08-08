@@ -1,399 +1,142 @@
-# Handoff: Primitive Portfolio — Wave 0 (truth, documentation and CI gate)
+# Handoff: Primitive Portfolio — Wave 1 (versioned document contract and universal validation)
 
-**Generated**: 2026-08-07 · **Updated**: 2026-08-08 (final review corrections)
-**Branch**: `feature/primitive-portfolio-wave-0` (worktree `/Users/pierregallet/Documents/weave-wave-0`)
-**Status**: Implemented, independently reviewed **four times**, and all findings from all four rounds remediated. **Blocked on the exit gate** — nothing pushed, no PR, so `ci.yml` has still never executed on GitHub.
+**Generated**: 2026-08-08
+**Branch**: `feature/primitive-portfolio-wave-1` (worktree `/Users/pierregallet/Documents/weave-wave-1`)
+**Status**: Implemented, locally verified, committed. **Nothing pushed, no PR opened.** Awaiting independent adversarial review before the Wave 1 gate is declared closed.
 
-> Supersedes the previous HANDOFF.md (design-source adapter / PR #5 batch), which is merged and recoverable from git history on `main`.
+> Supersedes the Wave 0 handoff. Wave 0 is **merged** — `0568b4f Wave 0: truth, documentation and CI gate (#7)` is this branch's base — so its one open exit-gate item (a PR starting `ci.yml`) is closed.
 
 ## Goal
 
-Wave 0 of the approved plan at `.hermes/plans/2026-08-07_223240-primitive-portfolio.md` (parent checkout `/Users/pierregallet/Documents/weave`): make Weave's public claims true, and add the PR CI that protects every later contract wave. No schema, renderer or primitive changes — those are Wave 1+.
-
-## Completed
-
-22 commits ahead of `main@b9b1617`, tree clean, **nothing pushed**. (Earlier revisions of this document said 13 and 11; both were wrong — `git rev-list --count main..HEAD` is the number.)
-
-Wave 0 implementation (8 commits):
-
-- [x] Test-first drift/version guards in `weave-primitives`, `weave-skill`, `weave-mcp-server`
-- [x] README + SKILL catalogues reconciled with the actual 13-member Spec union
-- [x] `Comparison` recommendation removed → `Stack` of two `KPI`s (it was never built)
-- [x] `get_skill` guidance corrected (see the review remediation below, which finished the job)
-- [x] B5 counts reconciled; `Spacer`/`Divider` promises removed across 4 CHANGELOGs
-- [x] Three misleading `0.0.0` version constants removed (nothing consumed them)
-- [x] Five stale doc citations repaired (comment-only edits, zero behaviour change)
-- [x] `.github/workflows/ci.yml` — `pull_request` gate: typecheck, test, build, new-Biome-findings-only
-- [x] `.claude/settings.json` Stop hook schema repaired (was silently inert)
-- [x] Changeset added (minor × 3)
-
-Review remediation round 1, 2026-08-08 (3 commits — see next section for the findings):
-
-- [x] `7c6a5f8` Biome gate matches through the diff, not a position-blind fingerprint
-- [x] `e3da150` Citation grammar widened; cited evidence must resolve inside the repository
-- [x] `d5c33ee` Composition skill registered as the MCP resource `weave://skill.md`
-
-Review remediation round 2, 2026-08-08 (2 commits — a second review found both round-1 fixes incomplete):
-
-- [x] `543f9ec` Gate requires source evidence before claiming a finding inside a rewritten hunk
-- [x] `ec75fd1` Citation grammar requires a boundary after the extension
-
-Review remediation round 3, 2026-08-08 (2 commits — a third review found both round-2 fixes incomplete):
-
-- [x] `4b41ef5` Gate claims a rewritten-hunk finding only on a one-to-one anchor
-- [x] `f45d9fe` Citation suffix grammar defined by its terminators, not an allowlist
-
-Final review corrections, 2026-08-08 (3 commits — two narrow blocking corrections, then one documentation accuracy fix):
-
-- [x] `8db4b5d` Citations terminate at typographic punctuation, not only ASCII
-- [x] `73932e7` Gate's fail-closed contract stated where CI readers meet it
-- [x] Sensitivity limit says "trimmed text", not "edited line" — documentation only, branch tip
-
-## The independent review, and what was done about it
-
-An independent adversarial review of the Wave 0 diff returned three real defects. All three are fixed, each RED-first.
-
-### 1. High — `scripts/biome-new-findings.mjs`: baseline fingerprint ignores range
-
-> Its baseline fingerprint ignores range, so a PR can remove a baseline diagnostic and introduce the same category/message elsewhere in that file without being detected.
-
-Correct, and reproduced end to end. The fingerprint was `file :: category :: message`, with line and column deliberately excluded so unrelated edits could shift a pre-existing finding without failing the PR. A change that deleted one baseline diagnostic and introduced an identical one elsewhere in the same file spent its own budget and reported a clean pass.
-
-**Fix.** Identity is now file + rule + message + *position tracked through `git diff -U0`*. A baseline finding is claimable by a head finding in exactly two ways:
-
-1. the code holding it was untouched, so git's hunks say it merely shifted — matched at its mapped line, exactly;
-2. the change rewrote the very region holding it, so its line has no image — matched anywhere inside the **head side of that same hunk**.
-
-Anything else is new. The diff is a required input: if it cannot be computed the gate exits 2, never 0. Renames are followed, so a moved file no longer reports its whole baseline as new.
-
-> ⚠️ **Superseded twice — this is history, not the contract.** Rule 2 as stated here ("matched anywhere inside the head side of that same hunk") was a silent pass for a same-hunk relocation (round-2 finding A), and requiring a byte-identical anchor still left the choice among identical anchors arbitrary (round-3 finding I). **The current rule is stated once, authoritatively, in "The gate's contract" below**; read this section only for the cross-hunk case it did fix.
-
-Raw line equality is never used on its own — lines are only compared after being mapped through the diff, which is what keeps harmless shifts from flagging. Biome's file-level `format` diagnostic (one per file, line 0) still cannot distinguish "already unformatted" from "made worse"; unchanged from before and out of the gate's reach — the fix is to format the file.
-
-### 2. Medium — both `doc-citations` tests: grammar too narrow, resolution too generous
-
-> Expand the documented citation grammar to catch quoted, bracketed and Markdown-link path citations. Add negative RED tests for unresolved forms. Reject absolute paths and repository-escaping traversal; cited evidence must resolve inside this repository.
-
-Both halves confirmed. The grammar only recognised a citation preceded by whitespace, `(` or a backtick, so `"quoted"`, `[bracketed]` and `<angled>` citations were never scanned — a stale citation in those forms passed by not being seen. Worse, `resolves()` joined the cited path onto the repo root and the citing file's directory and asked only whether *something* exists there, so `../../../..` traversal resolved against files **outside** the checkout.
-
-**Fix.** Grammar now covers bare, backticked, parenthesised, quoted, bracketed, angled and Markdown-link forms. Cited evidence must be a real file **inside** this repository: absolute paths are rejected even when they exist, and traversal is allowed only while it stays in the tree.
-
-**Trade-off taken.** Bare absolute-looking tokens are still deliberately not harvested: in prose `/skill.md` is an HTTP route far more often than a file, and this server serves exactly that one. Measured before deciding — a grammar that harvests bare absolute tokens picks up `/skill.md` ×3 from `weave-mcp-server`'s own comments and fails the guard on a correct comment. Absolute paths that arrive by Markdown link are rejected at resolution instead, and a test pins the route exclusion so it cannot be quietly widened.
-
-### 3. Low — the MCP skill pointer is not actionable for a generic MCP client
-
-> Generic MCP clients cannot action a relative `GET /skill.md` hint. Prefer a real MCP resource/tool only if the existing server architecture supports it narrowly and testably without scope growth.
-
-It does support it, narrowly: this package already depends on `weave-skill` and `loadSkill()` already backs the HTTP route in the same Hono app, and the pinned SDK (1.29.0) exposes `registerResource`. So the guide is now also registered as the MCP resource **`weave://skill.md`**, and the server advertises the `resources` capability. That is a custom scheme, not a URL — an MCP resource URI is an opaque handle the server resolves itself, so **no public base URL and no new configuration was invented**.
-
-The pointer names both channels, because a client can only follow one of them and both are true of this server: MCP clients read the resource, REST callers reading `/tools` use `GET /skill.md`. It stays out of the shared `TOOLS` descriptor — the stdio MCP App imports that array and serves neither channel, so a pointer baked in there would be the same false promise the old `get_skill` instruction made. The surface-neutrality guard now covers the resource URI as well as the route.
-
-## The second review, and what was done about it
-
-A second independent review proved **both** round-1 fixes incomplete. Neither was wrong in direction; both stopped one step short of real evidence. Findings verbatim:
-
-### A. High — `scripts/lib/biome-diff.mjs:219`: same-hunk relocation still consumed
-
-> The matcher still permits a relocation bypass when the original diagnostic and the newly introduced identical diagnostic are in the **same rewritten `-U0` hunk**. A baseline finding whose original line was deleted gets `line: null` and its hunk retained; line 219 then claims it for *any* same-fingerprint head finding inside that hunk. I executed `findIntroduced` with a three-line replacement that removed the baseline lint finding at line 10 and added the same finding at line 12; it returned `introduced: 0`.
-
-Reproduced exactly (`introduced: 0`). Round 1 documented "bounded by the hunk" as an accepted trade-off; that was the wrong call, because inside the hunk it was still claiming on position alone.
-
-**What evidence exists.** Checked before designing: Biome's JSON reporter emits only `severity`, `message`, `category`, `location{path,start,end}` and `advices` — and `advices` is another position plus generic prose (`"Check the React documentation."`). **No source text, no stable diagnostic id.** So the only identity evidence is what the gate reads from the two trees itself.
-
-**Fix.** Rule 2 now claims a baseline finding only when the **offending source line is byte-identical (trimmed) on both sides**. Base sources are read from the base worktree before it is torn down; an unreadable file yields no anchor, and no anchor means no claim. Where identity cannot be proven the gate **fails closed** and reports the finding.
-
-**Sensitivity trade-off.** Change the **trimmed text** of the very line carrying a pre-existing finding and, if the finding survives, it is now reported as new. *Trimmed* is load-bearing: leading and trailing whitespace are stripped before the comparison, so a pure re-indent of a uniquely-anchored finding is still claimed, while whitespace **inside** the line is not stripped and does change the anchor. The remedy is cheap — fix the finding on the line you were already editing — and it is far narrower than `--changed`, which fails a PR for any pre-existing finding anywhere in a file it touched. A multi-line finding is unaffected while its *anchor* line is untouched, which is why adding an import does not flag a file's `organizeImports` finding (pinned by a test).
-
-**Residual, stated plainly.** A line moved **verbatim** inside a rewritten hunk is still treated as the same finding. The bytes are identical, so nothing distinguishes "survived a reshuffle" from "removed and retyped", and calling identical code a new finding would flag pure reorderings.
-
-> ⚠️ **Narrowed by round-3 finding I below.** That residual now applies only when the anchor is **unique** in the hunk. Round 2 also left the anchor match itself greedy — with the same anchor present twice, it consumed an arbitrary candidate. It no longer does.
-
-**Falsified end to end on real code** — one identical planted tree, a baseline `noArrayIndexKey` removed at `NoteCard.tsx:19` and a *different* one introduced at `:20`, both inside the single hunk `@@ -19 +19,2 @@`:
-
-| Matcher | Result |
-|---|---|
-| round-1 (`git show HEAD:`) | **exit 0** — "No new Biome findings" |
-| round-2 | **exit 1** — `NoteCard.tsx:20` reported |
-
-### B. Medium — both `doc-citations` tests: no boundary after the extension
-
-> Neither citation regex requires a boundary after the extension. Consequently, a nonexistent cited target such as `README.md.bak` is harvested as `README.md`; because the repository's `README.md` exists, `resolves()` accepts it. I executed both regexes against bare and Markdown-link examples and both returned `README.md`.
-
-Reproduced exactly, in both the bare and the link form. The extension must now end the path, and any suffix that follows stays **attached** to the citation — so the malformed citation is reported as unresolvable rather than silently resolving to a file the comment never named. The trailing part cannot end on a `.`, so a citation at the end of a sentence still stops before the full stop.
-
-Measured before committing: across both packages' real sources the new grammar harvests **exactly the same 13 citations** as the old one — nothing added, nothing removed. The change bites only on the malformed case. It immediately caught one real unresolvable citation: the fix's own explanatory comment, which had named a suffixed path in prose. The comments now describe the shape instead of citing it.
-
-> ⚠️ **Superseded by round-3 finding II below.** The boundary was written as an **allowlist** of suffix characters (`[A-Za-z0-9._-]`), so it only caught the suffixes that had been thought of. A tilde backup suffix fell straight through the new boundary, reproducing the very defect this fix was for.
-
-## The third review, and what was done about it
-
-A third independent review proved **both** round-2 fixes incomplete, in the same way each time: the fix had closed the case it was shown and left the general shape open. Both findings verbatim, both remediated RED-first.
-
-**Policy chosen by the user before implementation, and applied throughout:** *fail closed on ambiguous rewritten-hunk matches, accepting cleanup of preserved debt where identity cannot be proven.*
-
-### I. High — `scripts/lib/biome-diff.mjs:279-282`: duplicate identical anchors are still claimed
-
-> The matcher treats a matching trimmed source line as sufficient identity evidence, then arbitrarily consumes the first unclaimed same-fingerprint candidate. With two identical baseline anchors in one rewritten hunk, deleting one occurrence and introducing a different identical occurrence leaves the same diagnostic count and returns no introduced finding. This contradicts the documented fail-closed rule where identity cannot actually be proven. Reproduced with two baseline and two head `noArrayIndexKey` diagnostics on identical `<li key={i}/>` lines in one `-U0` hunk: `findIntroduced(...)` returned `[]`.
-
-Reproduced exactly, standalone, before any edit: `introduced count: 0`. The reviewer is right about the shape of the error, not just the case. Round 2 required *evidence* and then still made an *arbitrary choice* among the candidates that evidence produced — and an arbitrary choice is precisely what "fail closed" is supposed to exclude. Two identical source lines are identical evidence; they identify a set, not a finding.
-
-**Fix.** Rule 2 now runs in two passes. First it records every pairing the anchors permit, and how many head findings each baseline finding attracts. Then it claims a baseline finding only when the head finding has **exactly one** candidate **and** that candidate has **exactly one** suitor. Everything else is reported. Rule 1 is untouched and deliberately so: an unmodified line has one known head line, so nothing is being chosen between.
-
-Uniqueness is judged pairwise, not by search. No attempt is made to untangle a larger ambiguous cluster into a best global pairing — more claims would mean more inference, and inference is what fails open.
-
-**The false positive this buys, stated plainly and accepted per the chosen policy.** Rewrite a hunk holding two identical offending lines and **both are reported**, even when the change merely preserved them or removed one of them. Pre-existing debt in that region has to be cleaned up rather than carried.
-
-**Falsified end to end on real Biome and real git**, not just on the unit matcher. The realistic way this is reached is re-indentation: anchors are trimmed, so re-indenting a block leaves the anchors identical while git rewrites every line of it into one hunk. A planted `PlantedDupe.tsx` with two identical `<li key={i}>{r}</li>` lines was committed as the base, then wrapped in a `<div>` (format-clean, so no `format` diagnostic confounds the result), producing a single hunk `@@ -3,8 +3,10 @@` covering both:
-
-| Matcher | Result |
-|---|---|
-| round-2 (`363cb37`) | **exit 0** — "No new Biome findings" |
-| round-3 (`f45d9fe`) | **exit 1** — `PlantedDupe.tsx:6` and `:9` both reported |
-
-The fixture and the temporary base commit were reset away afterwards; the restore was verified by `diff -q` against a backup taken **after** the fix, by the presence of the fix's own marker on a code line, and by a tree-wide `--no-ignore-files` sweep for `PlantedDupe` (0 hits, with a control token returning 2968 so the sweep is not vacuous).
-
-Unit tests 17 → 24. The three new ambiguity cases were RED first (`+ [] - [10, 12]` on the reviewer's exact call); the four regression cases (distinct anchors still claimed, ambiguity scoped per fingerprint, base source unavailable, head source unavailable) were written at the same time and were already green — they pin behaviour rather than drive it, and are recorded that way honestly.
-
-**How often this bites in practice is narrower than the unit tests suggest**, and worth knowing before reading a CI failure: `git diff -U0` aligns identical unchanged lines *out* of hunks, so the common "delete one duplicate" edit produces a deletion-only hunk and the survivor stays on an untouched line, matched by rule 1. The ambiguous case needs the duplicates themselves inside the rewritten region — re-indentation being the everyday way that happens.
-
-### II. Medium — both `doc-citations` tests: the boundary is an allowlist, so `~` truncates
-
-> `TRAILING` accepts only `[A-Za-z0-9._-]`, so a citation such as `README.md~` is harvested as `README.md`. Because the real `README.md` exists, the guard accepts a malformed/stale citation — the exact false-negative class being remediated. Reproduced for both bare and Markdown-link forms: `// README.md~ is a backup` → `["README.md"]`; `// [r](README.md~)` → `["README.md"]`.
-
-Reproduced exactly, in both forms, before any edit. Round 2 added a boundary and then defined it by listing the characters a suffix *may contain* — which admits only the suffixes someone anticipated and silently truncates every other one. `~` is the conventional editor backup suffix and was not on the list.
-
-**Fix, taken at the level of the grammar rather than the character.** The suffix is now defined by what **ends** a citation, so it is closed by construction — anything not named continues the path:
-
-- `BREAK` — whitespace, the delimiters a comment wraps a citation in (`( ) [ ] { } < > " ' \``), the `:` of a `path:line` reference, and characters a path cannot carry (`, ; | \ ? *`).
-- `TAIL_ONLY` — `.` and `!`: legal inside a path, never last, so a citation closing a sentence still stops before the full stop.
-
-Everything else — `~`, `#`, `%`, `+`, `@`, `=`, `&`, `^`, `$`, a second `.ext` — stays attached, so the malformed citation is **reported as unresolvable** instead of resolving to a shorter file the comment never named.
-
-**Measured before committing**, old grammar against new over both packages' real sources: **16 citations under each, zero added, zero removed**. The change bites only on malformed input. (The "13" recorded in round 2 was counted before that round's own commits added comments; the like-for-like comparison is the one above.)
-
-**Residual, stated plainly.** A citation whose *leading* delimiter is not one of `` ^ \s ( [ { < " ' ` `` is still not harvested at all — emacs autosave form `#README.md#` is invisible to the scanner rather than truncated by it. That is a different defect class from the one reported (not-seen, not resolves-to-the-wrong-file), it was not part of this finding, and widening the leading class risks harvesting new false citations, so it was left alone and is recorded here instead of being quietly fixed.
-
-## The final review, and what was done about it
-
-Two narrow blocking corrections, both fixed RED-first. Commits listed under "Completed" above.
-
-### i. Citation grammar had no typographic terminators
-
-`TAIL_ONLY` was ASCII-only (`.!`), so prose punctuation was swallowed *into* the path and ordinary comments became unresolved filenames — the same damage as a truncated citation, arriving from the opposite direction. Measured before fixing:
-
-| Comment | Harvested |
-|---|---|
-| `// see README.md… for the rest` | `["README.md…"]` |
-| `// see [the readme](README.md…)` | `["README.md…"]` |
-| `// see README.md—the old copy` | `["README.md—the"]` |
-| `// the file README.md’s header` | `["README.md’s"]` |
-
-**Fixed at the class, not the case.** `BREAK` is now three named, documented groups:
-
-- **ASCII** — whitespace, the wrappers a comment uses (`( ) [ ] { } < > " ' \``), the `:` of a `path:line` reference, and prose separators (`, ; | \ ? *`);
-- **typographic** — the ellipsis and dash family (`… ‒ – — ―`) plus the quotes and guillemets that stand in for the ASCII wrappers (`“ ” ‘ ’ „ ‚ « » ‹ ›`);
-- **`TAIL_ONLY`** — `.` and `!`, legal inside a path but never last.
-
-The typographic group is the *counterweight* to the suffix rule and had to be stated separately because it pulls the other way: a real suffix stays attached because it is part of the path, a typographic mark must not because it never is. Written as `\uXXXX` escapes so both mirrored copies stay byte-identical (verified with `diff`).
-
-RED first in both packages, identically — `expected [ 'README.md…' ] to deeply equal [ 'README.md' ]`. 21 → **23 passing in each**. A second test walks all 15 typographic marks so the class cannot lose a member unnoticed.
-
-**Measured, old grammar against new, over both packages' real sources: 16 citations before, 16 after, zero drift.** Worth being precise about what that means — the defect was **latent** here: no comment in this repository currently triggers it, so the guard protects future prose rather than fixing a present miscount. Every previously valid behaviour was re-measured and is unchanged: `~` and `.bak` suffixes still attached, sentence-final `.` still excluded, all seven wrappers, `path:line`, and the `GET /skill.md` route exclusion.
-
-### ii. The runner's public contract still described the superseded rule
-
-`scripts/biome-new-findings.mjs:14-17` still said a baseline finding is claimable "at its diff-mapped line, **or inside the hunk that rewrote it**". True of round 1; false since `543f9ec`, and doubly false since `4b41ef5`. That is the text a CI reader meets first, so someone hitting a fail-closed report would have been told the gate works a way it does not — and would reasonably have concluded the gate was broken.
-
-**Corrected in three places, now saying the same thing:**
-
-1. the runner header — the two claim rules in full, including the one-to-one requirement and the fail-closed consequence;
-2. the gate's **failure output** — so the contract reaches whoever is reading a red CI log, not only whoever opens the source. Exercised rather than assumed: a planted finding was run through the gate and the new paragraph was read off the actual output at exit 1;
-3. **"The gate's contract"** below — one authoritative statement in this document, which the historical review sections now defer to instead of restating. The duplicate contract block that had drifted at the end of Code Context was removed rather than re-synchronised.
-
-### iii. The residual-limit wording overstated the gate's sensitivity
-
-Documentation-only, and **no matcher logic changed**. The corrected runner text said identity is unprovable if the change "edited the line carrying a finding". Overstated: anchors are compared **trimmed**, so a whitespace-only re-indent of a uniquely-anchored finding is claimed, not reported. Someone re-indenting a block and reading that sentence would have expected a failure the gate does not produce — and might have "fixed" a matcher that was behaving correctly.
-
-Measured before editing a word, because the real boundary is finer than the report:
-
-| Anchor change | Result |
-|---|---|
-| leading whitespace only (re-indent, unique anchor) | **claimed** as pre-existing |
-| trailing whitespace only | **claimed** |
-| spaces → tab indent | **claimed** |
-| **interior** whitespace (`<li  key` → `<li key`) | **reported** as introduced |
-| non-whitespace edit (`key={i}` → `key={idx}`) | **reported** |
-
-So "whitespace-only" is not the right predicate either — `trim()` strips the ends, not the middle. Every corrected statement now says **"changes the anchor line's trimmed text"** and names the re-indent case explicitly as *not* triggering a report.
-
-Corrected in seven mirrored places: the runner failure text and header, two comments in `scripts/lib/biome-diff.mjs` (comments only), and four passages here — the round-2 sensitivity trade-off, the Key Decisions row, "The gate's contract", and the Warnings bullet — plus the round-2 sentence in the parent plan.
-
-Two characterisation tests pin the boundary the prose now claims. **Both were green on first run**: they pin existing behaviour rather than drive it, and that is recorded as it happened rather than dressed up as RED-first. Falsified to prove they are load-bearing — replacing `raw.trim()` with `raw` in `anchorReader` turned the re-indent test red (25 pass / 1 fail) while the interior-whitespace test correctly stayed green. Restored by `cp` from a backup taken after the edit, verified by `diff -q`, by `raw.trim()` being back on the code line, and by a `--no-ignore-files` sweep for the sabotage marker returning 0 against a control of 2968. Matcher tests 24 → 26.
-
-## Not Yet Done — this is the exit gate
-
-- [ ] **Push the branch and open a PR against `main`** so `ci.yml` executes for the first time. It has never run on GitHub.
-- [x] ~~Obtain the independent adversarial review~~ — obtained; its three findings are remediated above.
-- [ ] Only then declare the Wave 0 gate closed and start Wave 1.
-
-## Failed Approaches (Don't Repeat These)
-
-- **Codex review, 3 attempts, no retrievable output.** (1) Via the `codex:rescue` subagent: the companion call hit the 120 s foreground timeout, was backgrounded, and left a 0-byte output with no job registered. (2) Direct `node codex-companion.mjs task "<prompt>"`: registered job `task-msjgx6tc-a2qisz` but the worker is a **child of the invoking shell**, so it died when that shell was stopped. **Root cause:** `scripts/codex-companion.mjs:643-650` only detaches (`detached: true` + `child.unref()`) under `--background`. (3) `task --background --fresh` exited **144** without registering a job. The review that produced the three findings above came from elsewhere; no further Codex attempt was made.
-- **`pnpm typecheck -- --force`** to bypass the turbo cache: the `--force` is forwarded to `tsc`, which dies. Use `TURBO_FORCE=true pnpm typecheck` instead.
-- **Trusting the first green baseline.** Turbo replayed cache entries from the *parent* checkout, so the first `pnpm typecheck` was a cache hit, not a real run. Always `TURBO_FORCE=true` in this worktree.
-- **`pnpm exec playwright install chromium` from the repo root** installed revision 1208; `weave-mcp-app` pins playwright 1.61.1 and needs **1228**. Install from the package: `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
-- **`biome check --changed --since=<base>` as the CI lint gate.** Rejected: it still fails a PR for pre-existing findings inside a file the PR merely touched.
-- **A position-blind fingerprint as the gate's identity.** The first version of the replacement. See round-1 finding 1 — bypassable by relocation, and the bypass looks exactly like a clean pass.
-- **Treating "same rewritten hunk" as proof two findings are the same.** The second version. See round-2 finding A — a `-U0` hunk deletes every base line and adds every head line, so it proves nothing on its own. Documenting it as an accepted trade-off did not make it one.
-- **Requiring evidence and then choosing arbitrarily among what it returns.** The third version. See round-3 finding I — a matching source line identifies a *set* of candidate findings, and consuming the first unclaimed one is a guess. Gathering evidence is not the same as being bound by it.
-- **Defining a token boundary by listing what may appear inside it.** See round-3 finding II — an allowlist catches the cases you thought of and silently truncates the rest, which is the same false negative in new clothes. Define the boundary by what *ends* the token, so the grammar is closed by construction.
-- **Naming a malformed example path in a comment** while explaining the citation guard: the guard scans comments, so the example became a real unresolvable citation and failed the suite. Describe the shape; keep examples in string literals.
-- **Harvesting bare absolute paths as citations.** Measured: it flags `GET /skill.md` (a route this server really serves) as a missing file. See finding 2.
-- **`node --test scripts/__tests__/`** (directory argument) fails with `MODULE_NOT_FOUND` on Node 22.23. Pass the glob: `node --test scripts/__tests__/*.test.mjs`.
-- **Naming the rejected primitives in the README** while explaining why they don't exist: the guard forbids the strings `Divider`/`Spacer` anywhere in that file.
-
-## Key Decisions
-
-| Decision | Rationale |
-|---|---|
-| Gate identity = file + rule + message + **diff-mapped position, plus the offending source line inside a rewritten hunk, plus a one-to-one pairing on that line** | A position-blind identity cannot tell a shifted finding from a relocated one. Neither can position *inside* a `-U0` hunk, which deletes every base line and adds every head line (second review, finding A). And a source line that appears twice identifies a set, not a finding (third review, finding I). |
-| Where identity cannot be proven, **fail closed** — including where the evidence is real but ambiguous | The user's explicit policy for round 3: accept cleanup of preserved debt rather than claim on a coin toss. A false positive costs a fix; a false negative is a silent pass. This is why changing the trimmed text of a line that carries a finding reports it, and why duplicate anchors in one rewritten hunk report all of them. |
-| Uniqueness judged **pairwise**, not by searching for a best global pairing | More claims would mean more inference, and inference is the thing that fails open. A head finding claims its sole candidate only when it is that candidate's sole suitor. |
-| Token boundaries defined by their **terminators**, never by an allowlist of permitted characters | An allowlist is open by construction: it admits the anticipated cases and silently truncates the rest. Stated as "what ends this token", the grammar is closed and an unanticipated suffix gets reported rather than dropped. |
-| The diff is a **required** gate input | Without it the comparison is guesswork. No diff → exit 2. A broken gate must never look like a clean pass. |
-| Gate matcher extracted to `scripts/lib/biome-diff.mjs` | The decision "is this finding new?" is the part worth testing, and it can be tested without running Biome or git. `pnpm test` now also runs `node --test` over `scripts/`. |
-| Citations must resolve **inside** the repository | `existsSync` alone confirms files this checkout does not contain — a citation that resolves for the wrong reason, on one machine only. |
-| Bare absolute tokens are not citations | Routes and absolute paths are indistinguishable in prose, and this repo's comments legitimately cite a route. Rejected at resolution instead, and pinned by a test. |
-| Skill exposed as an **MCP resource**, not a new tool or a URL | The surface already loads the skill; `registerResource` is in the pinned SDK. A resource URI is an opaque handle, so nothing invents a base URL or new config. A tool would duplicate the MCP App's `get_skill` on a surface that already serves the content. |
-| Skill pointer is **surface-local**, not in the shared `TOOLS` descriptor | `TOOLS` is imported by both this server and the stdio MCP App. A pointer baked into the shared array is false on whichever surface it wasn't written for — exactly how the original `get_skill` defect arose. |
-| Gate exits **2** (never 0) when it cannot run | A broken gate must never be mistaken for a clean pass. |
-| CHANGELOG history preserved, corrections appended | The stale sentences are dated forward-looking promises. |
-
-## Current State
-
-**Working**: everything. Tree clean, 22 commits ahead of `main`; every gate below was run on the branch tip. All gates re-run on the committed tree after the falsification cycles:
+Wave 1 of `.hermes/plans/2026-08-07_223240-primitive-portfolio.md` (parent checkout `/Users/pierregallet/Documents/weave`): turn the permissive node union into a versioned, bounded document boundary before any new primitives are added in Wave 2.
+
+## What shipped
+
+All nine Wave 1 tasks. The contract, the measured limits and the migration guide are in **`docs/specs/weave-document-v1.md`** — read that first; this document is the execution record.
+
+- [x] **`WeaveDocumentV1`** — `{ weave: 1, root }`. Root is a layout (`Grid`, `Stack`) or a display organism (`MetricBand`, `ChartCard`, `TableCard`, `NoteCard`). Unknown envelope keys rejected, not stripped.
+- [x] **Rejected root classes**: atoms (F1), bare `DataRow` (F2), and molecules (`KPI`/`Stat`/`Chart`). All stay legal *inside* a layout.
+- [x] **`DataRow` demoted** to `TableCard` internals — out of the `Spec` union (13 → 12 members).
+- [x] **Table cardinality**: 1–7 headers, ≤40 rows, exactly one cell per header.
+- [x] **Everything bounded**, from `bench/document-limits.bench.mjs` rather than intuition. Non-finite numbers rejected everywhere. Chart data keys must be the declared `categoryKey`/`valueKeys`.
+- [x] **Optional stable `id`** on every node, unique document-wide.
+- [x] **One validator, four surfaces** — React, REST, MCP JSON-RPC, MCP App all route through `validateWeaveDocument`.
+- [x] **Explicit deprecated adapter** `legacySpecToDocumentV1`, and `<Weave spec>` retained routed through it. It wraps; it never repairs.
+- [x] **`render_dashboard` discoverable again (F8)** via a bounded object gateway.
+- [x] **Render-only peers optional** after inspecting the built entry points.
+- [x] Migration doc + changeset (minor × 3).
+
+## Verification
+
+Every gate re-run on the committed tree.
 
 | Gate | Result |
 |---|---|
 | `TURBO_FORCE=true pnpm typecheck` | exit 0 |
-| `TURBO_FORCE=true pnpm test` | exit 0 — **312 passed** (286 vitest + 26 `node --test`); baseline 240 |
+| `TURBO_FORCE=true pnpm test` | exit 0 — **417 vitest + 26 `node --test` = 443**; baseline was 286 + 26 = 312 |
 | `TURBO_FORCE=true pnpm build` | exit 0 |
-| `node scripts/biome-new-findings.mjs main` | exit 0 — head 46, base 48, **0 new** |
-| `pnpm lint` | exit 1 — **46 diagnostics** (31 errors / 6 warnings / 9 infos) |
+| `node scripts/biome-new-findings.mjs 0568b4f` | exit 0 — base 46, head 37, **0 new** |
+| `pnpm lint` | exit 1 — 37 diagnostics (22 errors / 6 warnings / 9 infos) |
 | `git diff --check` | exit 0 |
 
-`pnpm lint` exit 1 is the **pre-existing baseline**, not a regression. The baseline dropped 48 → 46 because formatting the `weave-mcp-server` files this work already had to touch cleared two pre-existing findings (one `format`, one `organizeImports`). Judge lint by `scripts/biome-new-findings.mjs`, never by the raw exit code.
+`pnpm lint` exit 1 is the **pre-existing baseline**, unchanged in kind. It dropped 46 → 37 because formatting the files this work already had to touch cleared 11 pre-existing findings — the same effect Wave 0 saw at 48 → 46. Judge lint by `scripts/biome-new-findings.mjs`, never by the raw exit code.
 
-**Broken**: nothing locally. The only unproven item is the un-run GitHub workflow.
+**⚠️ Use `0568b4f` as the gate's base ref, not `main`.** Local `main` is stale at `b9b1617` and predates the merged Wave 0 commit; against it the gate reports a 48-diagnostic baseline that mixes Wave 0's changes into Wave 1's. There is no `origin/main` in this worktree.
 
-**Uncommitted Changes**: none in this worktree. The plan file in the **parent** checkout (`/Users/pierregallet/Documents/weave/.hermes/plans/2026-08-07_223240-primitive-portfolio.md`) carries the Wave 0 execution record plus the remediation record, and is uncommitted there.
+Per-package test counts: primitives 168, theme-cli 102, mcp-server 72, mcp-app 46 (including Playwright e2e), skill 14, tokens 10, adapter-skill 5.
 
-## Files to Know
+## Falsification — the guards are load-bearing
 
-| File | Why It Matters |
+A green suite is not evidence. Each guard below was sabotaged, watched fail, and restored.
+
+| Sabotage | Result |
 |---|---|
-| `scripts/lib/biome-diff.mjs` | The gate's identity rules: diff parsing, base→head line mapping, and the two ways a baseline finding can be claimed. Documents its own limits. |
-| `scripts/__tests__/biome-diff.test.mjs` | 24 `node --test` cases, including the cross-hunk, same-hunk and duplicate-anchor relocation repros that were RED before their fixes. |
-| `scripts/biome-new-findings.mjs` | The gate's I/O: worktrees the base ref, runs Biome twice, computes the diff. Exit 0/1/2. |
-| `.github/workflows/ci.yml` | The PR gate. Never executed on GitHub yet. |
-| `packages/weave-mcp-server/src/mcp.ts` | Registers the 5 tools **and** the `weave://skill.md` resource; declares the `resources` capability. |
-| `packages/weave-mcp-server/src/tools.ts` | `SKILL_RESOURCE_URI` + `SKILL_ENDPOINT_HINT` + `describeForHttpSurface`. Shared `TOOLS` stays transport-neutral. |
-| `packages/*/src/__tests__/catalogue-drift.test.ts` | Union/catalogue/version guards, plus surface-neutrality of the shared descriptors. |
-| `packages/*/src/__tests__/doc-citations.test.ts` | Citation grammar + containment scanners (2 packages, mirrored). |
+| Renderer returns `props.document` instead of calling `validateWeaveDocument` | **5 red** (depth, node count, ragged, duplicate ids, non-finite). The node-count case took **4.3 s** to fail — it rendered the tree the cap exists to refuse. |
+| `invokeTool` returns the candidate unvalidated | **12 red** across REST and MCP JSON-RPC |
+| Ragged-row rule disabled | **5 red** (4 validator + 1 renderer) |
+| Id-uniqueness rule disabled | **5 red** (4 validator + 1 renderer) |
+| Root union widened to the full `Spec` union | **7 red** (6 root-membership + the adapter's atom case) |
+| UTF-8 payload check replaced by `raw.length` | **initially 0 red — see below**, then **1 red** after the test was fixed |
 
-## The gate's contract
+**The one that got away, and what it cost.** The UTF-8 sabotage passed. The test asserted `.toThrow(WeaveDocumentError)`, and `parseWeaveDocumentJson` throws that class for an oversized payload *and* for malformed JSON — so the multibyte string sailed past the weakened size guard and died in `JSON.parse` instead, satisfying the assertion for the wrong reason. All four payload tests now assert the `code` (`"payload"` / `"malformed"`), and the sabotage goes red. **The same shape bit twice in this wave**: `document.test.ts`'s first run reported 31 "passes" against a module that did not exist, because a missing import throws `TypeError` and `.toThrow(SomeUndefinedClass)` degrades to a bare `.toThrow()`. That file now opens with a harness-sanity test asserting its imports exist.
 
-**This is the single authoritative statement.** Everything in the review sections above is history; where they disagree with this, this wins. It is stated identically in the runner header (`scripts/biome-new-findings.mjs`), in `scripts/lib/biome-diff.mjs`, and in the gate's own failure output.
+Restore verified three ways: `diff -q` against backups taken **after** the fix, the fixed code present on the code line, and a tree-wide `grep -rl --no-ignore-files 'SABOTAGE_S[1-6]_MARKER'` returning **0** against a non-vacuity control of **37**.
 
-A baseline finding is claimed as pre-existing in exactly two ways:
+## Key decisions
 
-1. **Untouched code.** Git's hunks give the finding one known head line, and the head finding sits exactly there.
-2. **Rewritten region, proven identity.** All three must hold: the offending source line is **byte-identical after trimming** on both sides; the head finding has **exactly one** such candidate; and that candidate has **exactly one** suitor. A **one-to-one pairing**, in both directions.
+| Decision | Rationale |
+|---|---|
+| Root = layouts + display organisms **only** (no standalone `KPI`) | User's call when the plan's wording and SKILL.md §4/§5.3/§7.3 conflicted. Gives one uniform root shape for Waves 3–5. A lone headline KPI now travels inside a one-child `Stack`; `size: "xl"` stays legal there because §6 forbids it only in a container *with siblings*. |
+| Cross-field rules live in the **canonical validator**, not the leaf schemas | Forced, not stylistic. Zod 3's `discriminatedUnion` requires `ZodObject` members and `.superRefine()` yields `ZodEffects`, which the union rejects at construction (`TypeError: Cannot read properties of undefined (reading 'type')`, zod 3.25.76). Consequence: `TableCardSchema.parse()` alone checks counts but not raggedness. |
+| Tool `inputSchema` is an **advertised projection**; `validateWeaveDocument` is the runtime authority | Exactly the plan's task-9 wording. Keeps `.shape` for the MCP Apps SDK while the real contract runs underneath. |
+| `render_dashboard` gateway takes `{ root }`, not a whole document | The server stamps the version, so a caller cannot send a wrong one and the model never writes the envelope. |
+| Payload bytes checked where a payload **exists**, not inside `validateWeaveDocument` | REST checks raw text before `JSON.parse`; `invokeTool` serialises for the surfaces the SDK has already parsed; direct React has no payload and is bounded by node/nesting/string caps instead. Measuring bytes in the validator would serialise a document nobody asked to serialise, on every render. |
+| Separate `nesting` cap (40) alongside the `depth` cap (6) | `depth` counts containers and is the contract. `nesting` counts raw object levels and exists only so a 20,000-deep chain is a clean rejection rather than a `RangeError` escaping as a 500. |
+| `nodes` (3,000) sits **above** the all-axes-maxed document (2,158) | A cost cap that rejected the largest document its own sibling caps permit would be a bug report waiting to happen. It bites on the multiplicative case: 12 children × 6 levels. |
+| Benchmark builds **unbounded mirrors** of the shipped schemas | The evidence for a cap is what happens past it; the shipped schemas short-circuit there. The two whole-document sections do use the real validator, because the question there is whether the caps admit a legal document. |
+| Wire formats broke immediately; the React prop got a deprecation period | The wire formats are pre-release with no published consumers. `<Weave spec>` is the surface a host app would already be calling. |
+| One atomic commit | The exit-gate property — "every transport and direct React reject invalid documents identically" — does not exist until all four surfaces land. Splitting it would produce commits that cannot pass `pnpm test`. |
 
-Everything else is **reported as introduced**. Sharing a rewritten hunk is not enough — a `-U0` hunk deletes every base line and adds every head line. A matching source line is not enough on its own — two identical lines are identical evidence and identify a *set*, not a finding.
+## Failed approaches (don't repeat these)
 
-**What "trimmed" buys, precisely.** `trim()` strips leading and trailing whitespace only. A **pure re-indent** of a uniquely-anchored finding therefore still satisfies rule 2 and is claimed — reformatting a block does not report every finding inside it. Whitespace **inside** the line is not stripped, so respacing there does change the anchor and does make identity unprovable. Both directions are pinned by tests (`claims a uniquely-anchored finding through a whitespace-only re-indent`, `reports a finding whose anchor changed only in INTERIOR whitespace`).
+- **`.superRefine()` on a `discriminatedUnion` member.** Fails at *construction*, not parse. Measured before designing around it.
+- **Trusting `.toThrow(SomeClass)` when the class might be undefined**, or when one function throws that class for more than one reason. Both produced fully green suites over broken code in this wave.
+- **`biome check --write` with a file list containing a deleted path** — biome errors and writes nothing; `| tail -5` hid the error and three separate "format the changed files" attempts silently did nothing. Build the list with `git diff --name-only --diff-filter=d` and pipe through `xargs` (BSD `xargs` has **no `-a` flag**; `xargs cmd < file` is the portable form).
+- **A benchmark that imports the shipped schemas to measure past their caps.** Every over-cap row becomes a rejection that times nothing.
+- **A `z.lazy(() => z.discriminatedUnion(…))` whose body builds the union inline** — it rebuilds per child parse, and that cost dominated the measurement by ~7× on a 5,000-node tree. Cache the union.
+- **Reading benchmark numbers without a warm-up.** A mid-table row read 20.5 ms next to 3.9 ms at 5× the size, inverting the ordering the numbers exist to establish.
+- **Citing a path in a comment without checking it resolves.** The Wave 0 citation guard caught seven at once, including a `dist/` path that is gitignored and may not exist.
+- **A `dist/`-reading test in this package.** Turbo's `test` depends on `^build` (upstream only), so this package's own `dist/` may be absent or stale.
 
-**The gate fails closed.** Unreadable source, an anchor line whose **trimmed text** changed, or an ambiguous anchor all mean identity is unproven, and unproven means reported. That deliberately reports some pre-existing debt carried through a rewrite: a false positive costs a fix, a false negative is a silent pass. This is the user-selected policy for round 3, applied literally — no arbitrary candidate selection survives anywhere in the matcher.
+## Not yet done
 
-```bash
-node scripts/biome-new-findings.mjs origin/main
-# exit 0 = no new findings   exit 1 = new, or carried-and-unprovable   exit 2 = gate could not run
-```
+- [ ] **Independent adversarial review of the diff** (shared execution rule 4). Not obtained. Codex was not attempted this session — Wave 0 recorded three failed attempts and the root cause (`scripts/codex-companion.mjs` only detaches under `--background`).
+- [ ] Push, open a PR, and let `ci.yml` run against Wave 1.
+- [ ] Only then declare the Wave 1 gate closed and start Wave 2.
 
-## Code Context
+## Residual limits, stated rather than hidden
 
-The gate's rule 2, from `scripts/lib/biome-diff.mjs` — evidence first, then a uniqueness test, and no `find`-the-first-one anywhere:
+1. **`TableCardSchema.parse()` alone does not catch a ragged table.** Documented in the schema and the spec; every real path goes through the validator, but a consumer reaching for the leaf schema directly gets counts only.
+2. **`validateWeaveDocument` does not measure payload bytes.** By design (see Key decisions). Direct React consumers get node, nesting and string caps instead.
+3. **Node schemas still strip unknown keys** rather than rejecting them; only the envelope is `.strict()`. Rejecting arbitrary props on nodes is Wave 5's "reject URL/JS/command/free-text action props" work.
+4. **Chart "known fields" is only enforced when the chart declares `categoryKey` or `valueKeys`.** A chart that declares neither has unconstrained (but bounded) keys.
+5. **The `id` field is validated and unique but consumed by nothing.** Reserved for Wave 4's Tabs and Wave 5's registry.
+6. **`nesting: 40` was not derived from a stack-depth measurement**, only from the observation that a legal depth-6 document nests about 20. It is a guard rail with headroom, not a tuned number.
 
-```js
-// pass 1: record every pairing the anchors permit
-for (const entry of unresolved) {
-  const anchor = headAnchor(diagnosticFile(entry.d), entry.line);
-  if (anchor === null) continue;                 // unreadable line = identity unknown = no claim
-  entry.candidates = entry.pool.filter(
-    (c) => !c.claimed && c.hunk !== null && withinHeadSide(c.hunk, entry.line) && c.anchor === anchor,
-  );
-  for (const c of entry.candidates) c.suitors = (c.suitors ?? 0) + 1;
-}
+## Files to know
 
-// pass 2: claim only where that pairing is one to one
-const [only] = entry.candidates;
-if (entry.candidates.length === 1 && only.suitors === 1) { only.claimed = true; continue; }
-introduced.push(entry.d);
-```
+| File | Why |
+|---|---|
+| `packages/weave-primitives/src/schemas/document.ts` | The contract: envelope, root union, cost policy, cross-field rules, the adapter. |
+| `packages/weave-primitives/src/schemas/bounds.ts` | `LIMITS` and the bounded primitives, each cap carrying its measurement. |
+| `packages/weave-primitives/bench/document-limits.bench.mjs` | The evidence. Self-contained; needs `dist/` only for its last two sections. |
+| `docs/specs/weave-document-v1.md` | Contract, recorded benchmark, migration guide, deprecation timetable. |
+| `packages/weave-mcp-server/src/tools.ts` | `DashboardGatewaySchema` (F8) and `invokeTool`, which every transport shares. |
+| `packages/weave-primitives/src/__tests__/document.test.ts` | 55 cases. Opens with the harness-sanity test that caught the false-green. |
+| `packages/weave-primitives/src/__tests__/packaging.test.ts` | Guards the "schemas without a renderer" claim at source level. |
 
-The citation suffix grammar, from both `doc-citations.test.ts` files — stated as what ENDS a citation, so it is closed by construction:
+## Resume instructions
 
-```ts
-const BREAK = "\\s()\\[\\]{}<>\"'`,;:|\\\\?*";   // whitespace, wrappers, path:line, illegal in a path
-const TAIL_ONLY = ".!";                            // legal inside a path, never last
-const TRAILING = new RegExp(`(?:[^${BREAK}]*[^${BREAK}${TAIL_ONLY}])?`).source;
-```
-
-Citation containment, from both `doc-citations.test.ts` files:
-
-```ts
-function resolves(cited: string, citingFile: string): boolean {
-  if (path.isAbsolute(cited)) return false;
-  return [path.resolve(REPO_ROOT, cited), path.resolve(path.dirname(citingFile), cited)].some(
-    (candidate) => insideRepo(candidate) && existsSync(candidate),
-  );
-}
-```
-
-Gate contract: see **"The gate's contract"** above — stated once, there, rather than twice with drift.
-
-## Resume Instructions
-
-1. `cd /Users/pierregallet/Documents/weave-wave-0` and confirm the tree is clean and 22 commits ahead of `main`.
+1. `cd /Users/pierregallet/Documents/weave-wave-1`, confirm the tree is clean and 1 commit ahead of `0568b4f`.
 2. Re-verify before trusting anything:
    ```bash
    TURBO_FORCE=true pnpm typecheck && TURBO_FORCE=true pnpm test
    ```
-   - Expected: exit 0, **286 vitest tests + 26 `node --test`**.
-   - If Playwright suites fail with `Executable doesn't exist ... chromium_headless_shell-1228`: run `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
-3. Confirm the lint position is unchanged:
+   Expected exit 0, 417 vitest + 26 `node --test`.
+   If Playwright fails with `Executable doesn't exist … chromium_headless_shell-1228`:
+   `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
+3. Confirm the lint position:
    ```bash
-   node scripts/biome-new-findings.mjs main
+   node scripts/biome-new-findings.mjs 0568b4f      # NOT `main` — see the warning above
    ```
-   - Expected: `No new Biome findings. 48 pre-existing finding(s) left untouched.` exit 0 (head 46).
-   - If it reports new findings, `pnpm format` **only the files you touched** — never repo-wide.
-4. Push and open the PR (this is what closes the gate):
-   ```bash
-   git push -u origin feature/primitive-portfolio-wave-0
-   gh pr create -R Shepherd-Creative/weave --base main
-   ```
-   - Expected: the **CI** workflow starts on the PR and all four steps pass.
-   - If `Install Playwright Chromium` fails: check the `Resolve Playwright version` step parsed `1.61.1`.
-   - If the Biome step exits 2: `origin/${{ github.base_ref }}` did not resolve, or `git diff` against it failed — verify `actions/checkout` ran with `fetch-depth: 0`.
-5. Then update the plan's Wave 0 execution record to close the gate.
+   Expected: `No new Biome findings. 46 pre-existing finding(s) left untouched.`, exit 0, head 37.
+4. Obtain the independent adversarial review of the diff.
+5. Then push, open the PR, and update the plan's Wave 1 record to close the gate.
 
 ## Warnings
 
-- **Do not merge without Pierre's review.** Human gate; `main` has a `protect-main` ruleset (PR required, no force push).
-- **Turbo cache is shared with the parent checkout.** A bare `pnpm test` here can replay results computed in `/Users/pierregallet/Documents/weave`. Use `TURBO_FORCE=true` for any run you intend to trust.
-- **`pnpm lint` exits 1 by design.** 46 pre-existing findings. Judge lint by `scripts/biome-new-findings.mjs`.
-- **The gate can now report a pre-existing finding you did not introduce, by design.** Two cases: you changed the **trimmed text** of the line carrying it, or you rewrote a hunk holding **two identical** offending lines (re-indenting such a block is the everyday way that happens — anchors are trimmed, so the anchors stay identical while git rewrites every line, and identical anchors are ambiguous). Note what is *not* a case: re-indenting a **uniquely** anchored finding is fine, because trimming makes the anchor match. In the two cases above identity cannot be proven and the policy is to fail closed. The remedy is to fix the reported finding; do not loosen the matcher to make it go away.
-- **The gate now needs a real diff, not just a reachable base ref.** In a shallow clone `git rev-parse` can succeed while `git diff` has nothing to compare; the gate exits 2 rather than guessing.
-- **`packages/weave-mcp-app/dist/weave-skill.md` is a build copy of SKILL.md** (gitignored, refreshed by `pnpm build`). If you edit SKILL.md, rebuild before testing the MCP App.
-- **The `weave-skill` catalogue is cross-checked from `weave-mcp-server`**, not from `weave-skill` itself — that package has no dependency on `weave-primitives` and adding one was deliberately avoided.
+- **Do not merge without Pierre's review.** `main` has a `protect-main` ruleset.
+- **Turbo cache is shared with the parent checkout.** Use `TURBO_FORCE=true` for any run you intend to trust.
+- **Rebuild `weave-primitives` before running the mcp-server or mcp-app suites** after touching schemas: those packages resolve primitives from `dist/`, and a stale `dist/` makes imports read `undefined` — which is exactly how a whole suite reports green over nothing.
+- **`packages/weave-mcp-app/dist/weave-skill.md` is a build copy of SKILL.md** (gitignored, refreshed by `pnpm build`). Rebuild after editing SKILL.md.
+- **The Biome gate can report a pre-existing finding you did not introduce**, by design — see Wave 0's "The gate's contract" in the git history of this file. Fix the reported finding; do not loosen the matcher.

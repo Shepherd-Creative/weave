@@ -102,11 +102,33 @@ describe("public version claims track package metadata", () => {
   });
 
   it("exports no version constant that disagrees with package.json", () => {
-    const exported = Object.entries(publicSurface as Record<string, unknown>).filter(([k]) =>
-      k.endsWith("_VERSION"),
+    // Scoped to SEMVER-SHAPED STRING values on purpose. The guard exists to
+    // catch a hard-coded copy of the *package* version going stale; a numeric
+    // constant is a different kind of version and is checked below. Widening
+    // this to every `*_VERSION` export made it fail on WEAVE_DOCUMENT_VERSION,
+    // which is the document format's version and has no reason to track the
+    // package's.
+    const exported = Object.entries(publicSurface as Record<string, unknown>).filter(
+      ([k, v]) => k.endsWith("_VERSION") && typeof v === "string" && /^\d+\.\d+\.\d+/.test(v),
     );
     for (const [key, value] of exported) {
       expect(value, `${key} must equal the published package version`).toBe(PKG.version);
     }
+  });
+
+  it("versions the document format with an integer, not the package version", () => {
+    const { WEAVE_DOCUMENT_VERSION } = publicSurface;
+    expect(Number.isInteger(WEAVE_DOCUMENT_VERSION)).toBe(true);
+    // Non-vacuity: the schema must actually enforce the constant it exports,
+    // otherwise the two could drift and the guard above would not notice.
+    expect(publicSurface.WeaveDocumentV1Schema.safeParse({ weave: 1, root: null }).success).toBe(
+      false,
+    );
+    expect(
+      publicSurface.WeaveDocumentV1Schema.safeParse({
+        weave: WEAVE_DOCUMENT_VERSION,
+        root: { type: "NoteCard", body: "x" },
+      }).success,
+    ).toBe(true);
   });
 });

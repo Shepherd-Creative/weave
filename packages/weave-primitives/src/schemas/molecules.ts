@@ -1,5 +1,12 @@
 import { z } from "zod";
 import {
+  FiniteNumberSchema,
+  LIMITS,
+  NodeIdentity,
+  SparklineDataSchema,
+  TextSchema,
+} from "./bounds.js";
+import {
   AlignSchema,
   ChartVariantSchema,
   IconNameSchema,
@@ -21,7 +28,7 @@ const PERCENT_VALUE_HINT =
   'With format "percent" this is a fraction of 1: 0.034 renders as "3.4%".';
 
 export const KpiDeltaSchema = z.object({
-  value: z.number().describe(PERCENT_VALUE_HINT),
+  value: FiniteNumberSchema.describe(PERCENT_VALUE_HINT),
   format: z
     .enum(["percent", "int", "decimal"])
     .optional()
@@ -31,7 +38,7 @@ export const KpiDeltaSchema = z.object({
 });
 
 export const StatDeltaSchema = z.object({
-  value: z.number().describe(PERCENT_VALUE_HINT),
+  value: FiniteNumberSchema.describe(PERCENT_VALUE_HINT),
   format: z
     .enum(["percent", "int"])
     .optional()
@@ -45,16 +52,17 @@ export const StatDeltaSchema = z.object({
 const SparklineVariantSchema = z.enum(["line", "bar", "area"]);
 
 export const KpiSparklineSchema = z.object({
-  data: z.array(z.number()),
+  data: SparklineDataSchema,
   variant: SparklineVariantSchema.optional(),
 });
 
 // --- KPI -------------------------------------------------------------
 
 export const KPISchema = z.object({
+  ...NodeIdentity,
   type: z.literal("KPI"),
-  label: z.string(),
-  value: z.number().describe(PERCENT_VALUE_HINT),
+  label: TextSchema,
+  value: FiniteNumberSchema.describe(PERCENT_VALUE_HINT),
   format: NumberFormatSchema.optional(),
   precision: z.number().int().min(0).max(10).optional(),
   currency: z.string().length(3).optional(),
@@ -63,16 +71,17 @@ export const KPISchema = z.object({
   delta: KpiDeltaSchema.optional(),
   icon: IconNameSchema.optional(),
   sparkline: KpiSparklineSchema.optional(),
-  caption: z.string().optional(),
+  caption: TextSchema.optional(),
 });
 export type KPISpec = z.infer<typeof KPISchema>;
 
 // --- Stat ------------------------------------------------------------
 
 export const StatSchema = z.object({
+  ...NodeIdentity,
   type: z.literal("Stat"),
-  label: z.string(),
-  value: z.number(),
+  label: TextSchema,
+  value: FiniteNumberSchema,
   format: NumberFormatSchema.optional(),
   precision: z.number().int().min(0).max(10).optional(),
   size: z.enum(["sm", "md"]).optional(),
@@ -86,13 +95,13 @@ export type StatSpec = z.infer<typeof StatSchema>;
 export const DataCellSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("text"),
-    value: z.string(),
+    value: TextSchema,
     tone: ToneSchema.optional(),
     align: AlignSchema.optional(),
   }),
   z.object({
     kind: z.literal("number"),
-    value: z.number(),
+    value: FiniteNumberSchema,
     format: NumberFormatSchema.optional(),
     precision: z.number().int().min(0).max(10).optional(),
     currency: z.string().length(3).optional(),
@@ -100,13 +109,13 @@ export const DataCellSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("badge"),
-    value: z.string(),
+    value: TextSchema,
     tone: ToneSchema.optional(),
     variant: z.enum(["solid", "soft", "outline"]).optional(),
   }),
   z.object({
     kind: z.literal("delta"),
-    value: z.number().describe(PERCENT_VALUE_HINT),
+    value: FiniteNumberSchema.describe(PERCENT_VALUE_HINT),
     format: z
       .enum(["percent", "int"])
       .optional()
@@ -115,27 +124,54 @@ export const DataCellSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("sparkline"),
-    data: z.array(z.number()),
+    data: SparklineDataSchema,
     variant: SparklineVariantSchema.optional(),
   }),
 ]);
 export type DataCell = z.infer<typeof DataCellSchema>;
 
+/**
+ * A table row.
+ *
+ * NOT a member of the Spec union: a `DataRow` renders a bare `<tr>`, which is
+ * invalid outside a `<table>` (F2). It reaches the renderer only through
+ * `TableCard.rows`, and the canonical validator is what enforces that each row
+ * carries exactly one cell per header — a cross-field rule Zod cannot express
+ * inside a `discriminatedUnion` member. See packages/weave-primitives/src/schemas/document.ts.
+ */
 export const DataRowSchema = z.object({
+  ...NodeIdentity,
   type: z.literal("DataRow"),
-  cells: z.array(DataCellSchema),
+  cells: z.array(DataCellSchema).max(LIMITS.tableHeaders),
 });
 export type DataRowSpec = z.infer<typeof DataRowSchema>;
 
 // --- Chart -----------------------------------------------------------
 
+/** A chart data key: bounded, non-empty. */
+export const ChartKeySchema = z.string().min(1).max(LIMITS.chartKeyText);
+
+/**
+ * One plotted record. Keys are bounded in count and length, values are
+ * finite numbers or bounded strings.
+ *
+ * Whether the keys are the ones the chart actually declared (`categoryKey` /
+ * `valueKeys`) is a cross-field rule, enforced by the canonical validator.
+ */
+export const ChartDatumSchema = z
+  .record(ChartKeySchema, z.union([FiniteNumberSchema, TextSchema]))
+  .refine((row) => Object.keys(row).length <= LIMITS.chartSeries + 1, {
+    message: `A chart record may carry at most ${LIMITS.chartSeries + 1} keys (one category plus ${LIMITS.chartSeries} series).`,
+  });
+
 export const ChartSchema = z.object({
+  ...NodeIdentity,
   type: z.literal("Chart"),
   variant: ChartVariantSchema,
-  data: z.array(z.record(z.string(), z.union([z.number(), z.string()]))),
-  categoryKey: z.string().optional(),
-  valueKeys: z.array(z.string()).optional(),
-  seriesTones: z.array(ToneSchema).optional(),
+  data: z.array(ChartDatumSchema).max(LIMITS.chartPoints),
+  categoryKey: ChartKeySchema.optional(),
+  valueKeys: z.array(ChartKeySchema).max(LIMITS.chartSeries).optional(),
+  seriesTones: z.array(ToneSchema).max(LIMITS.chartSeries).optional(),
   showLegend: z.boolean().optional(),
   showGrid: z.boolean().optional(),
   showTooltip: z.boolean().optional(),

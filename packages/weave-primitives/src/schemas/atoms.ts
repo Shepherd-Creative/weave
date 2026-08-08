@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FiniteNumberSchema, LocaleSchema, NodeIdentity, TextSchema } from "./bounds.js";
 import {
   AlignSchema,
   IconNameSchema,
@@ -10,12 +11,13 @@ import {
 // --- Number ----------------------------------------------------------
 
 export const NumberSchema = z.object({
+  ...NodeIdentity,
   type: z.literal("Number"),
-  value: z.number(),
+  value: FiniteNumberSchema,
   format: NumberFormatSchema.optional(),
   precision: z.number().int().min(0).max(10).optional(),
   currency: z.string().length(3).optional(),
-  locale: z.string().optional(),
+  locale: LocaleSchema.optional(),
   size: SizeSchema.optional(),
   tone: ToneSchema.optional(),
   showSign: z.boolean().optional(),
@@ -24,17 +26,12 @@ export type NumberSpec = z.infer<typeof NumberSchema>;
 
 // --- Label -----------------------------------------------------------
 
-export const LabelRoleSchema = z.enum([
-  "display",
-  "title",
-  "body",
-  "caption",
-  "overline",
-]);
+export const LabelRoleSchema = z.enum(["display", "title", "body", "caption", "overline"]);
 
 export const LabelSchema = z.object({
+  ...NodeIdentity,
   type: z.literal("Label"),
-  text: z.string(),
+  text: TextSchema,
   role: LabelRoleSchema.optional(),
   size: SizeSchema.optional(),
   tone: ToneSchema.optional(),
@@ -45,6 +42,7 @@ export type LabelSpec = z.infer<typeof LabelSchema>;
 // --- Icon ------------------------------------------------------------
 
 export const IconSchema = z.object({
+  ...NodeIdentity,
   type: z.literal("Icon"),
   name: IconNameSchema,
   size: z.enum(["xs", "sm", "md", "lg"]).optional(),

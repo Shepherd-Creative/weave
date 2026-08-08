@@ -39,7 +39,9 @@ Host guidance appended to this skill at runtime may add per-brand proactive trig
 
 You do **not** emit colours. You do **not** emit pixel values. You do **not** write HTML or CSS. You **only** emit JSON specs that describe a tree of primitives. The library renders them using the host app's theme.
 
-Every dashboard spec is a tree rooted in a **layout primitive** (`Grid` or `Stack`) containing organisms (`MetricBand`, `ChartCard`, `TableCard`, `NoteCard`).
+Every dashboard is a **versioned document**: `{ "weave": 1, "root": … }`. The tools build the envelope for you — you supply the `root`.
+
+`root` must be a **layout** (`Grid`, `Stack`) or a **display organism** (`MetricBand`, `ChartCard`, `TableCard`, `NoteCard`). Never an atom (`Number`, `Label`, `Icon`), never a molecule (`KPI`, `Stat`, `Chart`), never a `DataRow`. Those all compose *inside* a layout — they are building blocks, not answers.
 
 ---
 
@@ -71,7 +73,7 @@ Five sizes. Apply them as a hierarchy.
 
 | Size | Use when… |
 |---|---|
-| `xl` | **The** headline KPI for the whole dashboard, rendered as a **standalone** `KPI` that occupies the full width of its row. Zero or one per screen. |
+| `xl` | **The** headline KPI for the whole dashboard, rendered as the **only child of its container** so it occupies the full width of its row. Zero or one per screen. |
 | `lg` | Secondary headline KPIs (typically the items in a `MetricBand`). **Max size allowed inside a `MetricBand`, `Grid`, or any multi-sibling container.** |
 | `md` | Default. Stats inside tables, comparison values, regular numbers. |
 | `sm` | Inline within sentences, dense table cells. |
@@ -107,7 +109,7 @@ Never emit a dashboard with 8+ widgets in `spacious` — it scrolls forever and 
 
 ### 5.3 MetricBand sizing
 
-- 1 KPI alone → use a standalone `KPI` with `size: "xl"`, not a `MetricBand`.
+- 1 KPI alone → a `Stack` holding one `KPI` with `size: "xl"`, not a `MetricBand`. (The `Stack` is the document root; a bare `KPI` is not a document.)
 - 2 KPIs → use a `Stack` with two `KPI`s sized `lg`. Give each a `caption` naming what it is measured against, so the pair reads as a comparison.
 - 3–5 KPIs → use `MetricBand`, items sized `lg`.
 - 6+ KPIs → break into a `Grid` of `Stat`s sized `md`.
@@ -150,7 +152,8 @@ When you emit a delta:
 ### 5.7 Tables
 
 - `TableCard` for ≤40 rows. Beyond that, suggest a filter in a `NoteCard` and show top 10–20 rows plus a "showing N of M" caption.
-- **Keep tables to ≤7 columns.** If you need more, split into two `TableCard`s or replace with a `Grid` of `Stat`s. Wide tables scroll horizontally inside the card, but that's a fallback, not a design goal — readers can't parse a table they have to scroll.
+- **Keep tables to ≤7 columns**, and at least 1. If you need more, split into two `TableCard`s or replace with a `Grid` of `Stat`s. Wide tables scroll horizontally inside the card, but that's a fallback, not a design goal — readers can't parse a table they have to scroll.
+- **Every row needs exactly one cell per header.** A ragged row is rejected, not padded — a short row would silently shift every value into the wrong column.
 - Give every header a tone (`default` unless a column is flagged semantic) and an `align` — numeric columns align `end`.
 - For columns that are deltas, use cell `kind: "delta"` — not `number` with a sign.
 
@@ -178,10 +181,15 @@ Don't use `NoteCard` to restate numbers that are already on screen. The dashboar
 - **Never** pass markdown inside a table cell's `text` value. Use `NoteCard` for anything that needs rich text.
 - **Never** emit more than 8 data series in a single chart. The eye can't track more.
 - **Never** emit a chart with no title.
+- **Never** put a key in chart `data` that isn't the `categoryKey` or one of the `valueKeys`. It will never be plotted, and it is rejected.
+- **Never** emit more than 200 points in one chart, 100 in a sparkline, 40 rows in a table, or 12 children in one `Grid`/`Stack`.
+- **Never** reuse an `id`. It's optional, but if you set one it must be unique across the whole document.
 
 ---
 
 ## 7. Worked examples
+
+Each example below is a **`root` value** — the thing you pass as `render_dashboard`'s `root` argument. The tool wraps it in the `{ "weave": 1, "root": … }` envelope and returns the finished document; you never write the envelope yourself.
 
 ### 7.1 "Show me Q1 performance"
 
@@ -307,16 +315,21 @@ Don't use `NoteCard` to restate numbers that are already on screen. The dashboar
 
 ```json
 {
-  "type": "KPI",
-  "label": "Active campaigns",
-  "value": 12,
-  "size": "xl",
-  "caption": "3 awaiting approval",
-  "icon": "target"
+  "type": "Stack",
+  "children": [
+    {
+      "type": "KPI",
+      "label": "Active campaigns",
+      "value": 12,
+      "size": "xl",
+      "caption": "3 awaiting approval",
+      "icon": "target"
+    }
+  ]
 }
 ```
 
-Not every dashboard needs a grid. A single `KPI` is sometimes the best answer.
+Not every dashboard needs a grid. A single `KPI` is often the best answer — it just travels inside a `Stack`, because a document is rooted in a layout or an organism. With one child there are no siblings, so `size: "xl"` is still correct here.
 
 ---
 
@@ -332,7 +345,8 @@ Before returning your spec, verify:
 6. Every delta's `tone` reflects user-point-of-view semantics, not signed-value direction.
 7. No hex colours, pixel values, or font names anywhere in the spec.
 8. No primitive type outside the catalogue.
-9. The top-level is a layout primitive (`Grid`, `Stack`) or a single organism — never a raw atom as root.
+9. The `root` is a layout (`Grid`, `Stack`) or a display organism (`MetricBand`, `ChartCard`, `TableCard`, `NoteCard`) — never an atom, a `KPI`/`Stat`/`Chart`, or a `DataRow`.
+10. Every table row has exactly one cell per header.
 
 ---
 
@@ -341,9 +355,11 @@ Before returning your spec, verify:
 Primitives available in B3:
 
 - **Atoms:** `Number`, `Label`, `Icon`
-- **Molecules:** `KPI`, `Stat`, `DataRow`, `Chart`
+- **Molecules:** `KPI`, `Stat`, `Chart`
 - **Organisms:** `MetricBand`, `ChartCard`, `TableCard`, `NoteCard`
 - **Layouts:** `Grid`, `Stack`
+
+Table rows use a `DataRow` shape inside `TableCard.rows`. It is not a primitive you may place anywhere else — on its own it renders a table row with no table around it.
 
 Primitives planned next (not yet available, do not emit them): `Sparkline`, `ProgressBar`, `Badge`.
 

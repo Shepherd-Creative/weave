@@ -19,7 +19,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { loadSkill } from "@shepherd-creative/weave-skill";
 import type { AnyZodObject } from "zod";
-import { SKILL_RESOURCE_URI, TOOLS, describeForHttpSurface, invokeTool } from "./tools.js";
+import { describeForHttpSurface, invokeTool, SKILL_RESOURCE_URI, TOOLS } from "./tools.js";
 
 /**
  * Construct a fresh McpServer with all 5 render tools registered.
@@ -65,15 +65,15 @@ function buildServer(): McpServer {
       },
       async (args: Record<string, unknown>) => {
         try {
-          const spec = invokeTool(tool.name, args);
+          const document = invokeTool(tool.name, args);
           // MCP tool results are `{ content: Array<{ type, ... }> }`.
-          // The spec is structured JSON; return it as stringified text
+          // The document is structured JSON; return it as stringified text
           // so any MCP client gets a string back. Also ship it as
           // `structuredContent` for clients that read that field
           // (CopilotKit's BuiltInAgent does — saves a parse step).
           return {
-            content: [{ type: "text" as const, text: JSON.stringify(spec) }],
-            structuredContent: spec as Record<string, unknown>,
+            content: [{ type: "text" as const, text: JSON.stringify(document) }],
+            structuredContent: document as unknown as Record<string, unknown>,
           };
         } catch (err) {
           return {

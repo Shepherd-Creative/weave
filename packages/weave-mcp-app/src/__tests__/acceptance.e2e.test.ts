@@ -5,7 +5,7 @@ import tokens from "@shepherd-creative/weave-tokens/tokens.json";
 import { type Browser, chromium } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { injectTheme, validateThemeCss } from "../theme.js";
-import { openSpecPage } from "./view-helpers.js";
+import { openDocumentPage } from "./view-helpers.js";
 
 // The spec's headline success criterion, mechanically checked: the SAME
 // dashboard spec renders materially differently under default, corporate-light
@@ -17,7 +17,10 @@ const SHOTS = path.resolve(__dirname, "../../dist/acceptance");
 const THEMES_ROOT = path.resolve(__dirname, "../../../../examples/themes");
 const KNOWN_VARS = new Set(tokens.variables.map((v) => v.name));
 
-const rawSpec = readFileSync(path.resolve(__dirname, "fixtures/dashboard-spec.json"), "utf8");
+const rawDocument = readFileSync(
+  path.resolve(__dirname, "fixtures/dashboard-document.json"),
+  "utf8",
+);
 
 type ComputedLook = {
   rootBackground: string;
@@ -65,7 +68,7 @@ describe("multi-theme acceptance: one spec, N looks", () => {
     const htmlPath = path.join(dir, `${name}.html`);
     writeFileSync(htmlPath, html);
 
-    const { page, pageErrors } = await openSpecPage(browser, htmlPath, rawSpec);
+    const { page, pageErrors } = await openDocumentPage(browser, htmlPath, rawDocument);
     expect(pageErrors).toEqual([]);
     await page.waitForSelector("#root .recharts-surface", { timeout: 10_000 });
 

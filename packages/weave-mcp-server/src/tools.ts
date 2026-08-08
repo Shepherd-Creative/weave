@@ -1,62 +1,91 @@
 import {
+  assertDocumentStructuralLimits,
+  assertPayloadWithinLimit,
   ChartCardSchema,
   MetricBandSchema,
   NoteCardSchema,
-  SpecSchema,
+  RootSpecSchema,
   TableCardSchema,
+  validateWeaveDocument,
+  WEAVE_DOCUMENT_VERSION,
+  WeaveDocumentError,
+  type WeaveDocumentV1,
 } from "@shepherd-creative/weave-primitives/schemas";
-import type { z } from "zod";
+import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 
 /**
  * Tool registry. Each entry:
  * - `description`: what the tool does (surfaced to the LLM)
- * - `inputSchema`: Zod schema validating the tool args
- * - `specType`: the `type` discriminator prepended to the validated spec
- *               (undefined for `render_dashboard` — input carries its own type)
+ * - `inputSchema`: the ADVERTISED shape of the tool args. It is a projection
+ *                  for discovery; the runtime authority is
+ *                  `validateWeaveDocument` (see `invokeTool`).
+ * - `specType`: the `type` discriminator prepended to the args to form the
+ *               document root (undefined for `render_dashboard`, whose args
+ *               carry the root themselves)
  */
 export type ToolDescriptor = {
   name: string;
   description: string;
-  inputSchema: z.ZodTypeAny;
+  inputSchema: z.AnyZodObject;
   specType?: string;
 };
+
+/**
+ * `render_dashboard`'s bounded object gateway.
+ *
+ * F8: this tool used to advertise `SpecSchema` directly — a `z.lazy()` union
+ * with no `.shape`. The MCP App SDK normalises a tool's input schema through
+ * `.shape` and falls back to an EMPTY schema when there is none, so the one
+ * tool that composes everything else was undiscoverable on that surface.
+ *
+ * Wrapping the union in an object fixes that without weakening anything: the
+ * gateway is a real `ZodObject`, so every surface can project it, and the
+ * runtime path still validates through the canonical document contract.
+ * Restricting it to `RootSpecSchema` also means the advertised schema now
+ * describes exactly what a document may be rooted in, rather than the whole
+ * primitive union — the projection and the contract say the same thing.
+ */
+export const DashboardGatewaySchema = z.object({
+  root: RootSpecSchema.describe(
+    "The document root: a layout (Grid, Stack) or a display organism (MetricBand, ChartCard, TableCard, NoteCard). Atoms and molecules compose INSIDE a layout; they are not documents on their own.",
+  ),
+});
 
 export const TOOLS: ToolDescriptor[] = [
   {
     name: "render_metric_band",
     description:
-      'Render a horizontal strip of 1–8 KPIs. Use for the top-of-dashboard "at a glance" row. Pass the KPI items; the tool returns a MetricBand spec. Prefer this over a prose list of figures whenever an answer carries three or more KPIs, even if a dashboard was not requested.',
-    inputSchema: MetricBandSchema.omit({ type: true }),
+      'Render a horizontal strip of 1–8 KPIs. Use for the top-of-dashboard "at a glance" row. Pass the KPI items; the tool returns a MetricBand document. Prefer this over a prose list of figures whenever an answer carries three or more KPIs, even if a dashboard was not requested.',
+    inputSchema: MetricBandSchema.omit({ type: true, id: true }),
     specType: "MetricBand",
   },
   {
     name: "render_chart_card",
     description:
       "Render a titled chart card. Use for time-series, categorical, or share-of-whole visualisations. Requires a Chart sub-spec with a variant and data. Reach for this whenever you describe a trend over time, not only when a chart is explicitly requested.",
-    inputSchema: ChartCardSchema.omit({ type: true }),
+    inputSchema: ChartCardSchema.omit({ type: true, id: true }),
     specType: "ChartCard",
   },
   {
     name: "render_table_card",
     description:
-      "Render a tabular breakdown with typed cells (text, number, badge, delta, sparkline). Use for ≤40 rows; prefer filtering + summary for longer datasets. Use this instead of writing a markdown table.",
-    inputSchema: TableCardSchema.omit({ type: true }),
+      "Render a tabular breakdown with typed cells (text, number, badge, delta, sparkline). Use for ≤40 rows and ≤7 columns; every row needs exactly one cell per header. Prefer filtering + summary for longer datasets. Use this instead of writing a markdown table.",
+    inputSchema: TableCardSchema.omit({ type: true, id: true }),
     specType: "TableCard",
   },
   {
     name: "render_note_card",
     description:
       "Render a commentary note. Use for explaining the why, surfacing caveats, or recommending a next action — not for restating numbers. When a rendered dashboard needs a caveat or the reason behind the numbers, annotate it here rather than adding a separate prose paragraph.",
-    inputSchema: NoteCardSchema.omit({ type: true }),
+    inputSchema: NoteCardSchema.omit({ type: true, id: true }),
     specType: "NoteCard",
   },
   {
     name: "render_dashboard",
     description:
-      "Render a full dashboard composition — a Grid or Stack tree containing organisms. Use when you need more than one organism arranged together. Input is a Grid or Stack node whose children array holds organism specs (MetricBand, ChartCard, TableCard, NoteCard) or further Grid/Stack nodes. Use for any multi-dimensional status or health summary, even when the user did not ask for a dashboard.",
-    // Full spec; the LLM supplies its own type discriminator here.
-    inputSchema: SpecSchema,
+      "Render a full dashboard composition. Pass `root`: a Grid or Stack whose children hold organisms (MetricBand, ChartCard, TableCard, NoteCard) or further Grid/Stack nodes. Use for any multi-dimensional status or health summary, even when the user did not ask for a dashboard.",
+    inputSchema: DashboardGatewaySchema,
     specType: undefined,
   },
 ];
@@ -114,71 +143,39 @@ export function toolsJsonManifest() {
 }
 
 /**
- * Thrown by `invokeTool` when `render_dashboard` input exceeds the depth
- * cap. Handlers should surface this as HTTP 400 / MCP input-validation error.
- */
-export class DepthLimitError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "DepthLimitError";
-  }
-}
-
-/**
- * Max recursion depth allowed on `render_dashboard` inputs.
- * Depth here counts nested Grid/Stack containers. The worked examples in
- * packages/weave-skill/SKILL.md cap at depth 3; anything beyond 6 is almost
- * certainly an LLM hallucination and was an F1 OOM vector before SpecSchema
- * switched to z.discriminatedUnion. Kept as belt-and-braces against future
- * Zod version regressions and misbehaving clients.
+ * Validate args for a tool and return the resulting **document**.
  *
- * Evidence for the OOM claim now lives in the repository, not in an external
- * design doc: the "parses depth-20 specs fast via discriminatedUnion"
- * regression test in packages/weave-mcp-server/src/__tests__/app.test.ts, and
- * the 0.1.1 entry in packages/weave-mcp-server/CHANGELOG.md.
+ * The advertised `inputSchema` is not what runs here. Every tool builds a
+ * candidate `WeaveDocumentV1` from its raw args and hands it to the canonical
+ * validator, so a document rejected by the React renderer is rejected here for
+ * the same reason with the same message — which is the whole point of having
+ * one contract rather than one per transport.
+ *
+ * Order matters. The structural walk runs first because it is the only step
+ * that is safe on unbounded input: it aborts on the first breach, so a
+ * pathological payload is never fully traversed, and only once it has passed
+ * is the document known to be small enough to serialise for the payload check.
+ *
+ * @throws {z.ZodError} shape, bounds or cross-field rule breach
+ * @throws {WeaveDocumentError} payload/depth/node/nesting policy breach
  */
-const MAX_DASHBOARD_DEPTH = 6;
-
-/**
- * Depth of the deepest Grid/Stack chain in a raw spec payload.
- * Walks children arrays without parsing — cheap and allocation-light.
- */
-function specContainerDepth(spec: unknown, seen = 0): number {
-  if (!spec || typeof spec !== "object") return seen;
-  const obj = spec as { type?: unknown; children?: unknown };
-  const isContainer = obj.type === "Grid" || obj.type === "Stack";
-  const nextDepth = isContainer ? seen + 1 : seen;
-  if (!Array.isArray(obj.children)) return nextDepth;
-  let max = nextDepth;
-  for (const child of obj.children) {
-    const childDepth = specContainerDepth(child, nextDepth);
-    if (childDepth > max) max = childDepth;
-  }
-  return max;
-}
-
-/**
- * Validate args for a tool, return the full spec.
- * Throws z.ZodError on invalid args — handler translates to HTTP 400.
- * For `render_dashboard`, applies a depth cap before parsing so pathological
- * payloads never reach Zod.
- */
-export function invokeTool(name: string, args: unknown): unknown {
+export function invokeTool(name: string, args: unknown): WeaveDocumentV1 {
   const tool = TOOLS_BY_NAME[name];
   if (!tool) {
     throw new Error(`Unknown tool: ${name}`);
   }
-  if (name === "render_dashboard") {
-    const depth = specContainerDepth(args);
-    if (depth > MAX_DASHBOARD_DEPTH) {
-      throw new DepthLimitError(
-        `render_dashboard: nested Grid/Stack depth ${depth} exceeds the ${MAX_DASHBOARD_DEPTH}-container limit. Flatten the composition.`,
-      );
-    }
-  }
-  const validated = tool.inputSchema.parse(args);
-  if (tool.specType) {
-    return { type: tool.specType, ...(validated as Record<string, unknown>) };
-  }
-  return validated;
+
+  const record = args !== null && typeof args === "object" ? (args as Record<string, unknown>) : {};
+  const root = tool.specType ? { type: tool.specType, ...record } : record.root;
+  const candidate = { weave: WEAVE_DOCUMENT_VERSION, root };
+
+  assertDocumentStructuralLimits(candidate);
+  // Safe to serialise now: the walk above bounded both node count and nesting.
+  // This is the payload guard for surfaces that never expose the raw body —
+  // MCP JSON-RPC and the MCP App both hand us an already-parsed object.
+  assertPayloadWithinLimit(JSON.stringify(candidate));
+
+  return validateWeaveDocument(candidate);
 }
+
+export { WeaveDocumentError };

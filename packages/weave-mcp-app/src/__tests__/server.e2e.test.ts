@@ -59,11 +59,11 @@ describe("weave-mcp-app stdio server", () => {
     const { tools } = await client.listTools();
     for (const tool of tools.filter((t) => t.name.startsWith("render_"))) {
       expect(tool.outputSchema, `${tool.name} missing outputSchema`).toBeDefined();
-      expect((tool.outputSchema as { properties?: object }).properties).toHaveProperty("spec");
+      expect((tool.outputSchema as { properties?: object }).properties).toHaveProperty("document");
     }
   });
 
-  it("returns the validated spec as structuredContent", async () => {
+  it("returns the validated document as structuredContent", async () => {
     // MetricBandSchema.omit({type}) => { items: KPI[]; density? }.
     // Each KPI item requires type:"KPI", label:string, value:number (numeric).
     const result = await client.callTool({
@@ -72,35 +72,83 @@ describe("weave-mcp-app stdio server", () => {
         items: [{ type: "KPI", label: "Revenue", value: 10000, tone: "positive" }],
       },
     });
-    const spec = (result.structuredContent as { spec: { type: string } }).spec;
-    expect(spec.type).toBe("MetricBand");
+    const document = (
+      result.structuredContent as { document: { weave: number; root: { type: string } } }
+    ).document;
+    expect(document.weave).toBe(1);
+    expect(document.root.type).toBe("MetricBand");
   });
 
-  it("renders a nested Grid dashboard through the full SpecSchema (no key stripping)", async () => {
-    const dashboard = {
-      type: "Grid",
-      cols: 2,
-      gap: "md",
-      children: [
-        {
-          type: "MetricBand",
-          items: [{ type: "KPI", label: "Revenue", value: 10000, tone: "positive" }],
-        },
-      ],
-    };
+  it("renders a nested Grid dashboard with no key stripping", async () => {
     const result = await client.callTool({
       name: "render_dashboard",
-      arguments: dashboard,
+      arguments: {
+        root: {
+          type: "Grid",
+          cols: 2,
+          gap: "md",
+          children: [
+            {
+              type: "MetricBand",
+              items: [{ type: "KPI", label: "Revenue", value: 10000, tone: "positive" }],
+            },
+          ],
+        },
+      },
     });
     expect(result.isError ?? false).toBe(false);
-    const spec = (result.structuredContent as { spec: Record<string, unknown> }).spec;
-    expect(spec.type).toBe("Grid");
+    const { root } = (result.structuredContent as { document: { root: Record<string, unknown> } })
+      .document;
+    expect(root.type).toBe("Grid");
     // The organism-specific `items` field must survive validation — proves the
-    // dashboard input is parsed by the real SpecSchema, not a stripping shape.
-    const child = (spec.children as Array<Record<string, unknown>>)[0];
+    // dashboard input is parsed by the real root union, not a stripping shape.
+    const child = (root.children as Array<Record<string, unknown>>)[0];
     expect(child.type).toBe("MetricBand");
     expect(Array.isArray(child.items)).toBe(true);
     expect((child.items as unknown[]).length).toBe(1);
+  });
+
+  it("advertises a usable render_dashboard input schema (F8)", async () => {
+    // The defect this replaces: render_dashboard's schema was the lazy Spec
+    // union, which has no `.shape`. The SDK's normalizeObjectSchema returned
+    // undefined and the tool shipped an EMPTY schema — so the one tool that
+    // composes every other primitive told the model nothing about its input.
+    const { tools } = await client.listTools();
+    const dashboard = tools.find((t) => t.name === "render_dashboard");
+    const schema = dashboard?.inputSchema as {
+      type?: string;
+      properties?: Record<string, unknown>;
+      required?: string[];
+    };
+    expect(schema.type).toBe("object");
+    expect(Object.keys(schema.properties ?? {})).toEqual(["root"]);
+    expect(schema.required).toContain("root");
+    // Non-vacuity: an object schema with a `root` key would satisfy the lines
+    // above even if the union behind it were empty. The legal root types have
+    // to actually reach the model.
+    for (const type of ["Grid", "Stack", "MetricBand", "ChartCard", "TableCard", "NoteCard"]) {
+      expect(JSON.stringify(schema), `${type} missing from the advertised schema`).toContain(type);
+    }
+  });
+
+  it("rejects an atom root over stdio, exactly as the other surfaces do", async () => {
+    const result = await client.callTool({
+      name: "render_dashboard",
+      arguments: { root: { type: "Label", text: "hi" } },
+    });
+    expect(result.isError).toBe(true);
+  });
+
+  it("rejects a ragged table over stdio", async () => {
+    const result = await client.callTool({
+      name: "render_table_card",
+      arguments: {
+        title: "T",
+        headers: [{ text: "A" }, { text: "B" }],
+        rows: [{ type: "DataRow", cells: [{ kind: "text", value: "one" }] }],
+      },
+    });
+    expect(result.isError).toBe(true);
   });
 
   it("serves the composition skill via get_skill", async () => {
