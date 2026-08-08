@@ -75,9 +75,12 @@ export const StackSchema: z.ZodType<StackSpec> = makeStackSchema(
 // `ZodDiscriminatedUnionOption`. At runtime both schemas still carry the
 // `type: z.literal(...)` shape the union needs, so the cast is sound.
 //
-// See docs/plans/a5-mcp-stress-test-results.md §F1 — depth-20 specs used to
-// OOM the Node process at ~29 s; with the discriminator, depth-20 specs
-// parse in <1 ms.
+// F1: depth-20 specs used to OOM the Node process; with the discriminator they
+// parse in well under a millisecond. The evidence is in the repository rather
+// than an external design doc — see the "parses depth-20 specs fast via
+// discriminatedUnion" regression test in
+// packages/weave-mcp-server/src/__tests__/app.test.ts and the 0.1.1 entry in
+// packages/weave-primitives/CHANGELOG.md.
 export const SpecSchema: z.ZodType<Spec> = z.lazy(() =>
   // GridSchema / StackSchema are `z.ZodType<...>` (type-erased through
   // z.lazy), so TS can't prove they satisfy ZodDiscriminatedUnionOption<"type">.

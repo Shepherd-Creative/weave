@@ -10,7 +10,8 @@ import {
   TableCardSchema,
 } from "../schemas/index.js";
 
-// Canonical examples from dashboard-composition-skill.md §7.
+// Canonical examples from the worked-examples section (§7) of
+// packages/weave-skill/SKILL.md.
 
 describe("KPISchema", () => {
   it("accepts a valid KPI with delta", () => {

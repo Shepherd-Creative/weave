@@ -195,9 +195,7 @@ describe("weave-mcp-server", () => {
     // Depth 20 would OOM pre-F1 (14s at depth 14, OOM at depth 20).
     // The depth cap would reject it, so drop the cap indirectly: reach into
     // the raw SpecSchema and parse directly to measure perf.
-    const { SpecSchema } = await import(
-      "@shepherd-creative/weave-primitives/schemas"
-    );
+    const { SpecSchema } = await import("@shepherd-creative/weave-primitives/schemas");
     let node: unknown = {
       type: "NoteCard",
       body: "hello",
@@ -259,6 +257,67 @@ describe("weave-mcp-server", () => {
       ]);
     });
 
+    it("advertises the resources capability", async () => {
+      const res = await jsonRpc({
+        jsonrpc: "2.0",
+        id: 20,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-06-18",
+          capabilities: {},
+          clientInfo: { name: "test", version: "0.0.0" },
+        },
+      });
+      const body = await res.json();
+      expect(body.result.capabilities.resources).toBeDefined();
+    });
+
+    it("lists the composition skill as a readable MCP resource", async () => {
+      const res = await jsonRpc({
+        jsonrpc: "2.0",
+        id: 21,
+        method: "resources/list",
+        params: {},
+      });
+      const body = await res.json();
+      const uris = body.result.resources.map((r: { uri: string }) => r.uri);
+      expect(uris).toContain("weave://skill.md");
+    });
+
+    it("serves the same skill over resources/read as over GET /skill.md", async () => {
+      // An MCP client has no HTTP route to follow, so the guidance has to be
+      // reachable through the protocol it speaks.
+      const res = await jsonRpc({
+        jsonrpc: "2.0",
+        id: 22,
+        method: "resources/read",
+        params: { uri: "weave://skill.md" },
+      });
+      const body = await res.json();
+      const text = body.result.contents[0].text;
+      const overHttp = await (await app.request("/skill.md")).text();
+
+      // Non-vacuity: two empty strings are also equal.
+      expect(text.length).toBeGreaterThan(100);
+      expect(text).toBe(overHttp);
+    });
+
+    it("points MCP clients at a handle they can act on", async () => {
+      const res = await jsonRpc({
+        jsonrpc: "2.0",
+        id: 23,
+        method: "tools/list",
+        params: {},
+      });
+      const body = await res.json();
+      const dashboard = body.result.tools.find(
+        (t: { name: string }) => t.name === "render_dashboard",
+      );
+      // A bare `GET /skill.md` is not actionable for a client that only speaks
+      // JSON-RPC and was never told this server's base URL.
+      expect(dashboard.description).toContain("weave://skill.md");
+    });
+
     it("tools/call render_metric_band returns structuredContent + text", async () => {
       const res = await jsonRpc({
         jsonrpc: "2.0",
@@ -267,9 +326,7 @@ describe("weave-mcp-server", () => {
         params: {
           name: "render_metric_band",
           arguments: {
-            items: [
-              { type: "KPI", label: "Revenue", value: 100, size: "lg" },
-            ],
+            items: [{ type: "KPI", label: "Revenue", value: 100, size: "lg" }],
           },
         },
       });

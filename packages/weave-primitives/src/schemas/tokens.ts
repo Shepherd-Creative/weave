@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-// Tone, size, density, icon vocabularies. See primitive-taxonomy.md §4.
+// Tone, size, density and icon vocabularies — the closed sets every primitive
+// draws from. The model-facing semantics of each value (when to reach for a
+// tone, how the size hierarchy works) are documented in
+// packages/weave-skill/SKILL.md §3 and §4.
 
 export const ToneSchema = z.enum(["default", "muted", "positive", "negative", "warning", "info"]);
 export type Tone = z.infer<typeof ToneSchema>;

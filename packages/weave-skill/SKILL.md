@@ -108,7 +108,7 @@ Never emit a dashboard with 8+ widgets in `spacious` — it scrolls forever and 
 ### 5.3 MetricBand sizing
 
 - 1 KPI alone → use a standalone `KPI` with `size: "xl"`, not a `MetricBand`.
-- 2 KPIs → use a `Stack` with two `KPI`s sized `lg`, or a `Comparison`.
+- 2 KPIs → use a `Stack` with two `KPI`s sized `lg`. Give each a `caption` naming what it is measured against, so the pair reads as a comparison.
 - 3–5 KPIs → use `MetricBand`, items sized `lg`.
 - 6+ KPIs → break into a `Grid` of `Stat`s sized `md`.
 
@@ -345,7 +345,9 @@ Primitives available in B3:
 - **Organisms:** `MetricBand`, `ChartCard`, `TableCard`, `NoteCard`
 - **Layouts:** `Grid`, `Stack`
 
-Primitives planned for B5 (not yet available): `Sparkline`, `ProgressBar`, `Badge`, `Divider`, `Comparison`.
+Primitives planned next (not yet available, do not emit them): `Sparkline`, `ProgressBar`, `Badge`.
+
+Nothing else is coming that you should compose around. Compose only from the list above.
 
 For exact prop shapes and icon names, refer to the Zod schemas exposed by `@shepherd-creative/weave-primitives/schemas` and the MCP tool descriptors at `GET /tools`.
 

@@ -8,4 +8,6 @@ export * from "./layouts/index.js";
 export * from "./renderer/index.js";
 export * as utils from "./utils/index.js";
 
-export const WEAVE_PRIMITIVES_VERSION = "0.0.0";
+// No version constant is exported. The published version is package metadata:
+// read it from package.json (or your resolver's manifest) rather than from a
+// literal in source, which drifts the moment Changesets bumps the package.
