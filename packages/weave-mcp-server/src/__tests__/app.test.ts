@@ -536,15 +536,25 @@ describe("weave-mcp-server", () => {
   });
 
   describe("MCP endpoint (/mcp)", () => {
-    const jsonRpc = (body: Record<string, unknown>) =>
+    /**
+     * Post an already-serialised JSON-RPC body.
+     *
+     * Exists because `JSON.stringify` recurses: a payload deep enough to
+     * exercise the server's nesting defences cannot be built as a JS graph and
+     * serialised here without the TEST process running out of stack first —
+     * which is a property of the runner's architecture, not of the server.
+     */
+    const jsonRpcRaw = (body: string) =>
       app.request("/mcp", {
         method: "POST",
         headers: {
           "content-type": "application/json",
           accept: "application/json, text/event-stream",
         },
-        body: JSON.stringify(body),
+        body,
       });
+
+    const jsonRpc = (body: Record<string, unknown>) => jsonRpcRaw(JSON.stringify(body));
 
     it("handles MCP initialize handshake", async () => {
       const res = await jsonRpc({
@@ -843,17 +853,43 @@ describe("weave-mcp-server", () => {
       });
     }
 
-    it("tools/call rejects nesting deep enough to overflow the walk", async () => {
-      let root: Record<string, unknown> = { type: "NoteCard", body: "x" };
-      for (let i = 0; i < 5_000; i++) root = { nested: root };
-      const res = await jsonRpc({
+    it("tools/call refuses a payload too deep to validate, and survives it", async () => {
+      // Every level is a legally-shaped Stack, and that is the whole point: the
+      // root is a discriminated union, so an array chain or a `{nested:…}`
+      // chain is refused at depth 1 on the discriminator alone and proves
+      // nothing about depth. Only a well-formed container chain forces the
+      // recursive descent this test exists to bound.
+      const depth = 2_000;
+      const root = `${'{"type":"Stack","children":['.repeat(depth)}{"type":"NoteCard","body":"x"}${"]}".repeat(depth)}`;
+      const body = `{"jsonrpc":"2.0","id":31,"method":"tools/call","params":{"name":"render_dashboard","arguments":{"root":${root}}}}`;
+
+      // Non-vacuity: this must exercise the depth path, not the ingress byte
+      // budget standing in front of it. 2,000 levels is ~60 KB of a 262,144-byte
+      // allowance, so a 413 here would mean the fixture had drifted.
+      expect(body.length).toBeLessThan(LIMITS.payloadBytes);
+
+      const res = await jsonRpcRaw(body);
+
+      // The contract is that the refusal is CONTROLLED — not which guard issues
+      // it. Whether the recursive validator exhausts its stack or reaches the
+      // container-depth cap first depends on the runner's stack budget, so
+      // pinning either one calibrates this test to an architecture. It did
+      // exactly that before: the fixture used to be a 5,000-deep JS graph, and
+      // `JSON.stringify` overflowed here in the test process — never reaching
+      // the server — on CI's x64 stack while clearing arm64's.
+      expect(res.status).toBe(200);
+      expect((await res.json()).result.isError).toBe(true);
+
+      // The property that actually matters, and the one a crash would break:
+      // a hostile payload must not poison the server for the next caller.
+      const after = await jsonRpc({
         jsonrpc: "2.0",
-        id: 31,
+        id: 32,
         method: "tools/call",
-        params: { name: "render_dashboard", arguments: { root } },
+        params: { name: "render_note_card", arguments: { body: "ok" } },
       });
-      const body = await res.json();
-      expect(body.result.isError).toBe(true);
+      expect(after.status).toBe(200);
+      expect((await after.json()).result.isError).toBeUndefined();
     });
 
     it("refuses an oversized JSON-RPC request before the SDK parses it", async () => {

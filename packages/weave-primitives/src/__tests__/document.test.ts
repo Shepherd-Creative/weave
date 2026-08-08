@@ -159,13 +159,23 @@ describe("depth policy", () => {
     }
   });
 
-  it("rejects raw object nesting deep enough to overflow the stack", () => {
-    // Not container nesting — a chain of ordinary objects. Without its own
-    // guard the structural walk recurses until the JS stack dies, which is a
-    // RangeError escaping as a 500 rather than a clean rejection.
-    let hostile: Record<string, unknown> = { type: "NoteCard", body: "x" };
-    for (let i = 0; i < 20_000; i++) hostile = { nested: hostile };
-    expect(() => validateWeaveDocument(doc(hostile))).toThrow(WeaveDocumentError);
+  it("rejects raw nesting deep enough to overflow the walk", () => {
+    // Not container nesting — a chain of raw ARRAYS, and the shape is load
+    // bearing. Arrays are not counted as nodes and cost one value per level, so
+    // both sibling caps are structurally blind here and `nesting` is the only
+    // thing between this input and a RangeError. A `{nested:…}` chain would be
+    // stopped by the 3,000-node cap first, which is why this assertion was
+    // previously satisfied whether or not the nesting guard existed at all.
+    let hostile: unknown = { type: "NoteCard", body: "x" };
+    for (let i = 0; i < 20_000; i++) hostile = [hostile];
+    try {
+      validateWeaveDocument(doc(hostile));
+      throw new Error("expected a rejection");
+    } catch (err) {
+      // The code, not merely the class: `toThrow(WeaveDocumentError)` is met by
+      // any cap, including ones that do not bound the recursion.
+      expect((err as WeaveDocumentError).code).toBe("nesting");
+    }
   });
 });
 
