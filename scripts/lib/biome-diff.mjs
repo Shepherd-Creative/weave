@@ -187,15 +187,22 @@ function anchorReader(sources) {
  *  1. the code holding it was not touched, so git's hunks say the finding
  *     simply shifted to a known new line — matched there, exactly;
  *  2. the change rewrote the region holding it, AND the offending source line
- *     is byte-identical (after trimming) on both sides — the same code, moved
- *     within the region it was rewritten in.
+ *     is byte-identical (after trimming) on both sides, AND that line pairs the
+ *     two findings ONE TO ONE — the same code, moved within the region it was
+ *     rewritten in, with nothing else it could equally well have been.
  *
  * Anything else is new. Sharing a rewritten hunk is explicitly NOT enough: a
  * `-U0` hunk deletes every base line and adds every head line, so a baseline
  * finding deleted at line 10 and an identical one introduced at line 12 of the
- * same rewritten hunk are indistinguishable by position alone. Where identity
- * cannot be proven the gate fails closed and reports the finding, because a
- * false positive costs a fix while a false negative is a silent pass.
+ * same rewritten hunk are indistinguishable by position alone. Neither is a
+ * matching source line enough on its own: two identical lines are identical
+ * evidence, so when the same anchor appears twice in one rewritten hunk the
+ * evidence maps each head finding to SEVERAL baseline findings and proves none
+ * of them. Consuming one arbitrarily would be a guess wearing the costume of
+ * evidence — so rule 2 claims only where the pairing is unique in both
+ * directions. Where identity cannot be proven the gate fails closed and reports
+ * the finding, because a false positive costs a fix while a false negative is a
+ * silent pass.
  *
  * Trade-offs, deliberately taken:
  * - Sensitivity: edit the very line carrying a pre-existing finding and, if
@@ -203,10 +210,19 @@ function anchorReader(sources) {
  *   evidence requirement, and the remedy is cheap — fix the finding on the
  *   line you were already editing. It is far narrower than `--changed`, which
  *   fails a PR for any pre-existing finding anywhere in a file it touched.
- * - Residual ambiguity: an offending line moved verbatim inside a rewritten
- *   hunk is treated as the same finding. The bytes are identical, so no
- *   evidence distinguishes "survived a reshuffle" from "removed and retyped",
- *   and calling identical code a new finding would flag pure reorderings.
+ * - Duplicate anchors: rewrite a hunk holding two identical offending lines and
+ *   both findings are reported, even if the change merely preserved them, or
+ *   removed one of them. Pre-existing debt then has to be cleaned up rather
+ *   than carried. Chosen deliberately: the alternative is claiming on a coin
+ *   toss, which is exactly the hole this rule closes.
+ * - Uniqueness is judged pairwise, not by search: a head finding claims only
+ *   its sole candidate, and only when it is that candidate's sole suitor. No
+ *   attempt is made to resolve a larger tangle into some best global pairing —
+ *   more claims would mean more inference, and inference is what fails open.
+ * - Residual: a SINGLE offending line moved verbatim inside a rewritten hunk is
+ *   still treated as the same finding. The bytes are identical, so no evidence
+ *   distinguishes "survived a reshuffle" from "removed and retyped", and
+ *   calling identical code a new finding would flag pure reorderings.
  * - Raw line equality is never used on its own. Line numbers are only ever
  *   compared after being mapped through the diff, so an unrelated edit above a
  *   finding shifts it without flagging it.
@@ -265,28 +281,47 @@ export function findIntroduced({
     else claimable.set(key, [candidate]);
   }
 
-  const introduced = [];
+  // Rule 1, first: the code was untouched, so the finding has exactly one
+  // known head line. A same-fingerprint head finding sitting on it IS that
+  // finding — there is nothing to choose between, so this pass needs no
+  // uniqueness test.
+  const unresolved = [];
   for (const d of headDiagnostics) {
     const pool = claimable.get(fingerprint(d)) ?? [];
     const line = diagnosticLine(d);
-
-    let match = pool.find((c) => !c.claimed && c.line === line);
-    if (!match) {
-      const anchor = headAnchor(diagnosticFile(d), line);
-      // `anchor === null` means the head line could not be read, so identity is
-      // unknown: no claim, and the finding is reported.
-      if (anchor !== null) {
-        match = pool.find(
-          (c) =>
-            !c.claimed && c.hunk !== null && withinHeadSide(c.hunk, line) && c.anchor === anchor,
-        );
-      }
-    }
-    if (match) {
-      match.claimed = true;
+    const shifted = pool.find((c) => !c.claimed && c.line === line);
+    if (shifted) {
+      shifted.claimed = true;
       continue;
     }
-    introduced.push(d);
+    unresolved.push({ d, line, pool, candidates: [] });
+  }
+
+  // Rule 2, in two steps, because arbitrary choice is the failure mode being
+  // designed out. First record every pairing the source evidence permits, and
+  // how many head findings each baseline finding attracts...
+  for (const entry of unresolved) {
+    const anchor = headAnchor(diagnosticFile(entry.d), entry.line);
+    // `anchor === null` means the head line could not be read, so identity is
+    // unknown: no pairing is possible and the finding is reported.
+    if (anchor === null) continue;
+    entry.candidates = entry.pool.filter(
+      (c) =>
+        !c.claimed && c.hunk !== null && withinHeadSide(c.hunk, entry.line) && c.anchor === anchor,
+    );
+    for (const c of entry.candidates) c.suitors = (c.suitors ?? 0) + 1;
+  }
+
+  // ...then claim only where that pairing is one to one. Two candidates for one
+  // head finding, or two head findings for one candidate, is unproven identity.
+  const introduced = [];
+  for (const entry of unresolved) {
+    const [only] = entry.candidates;
+    if (entry.candidates.length === 1 && only.suitors === 1) {
+      only.claimed = true;
+      continue;
+    }
+    introduced.push(entry.d);
   }
   return introduced;
 }

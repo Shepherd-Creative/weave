@@ -283,6 +283,206 @@ describe("findIntroduced", () => {
       assert.deepEqual(introducedLines(introduced), [149]);
     });
 
+    describe("when the same anchor appears more than once", () => {
+      // Identical source lines are identical evidence. Two of them in one
+      // rewritten hunk cannot be told apart, so no head diagnostic can prove
+      // WHICH baseline finding it is. The gate fails closed: it claims only
+      // where the anchor establishes a one-to-one pairing, and reports
+      // everything ambiguous.
+      const DUP = "  <li key={i}/>";
+
+      /** A file whose numbered lines hold the given text; the rest is filler. */
+      const fileOf = (lines, length = 20) =>
+        Array.from({ length }, (_, i) => lines[i + 1] ?? `// line ${i + 1}`).join("\n");
+
+      // Base 10-12 rewritten into head 10-12. Lines 10 and 12 are the same
+      // duplicated element on both sides; line 11 is the only visible change.
+      const REWRITE_3 = [
+        "diff --git a/src/List.tsx b/src/List.tsx",
+        "--- a/src/List.tsx",
+        "+++ b/src/List.tsx",
+        "@@ -10,3 +10,3 @@",
+        `-${DUP}`,
+        "-  <span>a</span>",
+        `-${DUP}`,
+        `+${DUP}`,
+        "+  <span>b</span>",
+        `+${DUP}`,
+      ].join("\n");
+
+      it("REPRO: two identical anchors in one hunk are ambiguous, so neither is claimed", () => {
+        // The third reviewer's exact call: two baseline and two head
+        // noArrayIndexKey diagnostics on identical `<li key={i}/>` lines in one
+        // -U0 hunk. Modelling base line 10 as removed and head line 12 as newly
+        // introduced is indistinguishable from "both survived" — the anchors are
+        // byte-identical, so the evidence maps each head finding to BOTH
+        // baseline findings. Previously the matcher consumed the first unclaimed
+        // candidate and returned []; that is arbitrary, not proof.
+        const introduced = findIntroduced({
+          baseDiagnostics: [diag("src/List.tsx", 10), diag("src/List.tsx", 12)],
+          headDiagnostics: [diag("src/List.tsx", 10), diag("src/List.tsx", 12)],
+          fileDiffs: parseUnifiedDiff(REWRITE_3),
+          baseSources: new Map([
+            ["src/List.tsx", fileOf({ 10: DUP, 11: "  <span>a</span>", 12: DUP })],
+          ]),
+          headSources: new Map([
+            ["src/List.tsx", fileOf({ 10: DUP, 11: "  <span>b</span>", 12: DUP })],
+          ]),
+        });
+
+        assert.deepEqual(introducedLines(introduced), [10, 12]);
+      });
+
+      it("does not arbitrarily claim one baseline finding for two head suitors", () => {
+        // One baseline anchor, two head findings on identical lines inside the
+        // hunk. Exactly one of them is new and nothing says which, so both are
+        // reported rather than picking a winner.
+        const diffText = [
+          "diff --git a/src/List.tsx b/src/List.tsx",
+          "--- a/src/List.tsx",
+          "+++ b/src/List.tsx",
+          "@@ -10,2 +10,3 @@",
+          `-${DUP}`,
+          "-  <span>a</span>",
+          `+${DUP}`,
+          "+  <span>a</span>",
+          `+${DUP}`,
+        ].join("\n");
+
+        const introduced = findIntroduced({
+          baseDiagnostics: [diag("src/List.tsx", 10)],
+          headDiagnostics: [diag("src/List.tsx", 10), diag("src/List.tsx", 12)],
+          fileDiffs: parseUnifiedDiff(diffText),
+          baseSources: new Map([["src/List.tsx", fileOf({ 10: DUP, 11: "  <span>a</span>" })]]),
+          headSources: new Map([
+            ["src/List.tsx", fileOf({ 10: DUP, 11: "  <span>a</span>", 12: DUP })],
+          ]),
+        });
+
+        assert.deepEqual(introducedLines(introduced), [10, 12]);
+      });
+
+      it("ACCEPTED COST: removing one of two duplicates reports the survivor", () => {
+        // The false positive this policy buys. The change deleted one of two
+        // identical findings and introduced nothing, yet the survivor is
+        // reported: two baseline candidates fit it equally well, so its identity
+        // is unproven. Debt that was merely preserved must be cleaned up rather
+        // than claimed on a coin toss. Chosen deliberately — a false positive
+        // costs a fix, a false negative is a silent pass.
+        const diffText = [
+          "diff --git a/src/List.tsx b/src/List.tsx",
+          "--- a/src/List.tsx",
+          "+++ b/src/List.tsx",
+          "@@ -10,3 +10,2 @@",
+          `-${DUP}`,
+          "-  <span>a</span>",
+          `-${DUP}`,
+          `+${DUP}`,
+          "+  <span>a</span>",
+        ].join("\n");
+
+        const introduced = findIntroduced({
+          baseDiagnostics: [diag("src/List.tsx", 10), diag("src/List.tsx", 12)],
+          headDiagnostics: [diag("src/List.tsx", 10)],
+          fileDiffs: parseUnifiedDiff(diffText),
+          baseSources: new Map([
+            ["src/List.tsx", fileOf({ 10: DUP, 11: "  <span>a</span>", 12: DUP })],
+          ]),
+          headSources: new Map([["src/List.tsx", fileOf({ 10: DUP, 11: "  <span>a</span>" })]]),
+        });
+
+        assert.deepEqual(introducedLines(introduced), [10]);
+      });
+
+      it("still claims two DISTINCT anchors that moved within the hunk", () => {
+        // The retained case: each anchor pairs with exactly one baseline
+        // finding, in both directions, so the reordering is proven and neither
+        // finding is reported. Fail-closed must not mean fail-always.
+        const first = "  <li key={i}/>";
+        const second = "  <ul>{xs.map((x, i) => <b key={i}>{x}</b>)}</ul>";
+        const diffText = [
+          "diff --git a/src/List.tsx b/src/List.tsx",
+          "--- a/src/List.tsx",
+          "+++ b/src/List.tsx",
+          "@@ -10,3 +10,3 @@",
+          `-${first}`,
+          "-  <span>a</span>",
+          `-${second}`,
+          `-${second}`.replace("-", "+"),
+          "+  <span>a</span>",
+          `+${first}`,
+        ].join("\n");
+
+        const introduced = findIntroduced({
+          baseDiagnostics: [diag("src/List.tsx", 10), diag("src/List.tsx", 12)],
+          headDiagnostics: [diag("src/List.tsx", 10), diag("src/List.tsx", 12)],
+          fileDiffs: parseUnifiedDiff(diffText),
+          baseSources: new Map([
+            ["src/List.tsx", fileOf({ 10: first, 11: "  <span>a</span>", 12: second })],
+          ]),
+          headSources: new Map([
+            ["src/List.tsx", fileOf({ 10: second, 11: "  <span>a</span>", 12: first })],
+          ]),
+        });
+
+        assert.deepEqual(introduced, []);
+      });
+
+      it("scopes ambiguity to one fingerprint, not the whole hunk", () => {
+        // A different rule sharing the hunk is a different pool, so it cannot
+        // make an otherwise-unique anchor ambiguous.
+        const other = "  const x = a == b;";
+        const diffText = [
+          "diff --git a/src/List.tsx b/src/List.tsx",
+          "--- a/src/List.tsx",
+          "+++ b/src/List.tsx",
+          "@@ -10,2 +10,2 @@",
+          `-${DUP}`,
+          `-${other}`,
+          `-${other}`.replace("-", "+"),
+          `+${DUP}`,
+        ].join("\n");
+        const eq = (line) =>
+          diag("src/List.tsx", line, "lint/suspicious/noDoubleEquals", "Use === instead of ==.");
+
+        const introduced = findIntroduced({
+          baseDiagnostics: [diag("src/List.tsx", 10), eq(11)],
+          headDiagnostics: [eq(10), diag("src/List.tsx", 11)],
+          fileDiffs: parseUnifiedDiff(diffText),
+          baseSources: new Map([["src/List.tsx", fileOf({ 10: DUP, 11: other })]]),
+          headSources: new Map([["src/List.tsx", fileOf({ 10: other, 11: DUP })]]),
+        });
+
+        assert.deepEqual(introduced, []);
+      });
+
+      it("fails closed when the BASE source is unavailable", () => {
+        // No base anchor means no evidence at all, so the head finding cannot
+        // be paired with anything — reported, never claimed on position.
+        const introduced = findIntroduced({
+          baseDiagnostics: [diag("src/List.tsx", 10)],
+          headDiagnostics: [diag("src/List.tsx", 12)],
+          fileDiffs: parseUnifiedDiff(REWRITE_3),
+          baseSources: new Map(),
+          headSources: new Map([["src/List.tsx", fileOf({ 12: DUP })]]),
+        });
+
+        assert.deepEqual(introducedLines(introduced), [12]);
+      });
+
+      it("fails closed when the HEAD source is unavailable", () => {
+        const introduced = findIntroduced({
+          baseDiagnostics: [diag("src/List.tsx", 10)],
+          headDiagnostics: [diag("src/List.tsx", 12)],
+          fileDiffs: parseUnifiedDiff(REWRITE_3),
+          baseSources: new Map([["src/List.tsx", fileOf({ 10: DUP })]]),
+          headSources: new Map(),
+        });
+
+        assert.deepEqual(introducedLines(introduced), [12]);
+      });
+    });
+
     it("keeps claiming a multi-line finding whose anchor line is untouched", () => {
       // organizeImports spans the whole import block but starts at the first
       // import. Adding an import lower down rewrites the block without moving
