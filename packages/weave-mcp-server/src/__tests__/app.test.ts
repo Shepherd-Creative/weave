@@ -853,30 +853,70 @@ describe("weave-mcp-server", () => {
       });
     }
 
-    it("tools/call refuses a payload too deep to validate, and survives it", async () => {
-      // Every level is a legally-shaped Stack, and that is the whole point: the
-      // root is a discriminated union, so an array chain or a `{nested:…}`
-      // chain is refused at depth 1 on the discriminator alone and proves
-      // nothing about depth. Only a well-formed container chain forces the
-      // recursive descent this test exists to bound.
-      const depth = 2_000;
-      const root = `${'{"type":"Stack","children":['.repeat(depth)}{"type":"NoteCard","body":"x"}${"]}".repeat(depth)}`;
-      const body = `{"jsonrpc":"2.0","id":31,"method":"tools/call","params":{"name":"render_dashboard","arguments":{"root":${root}}}}`;
+    /**
+     * A chain of `depth` legally-shaped Stacks, as TEXT.
+     *
+     * Text because `JSON.stringify` recurses: a chain deep enough to exercise
+     * the SDK's own parse cannot be built as a JS graph and serialised here
+     * without the TEST process running out of stack first, which is a property
+     * of the runner's architecture rather than of the server.
+     *
+     * Legally-shaped because the root is a discriminated union: an array chain
+     * or a `{nested:…}` chain is refused at depth 1 on the discriminator alone
+     * and says nothing about depth.
+     */
+    const stackChain = (depth: number) =>
+      `${'{"type":"Stack","children":['.repeat(depth)}{"type":"NoteCard","body":"x"}${"]}".repeat(depth)}`;
 
-      // Non-vacuity: this must exercise the depth path, not the ingress byte
+    it("tools/call rejects container nesting past the depth cap", async () => {
+      // The load-bearing depth test on this surface. It sits just past the cap
+      // (7 containers against a limit of 6) for one reason: the payload has to
+      // survive everything standing in front of the structural walk so that the
+      // WALK is what refuses it.
+      //
+      // The 2,000-level case below cannot do this job, measured: the MCP SDK
+      // validates `arguments` against the advertised `DashboardGatewaySchema`
+      // BEFORE the handler runs, that parse recurses per level, and at 2,000 it
+      // raises a `RangeError` the SDK catches and reports as `isError: true` —
+      // the same answer a real rejection gives. With the whole structural walk
+      // disabled, the 2,000-level case still passed and only the REST depth
+      // test went red; this one goes red with it.
+      const res = await jsonRpcRaw(
+        `{"jsonrpc":"2.0","id":33,"method":"tools/call","params":{"name":"render_dashboard","arguments":{"root":${stackChain(LIMITS.depth + 1)}}}}`,
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.result.isError).toBe(true);
+      // The reason, not merely a refusal: `isError` is also what a shape failure
+      // and a caught stack overflow produce, so asserting it alone is satisfied
+      // by mechanisms that have nothing to do with the cap under test.
+      expect(String(body.result.content[0].text)).toMatch(/depth exceeds/i);
+    });
+
+    it("tools/call survives a payload too deep for the SDK's own parse", async () => {
+      // Resilience, NOT proof of a Weave cap — see the test above for that.
+      // Measured on this tree: at 2,000 levels the refusal comes from a
+      // `RangeError` inside the SDK's pre-handler Zod parse, caught and
+      // reported as a tool error. The structural walk never runs. What is worth
+      // pinning is that the failure stays inside the request: a controlled
+      // answer, and a server that still serves the next caller.
+      const depth = 2_000;
+      const body = `{"jsonrpc":"2.0","id":31,"method":"tools/call","params":{"name":"render_dashboard","arguments":{"root":${stackChain(depth)}}}}`;
+
+      // Non-vacuity: the refusal must come from depth, not from the ingress byte
       // budget standing in front of it. 2,000 levels is ~60 KB of a 262,144-byte
       // allowance, so a 413 here would mean the fixture had drifted.
       expect(body.length).toBeLessThan(LIMITS.payloadBytes);
 
       const res = await jsonRpcRaw(body);
 
-      // The contract is that the refusal is CONTROLLED — not which guard issues
-      // it. Whether the recursive validator exhausts its stack or reaches the
-      // container-depth cap first depends on the runner's stack budget, so
-      // pinning either one calibrates this test to an architecture. It did
-      // exactly that before: the fixture used to be a 5,000-deep JS graph, and
-      // `JSON.stringify` overflowed here in the test process — never reaching
-      // the server — on CI's x64 stack while clearing arm64's.
+      // Deliberately does not pin WHICH mechanism refuses it. Where the stack
+      // gives out is a property of the runner, and pinning it is what made the
+      // previous version of this test architecture-dependent: the fixture was a
+      // 5,000-deep JS graph, and `JSON.stringify` overflowed here in the test
+      // process — never reaching the server — on CI's x64 stack while clearing
+      // arm64's.
       expect(res.status).toBe(200);
       expect((await res.json()).result.isError).toBe(true);
 

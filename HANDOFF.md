@@ -2,7 +2,7 @@
 
 **Generated**: 2026-08-08
 **Branch**: `feature/primitive-portfolio-wave-1` (worktree `/Users/pierregallet/Documents/weave-wave-1`)
-**Status**: Implemented, independently reviewed **three times**, remediated after each round, locally verified, committed. **Nothing pushed, no PR opened.**
+**Status**: Implemented, reviewed **four times**, remediated after each round, locally verified, committed. **Pushed — [PR #9](https://github.com/Shepherd-Creative/weave/pull/9) is open against `main`.** Its first CI run was red (a test-side `JSON.stringify` overflow); that is fixed, and the fix's own blind spot is fixed on top of it. Awaiting Hermes' independent verification of the reviewed head before merge.
 
 > Supersedes the Wave 0 handoff. Wave 0 is **merged** — `0568b4f Wave 0: truth, documentation and CI gate (#7)` is this branch's base — so its one open exit-gate item (a PR starting `ci.yml`) is closed.
 
@@ -117,6 +117,43 @@ Two details worth keeping:
 
 `id` is untouched: it is a key of the root **node**, not of the gateway, and a test on all three surfaces says so.
 
+## The CI round — the first PR, and a test that proved nothing
+
+The branch was pushed and **PR #9** opened against `main`. `ci.yml` ran against Wave 1 for the first time and went **red**, on `tools/call rejects nesting deep enough to overflow the walk`:
+
+```
+RangeError: Maximum call stack size exceeded
+  546|        body: JSON.stringify(body),
+```
+
+The failure was in the **test's own helper**, before the server saw a byte. The fixture built a 5,000-deep JS graph and serialised it, and `JSON.stringify` recurses. Reproduced exactly, and it explains why local was green:
+
+| Runner stack | Old fixture (`JSON.stringify` a 5,000-deep graph) | New fixture (built as text, `JSON.parse`) |
+|---|---|---|
+| darwin/arm64 default | **succeeded**, 55,136 bytes | OK, 150,030 bytes |
+| `--stack-size=700` | **`RangeError`** | OK |
+| `--stack-size=400` | **`RangeError`** | OK |
+
+`0b04d39` rebuilt both fixtures. That commit is right about the mechanism and right about the unit test. **It was wrong about the transport test**, and a fourth review round found it.
+
+### `/mcp`'s depth coverage was entirely vacuous (P1, fixed)
+
+The rewritten transport test asserted only `status 200` + `result.isError === true` on a 2,000-level Stack chain, on the stated grounds that *"only a well-formed container chain forces the recursive descent this test exists to bound"*. Measured, that is false. The MCP SDK validates `arguments` against the advertised `DashboardGatewaySchema` **before the handler runs** (`server/mcp.js` → `validateToolInput` → `safeParseAsync`), that Zod parse recurses per level, and at 2,000 levels it raises a `RangeError` — which the SDK catches and reports as an ordinary tool error. The server's literal answer:
+
+```json
+{"result":{"content":[{"type":"text","text":"Maximum call stack size exceeded"}],"isError":true}}
+```
+
+**The structural walk never ran.** Falsified by disabling `assertDocumentStructuralLimits` outright and running the suite: **1 test failed out of 63**, the REST depth case. The 2,000-level `/mcp` test stayed green with every cost cap gone — a transport-only pass wearing the name of a depth guard. `/mcp` had no test that could detect the entire cost policy being deleted.
+
+**Fixed by adding the load-bearing case rather than by weakening the deep one.** A chain of `LIMITS.depth + 1` Stacks (240 bytes) parses cleanly in Zod and reaches the walk, which refuses it with `code: "depth"` — measured at depths 7, 8, 12 and 40, all `zodParse:success=true` / `walk:code=depth`. It asserts the *reason* (`/depth exceeds/`), not merely a refusal, because `isError` is equally what a shape failure and a caught stack overflow produce. Re-run under the same sabotage: **2 failed out of 64**, the new case reporting `expected undefined to be true` — the document had been accepted.
+
+The 2,000-level case is kept and honestly renamed to what it actually proves: the server answers a payload too deep for the SDK's own parse in a controlled way and still serves the next caller. Its comment no longer claims to bound the walk.
+
+**Both suites verified under a genuinely reduced worker stack**, which is the part that needed its own control. `node --stack-size=N node_modules/vitest/vitest.mjs` does **not** reach the forked worker — a planted control reproducing the old overflow **passed** at `--stack-size=400`, so a suite run under that flag proves nothing. Reducing the worker's own stack (`poolOptions.forks.execArgv`) turns the control red with the exact CI error, and under *that* harness `app.test.ts` (64) and `document.test.ts` (65) both pass at 400 and 250.
+
+**Lesson, compounding the wave's others:** the previous rounds learned that a typed rejection assertion is not evidence. This one adds that *a refusal is not evidence of which thing refused*. When a test cannot name the mechanism it is pinning, the mechanism it actually exercises is whatever fails first — and here that was a caught stack overflow in someone else's library.
+
 ## Verification
 
 Every gate re-run on the remediated tree.
@@ -124,13 +161,15 @@ Every gate re-run on the remediated tree.
 | Gate | Result |
 |---|---|
 | `TURBO_FORCE=true pnpm typecheck` | exit 0 |
-| `TURBO_FORCE=true pnpm test` | exit 0 — **495 vitest + 26 `node --test` = 521**; round 2 closed at 500, its first pass 490, round 1 478, Wave 1's first pass 443, the pre-Wave-1 baseline 312 |
+| `TURBO_FORCE=true pnpm test` | exit 0 — **496 vitest + 26 `node --test` = 522**; round 3 closed at 521, round 2 at 500, its first pass 490, round 1 478, Wave 1's first pass 443, the pre-Wave-1 baseline 312 |
 | `TURBO_FORCE=true pnpm build` | exit 0 |
 | `node scripts/biome-new-findings.mjs 0568b4f` | exit 0 — base 46, head 37, **0 new** |
 | `pnpm lint` | exit 1 — 37 diagnostics, the pre-existing baseline |
 | `git diff --check 0568b4f` | exit 0 |
 
-Per-package: primitives 180 (was 168), theme-cli 102, mcp-server **115** (98 → 90 → 82 → 72), mcp-app **69** (65 → 63 → 59 → 46), skill 14, tokens 10, adapter-skill 5.
+Per-package: primitives 180 (was 168), theme-cli 102, mcp-server **116** (115 → 98 → 90 → 82 → 72), mcp-app **69** (65 → 63 → 59 → 46), skill 14, tokens 10, adapter-skill 5.
+
+Raw `pnpm lint` is exit 1 at **37 diagnostics (22 errors / 6 warnings / 9 infos)** — the documented pre-existing baseline, unchanged. Three of them (`Weave.tsx` `noShadowRestrictedNames` ×1, `noChildrenProp` ×2) are unfixable by `biome check --write` and make it exit 1 even when it applies no fixes; that is not a formatting failure on the changed files. Judge lint by `scripts/biome-new-findings.mjs`, never by the raw exit code.
 
 Round 1's 35 new tests were all written **before** the fix and watched fail. The exact failure text matters in two of them:
 
@@ -266,8 +305,11 @@ Restored from a backup taken **after** the fix, `diff -q` identical, both fixed 
 ## Not yet done
 
 - [x] **Independent adversarial review of the diff** (shared execution rule 4). Round 1 against `0806ac8`: verdict "do not approve", three proven blockers plus a whitespace note — see "The review, and what it broke". Round 2 against `fe70778`: one remaining blocker, the conflicting-`type` normalisation, plus the false-positive tests that had hidden it — see "The second review round". Round 3 against `0df4dba`: one remaining blocker, the non-strict `render_dashboard` gateway — see "The third review round". Everything else rounds 2 and 3 exercised (ingress budget, strict node schemas, stdio framing, the reserved-key rule, the full gate) held.
-- [ ] Push, open a PR, and let `ci.yml` run against Wave 1.
-- [ ] Only then declare the Wave 1 gate closed and start Wave 2.
+- [x] **Push, open a PR, and let `ci.yml` run against Wave 1.** Done — PR #9. The first run went red on a test-side stack overflow; see "The CI round" above for the diagnosis, the fix, and the fourth review round that fixed the fix.
+- [ ] Hermes independently verifies the reviewed head and closes the Wave 1 gate. **Do not merge from this worktree** — `main` carries a `protect-main` ruleset and the merge decision is Pierre's.
+- [ ] Only then start Wave 2, in its own branch and worktree.
+
+**Review round 4 was the implementer's own.** One bounded Codex adversarial review was dispatched against `4fc162e..0b04d39` and did not complete: it was terminated mid-run by OpenAI's content filter while patching a file to falsify a guard, producing no findings and no verdict. Before dying it independently reproduced the central measurement (the `/mcp` response reading `Maximum call stack size exceeded`). It also left a live sabotage in gitignored build output — `git status` was clean and proved nothing; a `--no-ignore-files` sweep found it in `packages/weave-primitives/dist/schemas/index.js`, and a forced rebuild cleared it. **Anything Codex ran after that point is suspect and was re-measured from scratch**, including its reduced-stack suite runs, which turn out to have used a flag that never reaches the vitest worker.
 
 ## Residual limits, stated rather than hidden
 
@@ -291,6 +333,10 @@ Written with the review's lesson in mind: **a documented limitation that makes a
    Ids are scoped, not removed: `render_dashboard` takes whole documents and carries every `id` through untouched, which is where Wave 4's Tabs and Wave 5's registry will read them. A test asserts that escape hatch on all three surfaces, so a future tightening cannot quietly turn a scoping decision into a capability removal.
 
    The reserved keys live in one exported list, `FIXED_TOOL_RESERVED_KEYS`, with a test that derives the omitted keys from the schemas themselves — a hand-written mirror of a schema goes stale, and that test is what fails when it does.
+
+9. **On `/mcp` and the MCP App, the SDK's Zod parse runs BEFORE the canonical cost policy.** `validateWeaveDocument` checks cost before *its own* Zod parse, but on the two SDK surfaces the MCP server validates `arguments` against the advertised `inputSchema` first, and that parse recurses per level. Measured: a 2,000-level Stack chain raises a `RangeError` inside `safeParseAsync`, which the SDK catches and returns as `isError: true`. So on those surfaces a payload deep enough to exhaust the stack is refused by a **caught overflow**, not by a Weave cap.
+
+   Bounded, not open-ended: the ingress byte budget caps the payload at 262,144 bytes (~9,000 Stack levels), the failure is contained in the request, and the server keeps serving — all three asserted. But it means the depth cap is not what stops the deepest inputs on those surfaces, and any future claim that it is would be false. The load-bearing depth coverage is the `LIMITS.depth + 1` case, which is shallow enough to reach the walk. Closing this properly means running the cost policy before the SDK parse on those transports; that is a transport change, not a Wave 1 test fix, and is left recorded rather than done.
 
 ## Files to know
 
