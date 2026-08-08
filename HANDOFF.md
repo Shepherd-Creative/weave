@@ -12,7 +12,7 @@ Wave 0 of the approved plan at `.hermes/plans/2026-08-07_223240-primitive-portfo
 
 ## Completed
 
-21 commits ahead of `main@b9b1617`, tree clean, **nothing pushed**. (Earlier revisions of this document said 13 and 11; both were wrong — `git rev-list --count main..HEAD` is the number.)
+22 commits ahead of `main@b9b1617`, tree clean, **nothing pushed**. (Earlier revisions of this document said 13 and 11; both were wrong — `git rev-list --count main..HEAD` is the number.)
 
 Wave 0 implementation (8 commits):
 
@@ -43,10 +43,11 @@ Review remediation round 3, 2026-08-08 (2 commits — a third review found both 
 - [x] `4b41ef5` Gate claims a rewritten-hunk finding only on a one-to-one anchor
 - [x] `f45d9fe` Citation suffix grammar defined by its terminators, not an allowlist
 
-Final review corrections, 2026-08-08 (2 commits — two narrow blocking corrections):
+Final review corrections, 2026-08-08 (3 commits — two narrow blocking corrections, then one documentation accuracy fix):
 
 - [x] `8db4b5d` Citations terminate at typographic punctuation, not only ASCII
 - [x] `73932e7` Gate's fail-closed contract stated where CI readers meet it
+- [x] Sensitivity limit says "trimmed text", not "edited line" — documentation only, branch tip
 
 ## The independent review, and what was done about it
 
@@ -101,7 +102,7 @@ Reproduced exactly (`introduced: 0`). Round 1 documented "bounded by the hunk" a
 
 **Fix.** Rule 2 now claims a baseline finding only when the **offending source line is byte-identical (trimmed) on both sides**. Base sources are read from the base worktree before it is torn down; an unreadable file yields no anchor, and no anchor means no claim. Where identity cannot be proven the gate **fails closed** and reports the finding.
 
-**Sensitivity trade-off.** Edit the very line carrying a pre-existing finding and, if the finding survives, it is now reported as new. The remedy is cheap — fix the finding on the line you were already editing — and it is far narrower than `--changed`, which fails a PR for any pre-existing finding anywhere in a file it touched. A multi-line finding is unaffected while its *anchor* line is untouched, which is why adding an import does not flag a file's `organizeImports` finding (pinned by a test).
+**Sensitivity trade-off.** Change the **trimmed text** of the very line carrying a pre-existing finding and, if the finding survives, it is now reported as new. *Trimmed* is load-bearing: leading and trailing whitespace are stripped before the comparison, so a pure re-indent of a uniquely-anchored finding is still claimed, while whitespace **inside** the line is not stripped and does change the anchor. The remedy is cheap — fix the finding on the line you were already editing — and it is far narrower than `--changed`, which fails a PR for any pre-existing finding anywhere in a file it touched. A multi-line finding is unaffected while its *anchor* line is untouched, which is why adding an import does not flag a file's `organizeImports` finding (pinned by a test).
 
 **Residual, stated plainly.** A line moved **verbatim** inside a rewritten hunk is still treated as the same finding. The bytes are identical, so nothing distinguishes "survived a reshuffle" from "removed and retyped", and calling identical code a new finding would flag pure reorderings.
 
@@ -209,6 +210,26 @@ RED first in both packages, identically — `expected [ 'README.md…' ] to deep
 2. the gate's **failure output** — so the contract reaches whoever is reading a red CI log, not only whoever opens the source. Exercised rather than assumed: a planted finding was run through the gate and the new paragraph was read off the actual output at exit 1;
 3. **"The gate's contract"** below — one authoritative statement in this document, which the historical review sections now defer to instead of restating. The duplicate contract block that had drifted at the end of Code Context was removed rather than re-synchronised.
 
+### iii. The residual-limit wording overstated the gate's sensitivity
+
+Documentation-only, and **no matcher logic changed**. The corrected runner text said identity is unprovable if the change "edited the line carrying a finding". Overstated: anchors are compared **trimmed**, so a whitespace-only re-indent of a uniquely-anchored finding is claimed, not reported. Someone re-indenting a block and reading that sentence would have expected a failure the gate does not produce — and might have "fixed" a matcher that was behaving correctly.
+
+Measured before editing a word, because the real boundary is finer than the report:
+
+| Anchor change | Result |
+|---|---|
+| leading whitespace only (re-indent, unique anchor) | **claimed** as pre-existing |
+| trailing whitespace only | **claimed** |
+| spaces → tab indent | **claimed** |
+| **interior** whitespace (`<li  key` → `<li key`) | **reported** as introduced |
+| non-whitespace edit (`key={i}` → `key={idx}`) | **reported** |
+
+So "whitespace-only" is not the right predicate either — `trim()` strips the ends, not the middle. Every corrected statement now says **"changes the anchor line's trimmed text"** and names the re-indent case explicitly as *not* triggering a report.
+
+Corrected in seven mirrored places: the runner failure text and header, two comments in `scripts/lib/biome-diff.mjs` (comments only), and four passages here — the round-2 sensitivity trade-off, the Key Decisions row, "The gate's contract", and the Warnings bullet — plus the round-2 sentence in the parent plan.
+
+Two characterisation tests pin the boundary the prose now claims. **Both were green on first run**: they pin existing behaviour rather than drive it, and that is recorded as it happened rather than dressed up as RED-first. Falsified to prove they are load-bearing — replacing `raw.trim()` with `raw` in `anchorReader` turned the re-indent test red (25 pass / 1 fail) while the interior-whitespace test correctly stayed green. Restored by `cp` from a backup taken after the edit, verified by `diff -q`, by `raw.trim()` being back on the code line, and by a `--no-ignore-files` sweep for the sabotage marker returning 0 against a control of 2968. Matcher tests 24 → 26.
+
 ## Not Yet Done — this is the exit gate
 
 - [ ] **Push the branch and open a PR against `main`** so `ci.yml` executes for the first time. It has never run on GitHub.
@@ -236,7 +257,7 @@ RED first in both packages, identically — `expected [ 'README.md…' ] to deep
 | Decision | Rationale |
 |---|---|
 | Gate identity = file + rule + message + **diff-mapped position, plus the offending source line inside a rewritten hunk, plus a one-to-one pairing on that line** | A position-blind identity cannot tell a shifted finding from a relocated one. Neither can position *inside* a `-U0` hunk, which deletes every base line and adds every head line (second review, finding A). And a source line that appears twice identifies a set, not a finding (third review, finding I). |
-| Where identity cannot be proven, **fail closed** — including where the evidence is real but ambiguous | The user's explicit policy for round 3: accept cleanup of preserved debt rather than claim on a coin toss. A false positive costs a fix; a false negative is a silent pass. This is why editing a line that carries a finding reports it, and why duplicate anchors in one rewritten hunk report all of them. |
+| Where identity cannot be proven, **fail closed** — including where the evidence is real but ambiguous | The user's explicit policy for round 3: accept cleanup of preserved debt rather than claim on a coin toss. A false positive costs a fix; a false negative is a silent pass. This is why changing the trimmed text of a line that carries a finding reports it, and why duplicate anchors in one rewritten hunk report all of them. |
 | Uniqueness judged **pairwise**, not by searching for a best global pairing | More claims would mean more inference, and inference is the thing that fails open. A head finding claims its sole candidate only when it is that candidate's sole suitor. |
 | Token boundaries defined by their **terminators**, never by an allowlist of permitted characters | An allowlist is open by construction: it admits the anticipated cases and silently truncates the rest. Stated as "what ends this token", the grammar is closed and an unanticipated suffix gets reported rather than dropped. |
 | The diff is a **required** gate input | Without it the comparison is guesswork. No diff → exit 2. A broken gate must never look like a clean pass. |
@@ -250,12 +271,12 @@ RED first in both packages, identically — `expected [ 'README.md…' ] to deep
 
 ## Current State
 
-**Working**: everything. Tree clean, 21 commits ahead of `main`; the last **code** commit is `73932e7` and every gate below was run on it. All gates re-run on the committed tree after the falsification cycles:
+**Working**: everything. Tree clean, 22 commits ahead of `main`; every gate below was run on the branch tip. All gates re-run on the committed tree after the falsification cycles:
 
 | Gate | Result |
 |---|---|
 | `TURBO_FORCE=true pnpm typecheck` | exit 0 |
-| `TURBO_FORCE=true pnpm test` | exit 0 — **310 passed** (286 vitest + 24 `node --test`); baseline 240 |
+| `TURBO_FORCE=true pnpm test` | exit 0 — **312 passed** (286 vitest + 26 `node --test`); baseline 240 |
 | `TURBO_FORCE=true pnpm build` | exit 0 |
 | `node scripts/biome-new-findings.mjs main` | exit 0 — head 46, base 48, **0 new** |
 | `pnpm lint` | exit 1 — **46 diagnostics** (31 errors / 6 warnings / 9 infos) |
@@ -287,11 +308,13 @@ RED first in both packages, identically — `expected [ 'README.md…' ] to deep
 A baseline finding is claimed as pre-existing in exactly two ways:
 
 1. **Untouched code.** Git's hunks give the finding one known head line, and the head finding sits exactly there.
-2. **Rewritten region, proven identity.** All three must hold: the offending source line is **byte-identical (trimmed)** on both sides; the head finding has **exactly one** such candidate; and that candidate has **exactly one** suitor. A **one-to-one pairing**, in both directions.
+2. **Rewritten region, proven identity.** All three must hold: the offending source line is **byte-identical after trimming** on both sides; the head finding has **exactly one** such candidate; and that candidate has **exactly one** suitor. A **one-to-one pairing**, in both directions.
 
 Everything else is **reported as introduced**. Sharing a rewritten hunk is not enough — a `-U0` hunk deletes every base line and adds every head line. A matching source line is not enough on its own — two identical lines are identical evidence and identify a *set*, not a finding.
 
-**The gate fails closed.** Unreadable source, an edited anchor line, or an ambiguous anchor all mean identity is unproven, and unproven means reported. That deliberately reports some pre-existing debt carried through a rewrite: a false positive costs a fix, a false negative is a silent pass. This is the user-selected policy for round 3, applied literally — no arbitrary candidate selection survives anywhere in the matcher.
+**What "trimmed" buys, precisely.** `trim()` strips leading and trailing whitespace only. A **pure re-indent** of a uniquely-anchored finding therefore still satisfies rule 2 and is claimed — reformatting a block does not report every finding inside it. Whitespace **inside** the line is not stripped, so respacing there does change the anchor and does make identity unprovable. Both directions are pinned by tests (`claims a uniquely-anchored finding through a whitespace-only re-indent`, `reports a finding whose anchor changed only in INTERIOR whitespace`).
+
+**The gate fails closed.** Unreadable source, an anchor line whose **trimmed text** changed, or an ambiguous anchor all mean identity is unproven, and unproven means reported. That deliberately reports some pre-existing debt carried through a rewrite: a false positive costs a fix, a false negative is a silent pass. This is the user-selected policy for round 3, applied literally — no arbitrary candidate selection survives anywhere in the matcher.
 
 ```bash
 node scripts/biome-new-findings.mjs origin/main
@@ -342,12 +365,12 @@ Gate contract: see **"The gate's contract"** above — stated once, there, rathe
 
 ## Resume Instructions
 
-1. `cd /Users/pierregallet/Documents/weave-wave-0` and confirm the tree is clean, 21 commits ahead of `main` (last code commit `73932e7`).
+1. `cd /Users/pierregallet/Documents/weave-wave-0` and confirm the tree is clean and 22 commits ahead of `main`.
 2. Re-verify before trusting anything:
    ```bash
    TURBO_FORCE=true pnpm typecheck && TURBO_FORCE=true pnpm test
    ```
-   - Expected: exit 0, **286 vitest tests + 24 `node --test`**.
+   - Expected: exit 0, **286 vitest tests + 26 `node --test`**.
    - If Playwright suites fail with `Executable doesn't exist ... chromium_headless_shell-1228`: run `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
 3. Confirm the lint position is unchanged:
    ```bash
@@ -370,7 +393,7 @@ Gate contract: see **"The gate's contract"** above — stated once, there, rathe
 - **Do not merge without Pierre's review.** Human gate; `main` has a `protect-main` ruleset (PR required, no force push).
 - **Turbo cache is shared with the parent checkout.** A bare `pnpm test` here can replay results computed in `/Users/pierregallet/Documents/weave`. Use `TURBO_FORCE=true` for any run you intend to trust.
 - **`pnpm lint` exits 1 by design.** 46 pre-existing findings. Judge lint by `scripts/biome-new-findings.mjs`.
-- **The gate can now report a pre-existing finding you did not introduce, by design.** Two cases: you edited the line carrying it, or you rewrote a hunk holding two identical offending lines (re-indenting a block is the everyday way that happens — anchors are trimmed, so the anchors stay identical while git rewrites every line). In both, identity cannot be proven and the policy is to fail closed. The remedy is to fix the reported finding; do not loosen the matcher to make it go away.
+- **The gate can now report a pre-existing finding you did not introduce, by design.** Two cases: you changed the **trimmed text** of the line carrying it, or you rewrote a hunk holding **two identical** offending lines (re-indenting such a block is the everyday way that happens — anchors are trimmed, so the anchors stay identical while git rewrites every line, and identical anchors are ambiguous). Note what is *not* a case: re-indenting a **uniquely** anchored finding is fine, because trimming makes the anchor match. In the two cases above identity cannot be proven and the policy is to fail closed. The remedy is to fix the reported finding; do not loosen the matcher to make it go away.
 - **The gate now needs a real diff, not just a reachable base ref.** In a shallow clone `git rev-parse` can succeed while `git diff` has nothing to compare; the gate exits 2 rather than guessing.
 - **`packages/weave-mcp-app/dist/weave-skill.md` is a build copy of SKILL.md** (gitignored, refreshed by `pnpm build`). If you edit SKILL.md, rebuild before testing the MCP App.
 - **The `weave-skill` catalogue is cross-checked from `weave-mcp-server`**, not from `weave-skill` itself — that package has no dependency on `weave-primitives` and adding one was deliberately avoided.

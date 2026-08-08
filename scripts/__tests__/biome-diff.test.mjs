@@ -243,6 +243,37 @@ describe("findIntroduced", () => {
       assert.deepEqual(introduced, []);
     });
 
+    it("claims a uniquely-anchored finding through a whitespace-only re-indent", () => {
+      // Pins the documented boundary, which the runner's failure text and the
+      // handoff both state: anchors are compared TRIMMED, so re-indenting the
+      // line carrying a finding is not an edit to its identity. Without this,
+      // reformatting a block would report every finding inside it.
+      const introduced = findIntroduced({
+        baseDiagnostics: [diag("src/List.tsx", 10)],
+        headDiagnostics: [diag("src/List.tsx", 12)],
+        fileDiffs: parseUnifiedDiff(REWRITE),
+        baseSources: new Map([["src/List.tsx", fileWith(10, "  <li key={i}>")]]),
+        headSources: new Map([["src/List.tsx", fileWith(12, "        <li key={i}>")]]),
+      });
+
+      assert.deepEqual(introduced, []);
+    });
+
+    it("reports a finding whose anchor changed only in INTERIOR whitespace", () => {
+      // The other side of that boundary, and the reason the documentation says
+      // "trimmed text" rather than "whitespace-only": `trim()` strips the ends,
+      // not the middle, so respacing inside the line does change the anchor.
+      const introduced = findIntroduced({
+        baseDiagnostics: [diag("src/List.tsx", 10)],
+        headDiagnostics: [diag("src/List.tsx", 12)],
+        fileDiffs: parseUnifiedDiff(REWRITE),
+        baseSources: new Map([["src/List.tsx", fileWith(10, "  <li  key={i}>")]]),
+        headSources: new Map([["src/List.tsx", fileWith(12, "  <li key={i}>")]]),
+      });
+
+      assert.deepEqual(introducedLines(introduced), [12]);
+    });
+
     it("reports a finding whose own line the change edited (fail closed)", () => {
       // The sensitivity cost of the rule above: edit the line carrying a
       // pre-existing finding and the finding is reported, because nothing

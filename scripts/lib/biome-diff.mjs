@@ -205,11 +205,15 @@ function anchorReader(sources) {
  * silent pass.
  *
  * Trade-offs, deliberately taken:
- * - Sensitivity: edit the very line carrying a pre-existing finding and, if
- *   the finding survives, it is reported as new. That is the cost of rule 2's
- *   evidence requirement, and the remedy is cheap — fix the finding on the
- *   line you were already editing. It is far narrower than `--changed`, which
- *   fails a PR for any pre-existing finding anywhere in a file it touched.
+ * - Sensitivity: change the TRIMMED text of the very line carrying a
+ *   pre-existing finding and, if the finding survives, it is reported as new.
+ *   Trimmed is the operative word — leading and trailing whitespace are
+ *   stripped before the comparison, so a pure re-indent of a uniquely-anchored
+ *   finding is still claimed; whitespace inside the line is not stripped and
+ *   does change the anchor. That is the cost of rule 2's evidence requirement,
+ *   and the remedy is cheap — fix the finding on the line you were already
+ *   editing. It is far narrower than `--changed`, which fails a PR for any
+ *   pre-existing finding anywhere in a file it touched.
  * - Duplicate anchors: rewrite a hunk holding two identical offending lines and
  *   both findings are reported, even if the change merely preserved them, or
  *   removed one of them. Pre-existing debt then has to be cleaned up rather
@@ -227,6 +231,8 @@ function anchorReader(sources) {
  *   compared after being mapped through the diff, so an unrelated edit above a
  *   finding shifts it without flagging it.
  * - Anchors are trimmed, so re-indentation does not manufacture new findings.
+ *   `trim()` strips leading and trailing whitespace only, so this covers
+ *   indentation and trailing spaces but NOT interior spacing.
  * - Biome emits one file-level `format` diagnostic per file (line 0), so this
  *   gate cannot distinguish "already unformatted" from "made worse" inside a
  *   file that was already failing `format`. Out of this gate's reach: the fix

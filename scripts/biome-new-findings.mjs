@@ -27,9 +27,13 @@
  * and two identical lines are identical evidence, so an anchor appearing twice
  * in one hunk identifies a set rather than a finding.
  *
+ * Anchors are compared TRIMMED, so leading and trailing whitespace never count
+ * as a difference: a pure re-indent of a uniquely-anchored finding is still
+ * claimed. Whitespace inside the line is not stripped and does change it.
+ *
  * The contract is therefore FAIL CLOSED: wherever identity cannot be proven —
- * unreadable source, an edited anchor line, or an ambiguous one — the finding
- * is REPORTED AS INTRODUCED. That deliberately reports some pre-existing debt
+ * unreadable source, an anchor line whose trimmed text changed, or an ambiguous
+ * anchor — the finding is REPORTED AS INTRODUCED. That reports some debt
  * you merely carried through a rewrite; a false positive costs a fix, while a
  * false negative is a silent pass. See scripts/lib/biome-diff.mjs for the rules
  * in full and every trade-off they carry.
@@ -199,10 +203,16 @@ for (const d of introduced) {
 console.error("\nRun `pnpm format` and re-check, or fix the reported rule violations.");
 console.error(
   "\nA finding is claimed as pre-existing only on an untouched line, or on a\n" +
-    "byte-identical source line that pairs one-to-one inside the hunk that\n" +
-    "rewrote it. This gate fails closed: if your change edited the line carrying\n" +
-    "a finding, or rewrote a region holding two identical offending lines, its\n" +
-    "identity cannot be proven and it is reported here even though you did not\n" +
-    "introduce it. Fix it rather than loosening the gate.",
+    "source line whose TRIMMED text is byte-identical on both sides and pairs\n" +
+    "one-to-one inside the hunk that rewrote it. This gate fails closed: if your\n" +
+    "change altered the trimmed text of the line carrying a finding, or rewrote a\n" +
+    "region holding two identical offending lines, its identity cannot be proven\n" +
+    "and it is reported here even though you did not introduce it.\n" +
+    "\n" +
+    "Leading and trailing whitespace are stripped before that comparison, so a\n" +
+    "pure re-indent of a uniquely-anchored finding is still claimed and is NOT\n" +
+    "why you are seeing this. Whitespace INSIDE the line is not stripped, so\n" +
+    "changing it does change the anchor. Fix the finding rather than loosening\n" +
+    "the gate.",
 );
 process.exit(1);
