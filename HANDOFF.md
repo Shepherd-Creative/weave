@@ -1,8 +1,8 @@
 # Handoff: Primitive Portfolio — Wave 0 (truth, documentation and CI gate)
 
-**Generated**: 2026-08-07 · **Updated**: 2026-08-08 (third review remediation)
+**Generated**: 2026-08-07 · **Updated**: 2026-08-08 (final review corrections)
 **Branch**: `feature/primitive-portfolio-wave-0` (worktree `/Users/pierregallet/Documents/weave-wave-0`)
-**Status**: Implemented, independently reviewed **three times**, and all findings from all three rounds remediated. **Blocked on the exit gate** — nothing pushed, no PR, so `ci.yml` has still never executed on GitHub.
+**Status**: Implemented, independently reviewed **four times**, and all findings from all four rounds remediated. **Blocked on the exit gate** — nothing pushed, no PR, so `ci.yml` has still never executed on GitHub.
 
 > Supersedes the previous HANDOFF.md (design-source adapter / PR #5 batch), which is merged and recoverable from git history on `main`.
 
@@ -12,7 +12,7 @@ Wave 0 of the approved plan at `.hermes/plans/2026-08-07_223240-primitive-portfo
 
 ## Completed
 
-18 commits ahead of `main@b9b1617`, tree clean, **nothing pushed**. (Earlier revisions of this document said 13 and 11; both were wrong — `git rev-list --count main..HEAD` is the number.)
+21 commits ahead of `main@b9b1617`, tree clean, **nothing pushed**. (Earlier revisions of this document said 13 and 11; both were wrong — `git rev-list --count main..HEAD` is the number.)
 
 Wave 0 implementation (8 commits):
 
@@ -43,6 +43,11 @@ Review remediation round 3, 2026-08-08 (2 commits — a third review found both 
 - [x] `4b41ef5` Gate claims a rewritten-hunk finding only on a one-to-one anchor
 - [x] `f45d9fe` Citation suffix grammar defined by its terminators, not an allowlist
 
+Final review corrections, 2026-08-08 (2 commits — two narrow blocking corrections):
+
+- [x] `8db4b5d` Citations terminate at typographic punctuation, not only ASCII
+- [x] `73932e7` Gate's fail-closed contract stated where CI readers meet it
+
 ## The independent review, and what was done about it
 
 An independent adversarial review of the Wave 0 diff returned three real defects. All three are fixed, each RED-first.
@@ -60,7 +65,7 @@ Correct, and reproduced end to end. The fingerprint was `file :: category :: mes
 
 Anything else is new. The diff is a required input: if it cannot be computed the gate exits 2, never 0. Renames are followed, so a moved file no longer reports its whole baseline as new.
 
-> ⚠️ **Superseded by round-2 finding A below.** Rule 2 as stated here — "matched anywhere inside the head side of that same hunk" — was still a silent pass for a same-hunk relocation, and the trade-off recorded at the time ("bounded by the hunk, that is the honest limit of positional evidence") was wrong: position inside a `-U0` hunk is not evidence at all. Rule 2 now additionally requires the offending source line to be byte-identical. Read this section for the cross-hunk case it did fix, and finding A for the current rule.
+> ⚠️ **Superseded twice — this is history, not the contract.** Rule 2 as stated here ("matched anywhere inside the head side of that same hunk") was a silent pass for a same-hunk relocation (round-2 finding A), and requiring a byte-identical anchor still left the choice among identical anchors arbitrary (round-3 finding I). **The current rule is stated once, authoritatively, in "The gate's contract" below**; read this section only for the cross-hunk case it did fix.
 
 Raw line equality is never used on its own — lines are only compared after being mapped through the diff, which is what keeps harmless shifts from flagging. Biome's file-level `format` diagnostic (one per file, line 0) still cannot distinguish "already unformatted" from "made worse"; unchanged from before and out of the gate's reach — the fix is to format the file.
 
@@ -167,6 +172,43 @@ Everything else — `~`, `#`, `%`, `+`, `@`, `=`, `&`, `^`, `$`, a second `.ext`
 
 **Residual, stated plainly.** A citation whose *leading* delimiter is not one of `` ^ \s ( [ { < " ' ` `` is still not harvested at all — emacs autosave form `#README.md#` is invisible to the scanner rather than truncated by it. That is a different defect class from the one reported (not-seen, not resolves-to-the-wrong-file), it was not part of this finding, and widening the leading class risks harvesting new false citations, so it was left alone and is recorded here instead of being quietly fixed.
 
+## The final review, and what was done about it
+
+Two narrow blocking corrections, both fixed RED-first. Commits listed under "Completed" above.
+
+### i. Citation grammar had no typographic terminators
+
+`TAIL_ONLY` was ASCII-only (`.!`), so prose punctuation was swallowed *into* the path and ordinary comments became unresolved filenames — the same damage as a truncated citation, arriving from the opposite direction. Measured before fixing:
+
+| Comment | Harvested |
+|---|---|
+| `// see README.md… for the rest` | `["README.md…"]` |
+| `// see [the readme](README.md…)` | `["README.md…"]` |
+| `// see README.md—the old copy` | `["README.md—the"]` |
+| `// the file README.md’s header` | `["README.md’s"]` |
+
+**Fixed at the class, not the case.** `BREAK` is now three named, documented groups:
+
+- **ASCII** — whitespace, the wrappers a comment uses (`( ) [ ] { } < > " ' \``), the `:` of a `path:line` reference, and prose separators (`, ; | \ ? *`);
+- **typographic** — the ellipsis and dash family (`… ‒ – — ―`) plus the quotes and guillemets that stand in for the ASCII wrappers (`“ ” ‘ ’ „ ‚ « » ‹ ›`);
+- **`TAIL_ONLY`** — `.` and `!`, legal inside a path but never last.
+
+The typographic group is the *counterweight* to the suffix rule and had to be stated separately because it pulls the other way: a real suffix stays attached because it is part of the path, a typographic mark must not because it never is. Written as `\uXXXX` escapes so both mirrored copies stay byte-identical (verified with `diff`).
+
+RED first in both packages, identically — `expected [ 'README.md…' ] to deeply equal [ 'README.md' ]`. 21 → **23 passing in each**. A second test walks all 15 typographic marks so the class cannot lose a member unnoticed.
+
+**Measured, old grammar against new, over both packages' real sources: 16 citations before, 16 after, zero drift.** Worth being precise about what that means — the defect was **latent** here: no comment in this repository currently triggers it, so the guard protects future prose rather than fixing a present miscount. Every previously valid behaviour was re-measured and is unchanged: `~` and `.bak` suffixes still attached, sentence-final `.` still excluded, all seven wrappers, `path:line`, and the `GET /skill.md` route exclusion.
+
+### ii. The runner's public contract still described the superseded rule
+
+`scripts/biome-new-findings.mjs:14-17` still said a baseline finding is claimable "at its diff-mapped line, **or inside the hunk that rewrote it**". True of round 1; false since `543f9ec`, and doubly false since `4b41ef5`. That is the text a CI reader meets first, so someone hitting a fail-closed report would have been told the gate works a way it does not — and would reasonably have concluded the gate was broken.
+
+**Corrected in three places, now saying the same thing:**
+
+1. the runner header — the two claim rules in full, including the one-to-one requirement and the fail-closed consequence;
+2. the gate's **failure output** — so the contract reaches whoever is reading a red CI log, not only whoever opens the source. Exercised rather than assumed: a planted finding was run through the gate and the new paragraph was read off the actual output at exit 1;
+3. **"The gate's contract"** below — one authoritative statement in this document, which the historical review sections now defer to instead of restating. The duplicate contract block that had drifted at the end of Code Context was removed rather than re-synchronised.
+
 ## Not Yet Done — this is the exit gate
 
 - [ ] **Push the branch and open a PR against `main`** so `ci.yml` executes for the first time. It has never run on GitHub.
@@ -208,12 +250,12 @@ Everything else — `~`, `#`, `%`, `+`, `@`, `=`, `&`, `^`, `$`, a second `.ext`
 
 ## Current State
 
-**Working**: everything. Tree clean, 18 commits ahead of `main`; the last **code** commit is `f45d9fe` and every gate below was run on it. All gates re-run on the committed tree after the falsification cycles:
+**Working**: everything. Tree clean, 21 commits ahead of `main`; the last **code** commit is `73932e7` and every gate below was run on it. All gates re-run on the committed tree after the falsification cycles:
 
 | Gate | Result |
 |---|---|
 | `TURBO_FORCE=true pnpm typecheck` | exit 0 |
-| `TURBO_FORCE=true pnpm test` | exit 0 — **306 passed** (282 vitest + 24 `node --test`); baseline 240 |
+| `TURBO_FORCE=true pnpm test` | exit 0 — **310 passed** (286 vitest + 24 `node --test`); baseline 240 |
 | `TURBO_FORCE=true pnpm build` | exit 0 |
 | `node scripts/biome-new-findings.mjs main` | exit 0 — head 46, base 48, **0 new** |
 | `pnpm lint` | exit 1 — **46 diagnostics** (31 errors / 6 warnings / 9 infos) |
@@ -237,6 +279,24 @@ Everything else — `~`, `#`, `%`, `+`, `@`, `=`, `&`, `^`, `$`, a second `.ext`
 | `packages/weave-mcp-server/src/tools.ts` | `SKILL_RESOURCE_URI` + `SKILL_ENDPOINT_HINT` + `describeForHttpSurface`. Shared `TOOLS` stays transport-neutral. |
 | `packages/*/src/__tests__/catalogue-drift.test.ts` | Union/catalogue/version guards, plus surface-neutrality of the shared descriptors. |
 | `packages/*/src/__tests__/doc-citations.test.ts` | Citation grammar + containment scanners (2 packages, mirrored). |
+
+## The gate's contract
+
+**This is the single authoritative statement.** Everything in the review sections above is history; where they disagree with this, this wins. It is stated identically in the runner header (`scripts/biome-new-findings.mjs`), in `scripts/lib/biome-diff.mjs`, and in the gate's own failure output.
+
+A baseline finding is claimed as pre-existing in exactly two ways:
+
+1. **Untouched code.** Git's hunks give the finding one known head line, and the head finding sits exactly there.
+2. **Rewritten region, proven identity.** All three must hold: the offending source line is **byte-identical (trimmed)** on both sides; the head finding has **exactly one** such candidate; and that candidate has **exactly one** suitor. A **one-to-one pairing**, in both directions.
+
+Everything else is **reported as introduced**. Sharing a rewritten hunk is not enough — a `-U0` hunk deletes every base line and adds every head line. A matching source line is not enough on its own — two identical lines are identical evidence and identify a *set*, not a finding.
+
+**The gate fails closed.** Unreadable source, an edited anchor line, or an ambiguous anchor all mean identity is unproven, and unproven means reported. That deliberately reports some pre-existing debt carried through a rewrite: a false positive costs a fix, a false negative is a silent pass. This is the user-selected policy for round 3, applied literally — no arbitrary candidate selection survives anywhere in the matcher.
+
+```bash
+node scripts/biome-new-findings.mjs origin/main
+# exit 0 = no new findings   exit 1 = new, or carried-and-unprovable   exit 2 = gate could not run
+```
 
 ## Code Context
 
@@ -278,21 +338,16 @@ function resolves(cited: string, citingFile: string): boolean {
 }
 ```
 
-Gate contract:
-
-```bash
-node scripts/biome-new-findings.mjs origin/main
-# exit 0 = no new findings   exit 1 = new findings   exit 2 = gate could not run
-```
+Gate contract: see **"The gate's contract"** above — stated once, there, rather than twice with drift.
 
 ## Resume Instructions
 
-1. `cd /Users/pierregallet/Documents/weave-wave-0` and confirm the tree is clean, 18 commits ahead of `main` (last code commit `f45d9fe`).
+1. `cd /Users/pierregallet/Documents/weave-wave-0` and confirm the tree is clean, 21 commits ahead of `main` (last code commit `73932e7`).
 2. Re-verify before trusting anything:
    ```bash
    TURBO_FORCE=true pnpm typecheck && TURBO_FORCE=true pnpm test
    ```
-   - Expected: exit 0, **282 vitest tests + 24 `node --test`**.
+   - Expected: exit 0, **286 vitest tests + 24 `node --test`**.
    - If Playwright suites fail with `Executable doesn't exist ... chromium_headless_shell-1228`: run `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
 3. Confirm the lint position is unchanged:
    ```bash
