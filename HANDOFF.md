@@ -398,7 +398,13 @@ Written with the review's lesson in mind: **a documented limitation that makes a
 
 ## Resume instructions
 
-1. `cd /Users/pierregallet/Documents/weave-wave-1`, confirm the tree is clean and **7 commits** ahead of `0568b4f` (`git rev-list --count 0568b4f..HEAD` → `7`).
+1. `cd /Users/pierregallet/Documents/weave-wave-1`, confirm the tree is clean, then **measure** the branch rather than trusting a number written here:
+   ```bash
+   git status --short                        # expect no output
+   git rev-list --count 0568b4f..HEAD        # read the answer; do not compare it to this file
+   git log --oneline 0568b4f..HEAD           # what those commits are
+   ```
+   **No expected count is recorded, deliberately.** Every commit changes it — including a commit that does nothing but correct this file, which is exactly how the previous two counts here went stale. A recorded count is a fact about the moment it was written, and this is the one number that cannot survive its own correction. (Historical statements elsewhere in this document are scoped to a **named immutable head** — the reviewed implementation head `3419bc7` was seven commits from `0568b4f` — which stays true because the head is pinned.)
 2. Re-verify before trusting anything:
    ```bash
    TURBO_FORCE=true pnpm typecheck && TURBO_FORCE=true pnpm test
