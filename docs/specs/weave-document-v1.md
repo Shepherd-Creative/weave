@@ -185,14 +185,20 @@ A lone KPI migrates by gaining a container:
 
 New status code: **413** for a payload over the byte cap. Everything else that was 400 is still 400.
 
-**A fixed tool's root is its own.** `render_metric_band`, `render_chart_card`, `render_table_card` and `render_note_card` each stamp their advertised `type` onto the arguments **last**, so a body carrying a conflicting `type` cannot retype the document. It is rejected as an unrecognised key by the real schema instead:
+**A fixed tool's root is its own, and `type` is not a caller argument.** `render_metric_band`, `render_chart_card`, `render_table_card` and `render_note_card` each render exactly the organism they advertise. Their input schema is `…Schema.omit({ type, id })`, so a request carrying `type` is carrying a key the tool does not take. It is refused as an unrecognised key — **whether or not it agrees with the tool's own discriminator**, and on every surface:
 
 ```diff
-- POST /invoke/render_note_card  { "type": "Stack", "children": [ … ] }   → 200, a Stack
-+ POST /invoke/render_note_card  { "type": "Stack", "children": [ … ] }   → 400
+- POST /invoke/render_note_card  { "type": "Stack",    "body": "ok" }   → 200, a NoteCard
++ POST /invoke/render_note_card  { "type": "Stack",    "body": "ok" }   → 400
+- POST /invoke/render_note_card  { "type": "NoteCard", "body": "ok" }   → 200
++ POST /invoke/render_note_card  { "type": "NoteCard", "body": "ok" }   → 400
 ```
 
-This matters most on REST, which never parses `inputSchema` at all — the advertised contract was true only of surfaces whose SDK happened to strip the extra key first, which is not a place a contract can live.
+`render_dashboard` is unaffected: it carries its root under `root` and stamps no discriminator, so there is nothing for a caller to contradict.
+
+Two earlier versions of this got it wrong in opposite directions, and both wore the same disguise — a request that succeeded. Building the root as `{ type: specType, ...record }` let the caller's `type` win the spread, so the tool returned whatever root it was handed. Stamping `type` **last** stopped the retyping but replaced it with a quieter fault: the conflicting key was silently overwritten, so the request above returned **200** and a NoteCard on REST and the MCP App, while `/mcp` refused it. One request, three surfaces, two answers.
+
+The rule is therefore enforced in the shared `invokeTool` path, not left to whichever schema a given transport happens to run — REST never parses `inputSchema` at all, and an advertised schema is not a contract on a surface that does not execute it. The MCP App additionally registers each tool by **schema** rather than by `.shape`, because the SDK rebuilds a raw shape as a non-strict `z.object(...)` that *strips* unknown keys: passing `.shape` discarded the `.strict()` these schemas carry, and the key was deleted before any downstream guard could see it. Neither layer covers the other — each was removed in turn and the other surface stayed green.
 
 ### MCP JSON-RPC
 

@@ -64,19 +64,40 @@ export function createServer(opts?: CreateServerOptions): McpServer {
   const guidance = opts?.guidance ?? null;
 
   for (const tool of TOOLS) {
+    // Register the SCHEMA, not its `.shape`.
+    //
     // registerAppTool's inputSchema accepts a raw Zod shape (ZodRawShapeCompat)
-    // or a StandardSchemaWithJSON, mirroring the base SDK's registerTool. Every
-    // tool now carries an object schema, so `.shape` is a genuine
-    // ZodRawShapeCompat for all five.
+    // or a schema object, mirroring the base SDK's registerTool — but the two
+    // are not equivalent. Handed a raw shape, the SDK rebuilds it with
+    // `objectFromShape()`, i.e. a plain `z.object(...)`, and a plain object
+    // STRIPS unknown keys instead of refusing them. Passing `.shape` therefore
+    // silently discarded the `.strict()` these schemas are built with.
+    //
+    // That is what made this surface disagree with `/mcp`, which passes the
+    // whole object: a caller-supplied `type` was deleted here before the
+    // handler ever ran, so `{ type: "Stack", body: "ok" }` reached invokeTool
+    // as `{ body: "ok" }` and came back a valid NoteCard. Nothing downstream
+    // could have caught it — the key was gone, and with it the evidence that
+    // it had ever been sent. A guard cannot run on input that was thrown away
+    // upstream of it, which is the same lesson the unknown-key hole taught.
     //
     // F8 is fixed upstream of here. render_dashboard used to advertise
     // SpecSchema — a `z.lazy()` union with no `.shape` — and the SDK's
     // normalizeObjectSchema silently produced an EMPTY schema for it, leaving
     // the one tool that composes everything else undiscoverable. It is now a
-    // bounded object gateway (`{ root }`), so no special case is needed and
-    // nothing is weakened: invokeTool still validates the whole document
-    // against the canonical contract, with no key stripping.
-    const shape = (tool.inputSchema as z.AnyZodObject).shape;
+    // bounded object gateway (`{ root }`), a real ZodObject like the rest, so
+    // every tool can be registered by schema without a special case.
+    //
+    // The cast covers a typing gap, not a behavioural one. ext-apps 1.7.4
+    // declares `inputSchema?: ZodRawShapeCompat | StandardSchemaWithJSON`,
+    // which excludes a Zod 3 object (no `~standard.jsonSchema`), while the base
+    // SDK method it forwards to — unchanged, `registerAppTool` only normalises
+    // `_meta` — declares `ZodRawShapeCompat | AnySchema` and takes the schema
+    // branch in `getZodSchemaObject`. The mcp-server's `/mcp` registration
+    // passes the same objects through that same method today. What proves this
+    // is the stdio e2e, which asks the built bundle over a real wire; the cast
+    // itself proves nothing, which is why it is not the only thing here.
+    const inputSchema = tool.inputSchema as unknown as z.ZodRawShape;
 
     // Append the guidance hint to a LOCAL copy of the description; never mutate
     // the shared TOOLS array (it is imported and reused across servers).
@@ -88,7 +109,7 @@ export function createServer(opts?: CreateServerOptions): McpServer {
       {
         title: tool.name,
         description,
-        inputSchema: shape,
+        inputSchema,
         outputSchema: RENDER_OUTPUT_SHAPE,
         _meta: { ui: { resourceUri: RESOURCE_URI } },
       },

@@ -5,6 +5,34 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const DIST = path.resolve(__dirname, "../../dist/index.js");
 
+/**
+ * Arguments valid for each fixed-organism tool, where adding `type` is the only
+ * thing that makes them illegal — so a rejection below is about that key alone.
+ *
+ * Declared locally rather than imported: the mcp-server's copy lives in its
+ * `src/__tests__/`, which is not part of that package's published exports, and
+ * this suite drives the built `dist/` bundle across a package boundary.
+ */
+const VALID_FIXED_TOOL_ARGS: Record<string, Record<string, unknown>> = {
+  render_metric_band: { items: [{ type: "KPI", label: "Revenue", value: 100 }] },
+  render_chart_card: {
+    title: "T",
+    chart: {
+      type: "Chart",
+      variant: "line",
+      categoryKey: "week",
+      valueKeys: ["revenue"],
+      data: [{ week: "W1", revenue: 1 }],
+    },
+  },
+  render_table_card: {
+    title: "T",
+    headers: [{ text: "A" }],
+    rows: [{ type: "DataRow", cells: [{ kind: "text", value: "x" }] }],
+  },
+  render_note_card: { body: "ok" },
+};
+
 function makeClient(env: Record<string, string> = {}) {
   const transport = new StdioClientTransport({
     command: process.execPath,
@@ -137,6 +165,58 @@ describe("weave-mcp-app stdio server", () => {
       arguments: { root: { type: "Label", text: "hi" } },
     });
     expect(result.isError).toBe(true);
+  });
+
+  describe("a caller-supplied `type` is refused over stdio too", () => {
+    // The blocker: this surface registers each tool with `inputSchema.shape`,
+    // and the SDK rebuilds a raw shape as a plain `z.object(...)` — which
+    // STRIPS unknown keys rather than refusing them. So `type` was deleted
+    // before the handler ran, the tool stamped its own, and an otherwise-valid
+    // `{ type: "Stack", body: "ok" }` came back as a NoteCard document.
+    // Nothing downstream could catch it: the evidence was gone by then.
+    const NOTE_CARD_ARGS = { body: "ok" };
+
+    it("accepts the payload without a type (non-vacuity control)", async () => {
+      const result = await client.callTool({
+        name: "render_note_card",
+        arguments: NOTE_CARD_ARGS,
+      });
+      expect(result.isError ?? false).toBe(false);
+      const { document } = result.structuredContent as { document: { root: { type: string } } };
+      expect(document.root.type).toBe("NoteCard");
+    });
+
+    it("refuses an otherwise-valid payload carrying a conflicting type", async () => {
+      const result = await client.callTool({
+        name: "render_note_card",
+        arguments: { ...NOTE_CARD_ARGS, type: "Stack" },
+      });
+      expect(result.isError).toBe(true);
+      // No document on any of the three delivery channels — the fault must not
+      // reach the view.
+      expect(result.structuredContent).toBeUndefined();
+      expect(JSON.stringify(result.content)).toContain("type");
+    });
+
+    it("refuses a redundant matching type as well", async () => {
+      const result = await client.callTool({
+        name: "render_note_card",
+        arguments: { ...NOTE_CARD_ARGS, type: "NoteCard" },
+      });
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toBeUndefined();
+    });
+
+    it("refuses a conflicting type on every fixed tool", async () => {
+      for (const [name, args] of Object.entries(VALID_FIXED_TOOL_ARGS)) {
+        const control = await client.callTool({ name, arguments: args });
+        expect(control.isError ?? false, `${name} fixture is not otherwise valid`).toBe(false);
+
+        const result = await client.callTool({ name, arguments: { ...args, type: "Stack" } });
+        expect(result.isError, `${name} accepted a conflicting type`).toBe(true);
+        expect(result.structuredContent).toBeUndefined();
+      }
+    });
   });
 
   it("rejects a ragged table over stdio", async () => {

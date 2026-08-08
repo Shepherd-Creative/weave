@@ -2,7 +2,7 @@
 
 **Generated**: 2026-08-08
 **Branch**: `feature/primitive-portfolio-wave-1` (worktree `/Users/pierregallet/Documents/weave-wave-1`)
-**Status**: Implemented, independently reviewed, remediated, locally verified, committed. **Nothing pushed, no PR opened.**
+**Status**: Implemented, independently reviewed **twice**, remediated after each round, locally verified, committed. **Nothing pushed, no PR opened.**
 
 > Supersedes the Wave 0 handoff. Wave 0 is **merged** — `0568b4f Wave 0: truth, documentation and CI gate (#7)` is this branch's base — so its one open exit-gate item (a PR starting `ci.yml`) is closed.
 
@@ -43,7 +43,9 @@ Fixed in two independent layers, and they were falsified separately on purpose:
 
 ### 2. REST could retype a fixed tool's root (P1)
 
-`invokeTool` built `{ type: tool.specType, ...record }`, so a caller-supplied `type` won the spread. `POST /invoke/render_note_card {"type":"Stack","children":[…]}` returned **200** and a Stack. The advertised `inputSchema` said otherwise, but nothing ran it: REST never parses it at all, and the SDK surfaces only *strip* the extra key. **An advertised schema is not a contract on any surface that does not execute it.** Now stamped last (`{ ...record, type: tool.specType }`), so the conflicting key is refused by the real schema.
+`invokeTool` built `{ type: tool.specType, ...record }`, so a caller-supplied `type` won the spread. `POST /invoke/render_note_card {"type":"Stack","children":[…]}` returned **200** and a Stack. The advertised `inputSchema` said otherwise, but nothing ran it: REST never parses it at all, and the SDK surfaces only *strip* the extra key. **An advertised schema is not a contract on any surface that does not execute it.**
+
+The fix stamped `type` last (`{ ...record, type: tool.specType }`) and this document claimed the conflicting key was then "refused by the real schema". **That claim was false, and the second review round proved it** — stamping last overwrites the key rather than refusing it, and `type` is a *declared* field of the node schema, so nothing was ever left for an unknown-key rule to catch. See "The second review round" below.
 
 ### 3. Two of the four surfaces had no ingress budget (P2)
 
@@ -58,6 +60,28 @@ Both now spend the budget at the door, on the same `payloadBytes` number REST us
 
 Fixed. `git diff --check 0568b4f` is now exit 0.
 
+## The second review round — the fix that moved the fault instead of closing it
+
+A second independent review of `fe70778` returned one remaining blocker. Everything else it exercised held: the ingress budget, the strict schemas, the framing, `git diff --check`, and the full gate.
+
+### `invokeTool` normalised a conflicting `type` instead of rejecting it (P1)
+
+`POST /invoke/render_note_card {"type":"Stack","body":"ok"}` — **valid but for that one key** — returned **200** and a NoteCard. The same call to `/mcp` was refused. The MCP App accepted it too. One request, three surfaces, two answers.
+
+**This is the same defect as blocker 2, one layer along.** Stamping `type` last stopped the *retyping*, and the round-1 tests agreed, because every payload they used was independently invalid: the NoteCard case carried `children` and omitted the required `body`, so it returned 400 whether or not the discriminator was honoured. **A guard that cannot distinguish the fault it exists for from an unrelated fault is not a guard**, and its green is worth nothing. Each new test now uses a payload where `type` is the only thing wrong, and each carries a control asserting the same payload passes without it.
+
+Two shapes worth keeping:
+
+- **"Rejected as an unrecognised key" was never possible here.** `type` is a *declared* field of every node schema. `.strict()` refuses keys a schema does not declare; it has nothing to say about one it does. The round-1 claim was reasoning about the fix rather than running it.
+- **Overwriting and ignoring are both silence.** The advertised schema is `…Schema.omit({ type, id })`, so `type` is unrecognised **whether or not it agrees** with the tool's discriminator — the SDK raises `unrecognized_keys` for both. The rule is now "a fixed tool does not take a `type` argument", enforced identically everywhere, rather than a reconciliation performed quietly at one layer.
+
+Fixed in **two independent layers**, because neither covers the other — proven by removing each in turn and watching the other surface stay green:
+
+- **`invokeTool` refuses the key** (`packages/weave-mcp-server/src/tools.ts`), raising the same `unrecognized_keys` issue on `type` that the SDK raises. This is the shared path, so it reaches the surfaces that never execute the advertised schema — REST above all. An own-property test walks nothing, so it runs before the structural walk without becoming the step that traverses unbounded input.
+- **The MCP App registers each tool by schema, not by `.shape`** (`packages/weave-mcp-app/src/server.ts`). Handed a raw shape, the SDK rebuilds it with `objectFromShape()` — a plain, non-strict `z.object(...)` that **strips** unknown keys. Passing `.shape` silently discarded the `.strict()` these schemas are built with, so `type` was deleted *before the handler ran* and `invokeTool` never saw it. **A guard cannot run on input that was thrown away upstream of it** — the same lesson the unknown-key hole taught, in a different place. This also makes the spec's standing "rejected, not stripped" claim true on this surface for the first time.
+
+`render_dashboard` is untouched: it carries its root under `root` and stamps no discriminator, so there is nothing to contradict.
+
 ## Verification
 
 Every gate re-run on the remediated tree.
@@ -65,15 +89,15 @@ Every gate re-run on the remediated tree.
 | Gate | Result |
 |---|---|
 | `TURBO_FORCE=true pnpm typecheck` | exit 0 |
-| `TURBO_FORCE=true pnpm test` | exit 0 — **452 vitest + 26 `node --test` = 478**; Wave 1's first pass was 443, the pre-Wave-1 baseline 312 |
+| `TURBO_FORCE=true pnpm test` | exit 0 — **464 vitest + 26 `node --test` = 490**; round 1 was 478, Wave 1's first pass 443, the pre-Wave-1 baseline 312 |
 | `TURBO_FORCE=true pnpm build` | exit 0 |
 | `node scripts/biome-new-findings.mjs 0568b4f` | exit 0 — base 46, head 37, **0 new** |
-| `pnpm lint` | exit 1 — 37 diagnostics (22 errors / 6 warnings / 9 infos) |
+| `pnpm lint` | exit 1 — 37 diagnostics, the pre-existing baseline |
 | `git diff --check 0568b4f` | exit 0 |
 
-Per-package: primitives 180 (was 168), theme-cli 102, mcp-server 82 (was 72), mcp-app 59 (was 46), skill 14, tokens 10, adapter-skill 5.
+Per-package: primitives 180 (was 168), theme-cli 102, mcp-server **90** (was 82, 72 before that), mcp-app **63** (was 59, 46 before that), skill 14, tokens 10, adapter-skill 5.
 
-The remediation's 35 new tests were all written **before** the fix and watched fail. The exact failure text matters in two of them:
+Round 1's 35 new tests were all written **before** the fix and watched fail. The exact failure text matters in two of them:
 
 | Guard | RED evidence |
 |---|---|
@@ -83,11 +107,20 @@ The remediation's 35 new tests were all written **before** the fix and watched f
 | `/mcp` ingress | 3 cases returned **200** with the document rendered from an oversized request |
 | stdio framing | 9 unit cases could not even import the module; the e2e was **answered**, `isError: false` |
 
+Round 2 added **12 tests** (net +8 in mcp-server after replacing 3 false positives, +4 in mcp-app). Eleven were watched fail against the unfixed tree; the twelfth is a non-vacuity control that must pass from the start:
+
+| Guard | RED evidence |
+|---|---|
+| `invokeTool` refuses a caller `type` | 4 unit cases: **a document came back** (`{weave:1, root:{type:"NoteCard",…}}`) where a throw was required |
+| REST | 3 cases returned **200**, including the reviewer's exact `{type:"Stack", body:"ok"}` |
+| REST ↔ `/mcp` parity | the `/mcp` half already passed; the REST half returned **200** to the request `/mcp` refused |
+| MCP App over stdio | 3 e2e cases came back `isError: undefined` with a valid NoteCard document |
+
+Every round-2 payload is valid but for the `type` key, and each case pairs with a control asserting the same payload succeeds without it — the specific hole that let round 1's tests pass over a broken fix.
+
 `pnpm lint` exit 1 is the **pre-existing baseline**, unchanged in kind. It dropped 46 → 37 because formatting the files this work already had to touch cleared 11 pre-existing findings — the same effect Wave 0 saw at 48 → 46. Judge lint by `scripts/biome-new-findings.mjs`, never by the raw exit code.
 
 **⚠️ Use `0568b4f` as the gate's base ref, not `main`.** Local `main` is stale at `b9b1617` and predates the merged Wave 0 commit; against it the gate reports a 48-diagnostic baseline that mixes Wave 0's changes into Wave 1's. There is no `origin/main` in this worktree.
-
-Per-package test counts: primitives 168, theme-cli 102, mcp-server 72, mcp-app 46 (including Playwright e2e), skill 14, tokens 10, adapter-skill 5.
 
 ## Falsification — the guards are load-bearing
 
@@ -114,6 +147,15 @@ Restore verified three ways: `diff -q` against backups taken **after** the fix, 
 | `LIMITS.values` lowered to 100,000 — below the values-maximising legal document | **1 red**: "admits the largest legal document the other caps permit" reported `weave:values`. The cap's non-vacuity guard is load-bearing, so a future tightening cannot silently start refusing legal documents |
 
 Restored from post-fix backups, `diff -q` identical, the fix present on the code line, downstream `dist/` rebuilt (the framing sabotage lives in a bundle), and a tree-wide `grep -rl --no-ignore-files 'SABOTAGE_R[12]_MARKER'` returning **0** against a non-vacuity control of **11** dist files. Note esbuild strips comments, so a comment-only marker never reaches `dist/index.js` — the unit tests import source, which is where that sabotage was proven.
+
+**Second review round.** The 12 new tests carry their own RED evidence (see Verification). Both layers were *additionally* sabotaged, because the question that matters is not whether each works but whether **either one alone is enough** — if one silently covered the other, removing the redundant layer later would look safe and would not be:
+
+| Sabotage | Result |
+|---|---|
+| `invokeTool`'s guard made inert (looks for a key nobody sends, so the branch still exists and never fires) | **8 red** in mcp-server — the whole round-2 REST and unit set. The MCP App e2e stayed **green**, with the sabotaged marker confirmed present in `dist/index.js`: that surface is held by its registration, not by this check |
+| MCP App registration reverted to `.shape` | **3 red** over stdio — **with `invokeTool`'s guard fully intact**. The SDK strips `type` upstream, so the shared guard never sees the key. This is the proof the two layers are independent, and the reason the fix is not a one-liner |
+
+Restored from backups taken **after** the fix, `diff -q` identical on both files, each fix confirmed present on its own code line, `dist/` rebuilt, and a tree-wide `grep -rl --no-ignore-files 'SABOTAGE_T[12]_MARKER'` returning **0**. The sweep was given its own non-vacuity control this time: a string known to live in the gitignored bundle was searched with the identical flags and **did** return `packages/weave-mcp-app/dist/index.js`, so the zero is a real zero and not an unsearched tree.
 
 ## Key decisions
 
@@ -145,7 +187,7 @@ Restored from post-fix backups, `diff -q` identical, the fix present on the code
 
 ## Not yet done
 
-- [x] **Independent adversarial review of the diff** (shared execution rule 4). Obtained against `0806ac8`; verdict "do not approve", three proven blockers plus a whitespace note. All four remediated — see "The review, and what it broke".
+- [x] **Independent adversarial review of the diff** (shared execution rule 4). Round 1 against `0806ac8`: verdict "do not approve", three proven blockers plus a whitespace note — see "The review, and what it broke". Round 2 against `fe70778`: one remaining blocker, the conflicting-`type` normalisation, plus the false-positive tests that had hidden it — see "The second review round". Everything else round 2 exercised (ingress budget, strict schemas, stdio framing, the full gate) held.
 - [ ] Push, open a PR, and let `ci.yml` run against Wave 1.
 - [ ] Only then declare the Wave 1 gate closed and start Wave 2.
 
@@ -160,6 +202,15 @@ Written with the review's lesson in mind: **a documented limitation that makes a
 5. **A stdio frame over the budget is answered with silence, not an error.** The message was never framed, so its `id` was never read; an `id: null` JSON-RPC error would surface on an SDK client as an unmatched response rather than a failure. The caller times out; the operator gets the byte count on stderr. Documented in the spec's ingress section.
 6. **The `id` field is validated and unique but consumed by nothing.** Reserved for Wave 4's Tabs and Wave 5's registry.
 7. **`nesting: 40` was not derived from a stack-depth measurement**, only from the observation that a legal depth-6 document nests about 20. It is a guard rail with headroom, not a tuned number.
+8. **⚠️ `id` on a fixed tool's arguments still diverges across surfaces — verified, deliberately not fixed here.** The parity fixed in round 2 is scoped to `type`, so state it that way and not as blanket parity. Fixed tools advertise `…Schema.omit({ type, id })`, which makes `id` unrecognised on the two surfaces that execute the advertised schema. Measured on the remediated tree with `POST /invoke/render_note_card {"body":"ok","id":"note-1"}`:
+
+   | Surface | Before round 2 | After round 2 |
+   |---|---|---|
+   | REST | **200**, `id` stamped onto the root | **200**, unchanged |
+   | `/mcp` | rejected, `unrecognized_keys: ["id"]` | rejected, unchanged |
+   | MCP App | silently **stripped**, `id` lost | now **rejected**, matching `/mcp` |
+
+   Three behaviours became two, and the surface that changed moved from silent data loss to a refusal — the direction the repo's "rejected, not stripped" policy points. Closing the last gap means deciding whether a caller may set a root `id` through a fixed tool at all (reject it in `invokeTool` like `type`, or re-admit it in the advertised schema). That is a contract decision, not a defect fix, so it was left for Pierre rather than folded into a scoped remediation. It makes no claim in the spec untrue: the spec documents `id` as an optional node field, never as a fixed tool's argument.
 
 ## Files to know
 
@@ -169,20 +220,22 @@ Written with the review's lesson in mind: **a documented limitation that makes a
 | `packages/weave-primitives/src/schemas/bounds.ts` | `LIMITS` and the bounded primitives, each cap carrying its measurement — and the unknown-key policy, written where the caps live. |
 | `packages/weave-primitives/bench/document-limits.bench.mjs` | The evidence. Self-contained; needs `dist/` only for its whole-document sections, which now report `values` alongside objects and bytes. |
 | `docs/specs/weave-document-v1.md` | Contract, recorded benchmark, migration guide, deprecation timetable. |
-| `packages/weave-mcp-server/src/tools.ts` | `DashboardGatewaySchema` (F8) and `invokeTool`, which every transport shares. |
+| `packages/weave-mcp-server/src/tools.ts` | `DashboardGatewaySchema` (F8) and `invokeTool`, which every transport shares — including the rule that a fixed tool's `type` is not a caller argument. |
 | `packages/weave-mcp-server/src/ingress.ts` | The `/mcp` byte budget — why the SDK boundary forces it here and not downstream. |
+| `packages/weave-mcp-app/src/server.ts` | Registers each tool by **schema, not `.shape`** — and why that distinction is load-bearing rather than stylistic. |
 | `packages/weave-mcp-app/src/bounded-stdin.ts` | The stdio framing budget and its documented semantics. |
+| `packages/weave-mcp-server/src/__tests__/fixtures.ts` | Payloads valid but for one key, so a rejection is about that key. The absence of these is what let round 1 pass over a broken fix. |
 | `packages/weave-primitives/src/__tests__/document.test.ts` | 65 cases. Opens with the harness-sanity test that caught the false-green. |
 | `packages/weave-primitives/src/__tests__/packaging.test.ts` | Guards the "schemas without a renderer" claim at source level. |
 
 ## Resume instructions
 
-1. `cd /Users/pierregallet/Documents/weave-wave-1`, confirm the tree is clean and 2 commits ahead of `0568b4f`.
+1. `cd /Users/pierregallet/Documents/weave-wave-1`, confirm the tree is clean and 3 commits ahead of `0568b4f`.
 2. Re-verify before trusting anything:
    ```bash
    TURBO_FORCE=true pnpm typecheck && TURBO_FORCE=true pnpm test
    ```
-   Expected exit 0, 452 vitest + 26 `node --test`.
+   Expected exit 0, 464 vitest + 26 `node --test`.
    If Playwright fails with `Executable doesn't exist … chromium_headless_shell-1228`:
    `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
 3. Confirm the lint position:

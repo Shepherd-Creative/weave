@@ -1,6 +1,7 @@
 import { LIMITS } from "@shepherd-creative/weave-primitives/schemas";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
+import { VALID_FIXED_TOOL_ARGS } from "./fixtures.js";
 
 const app = createApp();
 
@@ -296,41 +297,54 @@ describe("weave-mcp-server", () => {
      * `{ type: tool.specType, ...record }`, so a caller-supplied `type` won the
      * spread and the tool rendered whatever root it was handed — over REST,
      * which never parses `inputSchema` at all.
+     *
+     * Stamping `type` LAST stopped the retyping but replaced it with a quieter
+     * fault: the conflicting key was silently overwritten, so an otherwise-valid
+     * `{ type: "Stack", body: "ok" }` came back **200** as a NoteCard while the
+     * identical call to `/mcp` was refused. Every payload below is valid but for
+     * the `type` key, so each rejection is about that key and nothing else.
      */
-    it("does not let a conflicting discriminator turn render_note_card into a Stack", async () => {
-      const res = await post("render_note_card", {
-        type: "Stack",
-        children: [{ type: "NoteCard", body: "tool override" }],
-      });
+    it("refuses an otherwise-valid payload carrying a conflicting type", async () => {
+      const res = await post("render_note_card", { type: "Stack", body: "ok" });
       expect(res.status).toBe(400);
       const body = await res.json();
-      // Non-vacuity: a 400 could come from anywhere. The proof is that no
-      // document came back at all, and that the failure is `children` being an
-      // unrecognised key — i.e. the root really was built as a NoteCard.
+      // No document at all — the defect was never a status code, it was a
+      // document the caller was not entitled to.
       expect(body.document).toBeUndefined();
       expect(
         (body.issues as Array<{ code: string; keys?: string[] }>).some(
-          (issue) => issue.code === "unrecognized_keys" && issue.keys?.includes("children"),
+          (issue) => issue.code === "unrecognized_keys" && issue.keys?.includes("type"),
         ),
       ).toBe(true);
     });
 
-    it("does not let a conflicting discriminator retype any other fixed tool", async () => {
-      for (const [name, args] of [
-        ["render_metric_band", { type: "NoteCard", body: "x" }],
-        ["render_table_card", { type: "NoteCard", body: "x" }],
-        ["render_chart_card", { type: "NoteCard", body: "x" }],
-      ] as const) {
-        const res = await post(name, args);
-        expect(res.status, `${name} accepted an overridden root`).toBe(400);
+    it("accepts the same payload with the type removed (non-vacuity control)", async () => {
+      // Without this, the 400 above could be a rejection of `body`.
+      const res = await post("render_note_card", { body: "ok" });
+      expect(res.status).toBe(200);
+      expect((await res.json()).document.root.type).toBe("NoteCard");
+    });
+
+    it("refuses a conflicting type on every other fixed tool, and only for that key", async () => {
+      for (const [name, args] of Object.entries(VALID_FIXED_TOOL_ARGS)) {
+        const control = await post(name, args);
+        expect(control.status, `${name} fixture is not otherwise valid`).toBe(200);
+
+        const res = await post(name, { ...args, type: "Stack" });
+        expect(res.status, `${name} accepted a conflicting type`).toBe(400);
+        expect((await res.json()).document).toBeUndefined();
       }
     });
 
-    it("still renders the advertised root when the body carries the matching type", async () => {
-      // The fix must not break a caller who redundantly names the right type.
-      const res = await post("render_note_card", { type: "NoteCard", body: "fine" });
-      expect(res.status).toBe(200);
-      expect((await res.json()).document.root.type).toBe("NoteCard");
+    it("refuses a redundant matching type as well — `type` is not an advertised argument", async () => {
+      // The tool's advertised schema is `…Schema.omit({ type, id })`, so `type`
+      // is unrecognised on `/mcp` whether it agrees with the discriminator or
+      // not. REST accepting the agreeing case would leave the two surfaces
+      // answering the same request differently, which is the defect this
+      // remediation exists to close.
+      const res = await post("render_note_card", { type: "NoteCard", body: "ok" });
+      expect(res.status).toBe(400);
+      expect((await res.json()).document).toBeUndefined();
     });
   });
 
@@ -531,6 +545,30 @@ describe("weave-mcp-server", () => {
       // A bare `GET /skill.md` is not actionable for a client that only speaks
       // JSON-RPC and was never told this server's base URL.
       expect(dashboard.description).toContain("weave://skill.md");
+    });
+
+    it("answers a conflicting `type` the same way REST does (surface parity)", async () => {
+      // The blocker this locks: `/mcp` refused this exact payload because the
+      // SDK runs the advertised `…omit({ type, id })` schema strictly, while
+      // REST — which never parses that schema — returned 200 and a document.
+      // One request, one answer, whichever door it came through.
+      const args = { ...VALID_FIXED_TOOL_ARGS.render_note_card, type: "Stack" };
+
+      const overMcp = await (
+        await jsonRpc({
+          jsonrpc: "2.0",
+          id: 30,
+          method: "tools/call",
+          params: { name: "render_note_card", arguments: args },
+        })
+      ).json();
+      const overRest = await post("render_note_card", args);
+
+      expect(overMcp.result.isError).toBe(true);
+      expect(JSON.stringify(overMcp.result.content)).toContain("unrecognized_keys");
+      expect(overMcp.result.structuredContent).toBeUndefined();
+      expect(overRest.status).toBe(400);
+      expect((await overRest.json()).document).toBeUndefined();
     });
 
     it("tools/call render_metric_band returns structuredContent + text", async () => {

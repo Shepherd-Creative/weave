@@ -166,16 +166,40 @@ export function invokeTool(name: string, args: unknown): WeaveDocumentV1 {
   }
 
   const record = args !== null && typeof args === "object" ? (args as Record<string, unknown>) : {};
-  // `type` is stamped LAST, so it wins.
+
+  // A fixed tool does not take a `type` argument, so being sent one is an
+  // error — never something to reconcile.
   //
-  // Built the other way round the spread let a caller-supplied `type` override
-  // the tool's own discriminator, and `render_note_card` would happily return a
-  // Stack of anything. The advertised schema said otherwise but nothing ran it:
-  // REST does not parse `inputSchema` at all, and the SDK surfaces only strip
-  // keys — neither is a place a contract can live. Stamping last makes the
-  // advertised root true of every surface by construction, and a caller who
-  // sent a conflicting `type` now gets an unrecognised-key rejection from the
-  // real schema rather than a document they were never entitled to.
+  // This has now been wrong in both directions. Built as
+  // `{ type: tool.specType, ...record }`, a caller-supplied `type` won the
+  // spread and `render_note_card` returned whatever root it was handed.
+  // Stamping it LAST stopped the retyping but replaced it with a quieter
+  // fault: the conflicting key was silently overwritten, so
+  // `{ type: "Stack", body: "ok" }` — valid but for that key — came back 200
+  // as a NoteCard, while `/mcp` refused the identical request because the SDK
+  // actually runs the advertised `…omit({ type, id })` schema. Two surfaces,
+  // two answers, and the surface that disagreed was the one nobody could see.
+  //
+  // Neither overwriting nor ignoring it is a contract. The advertised schema
+  // omits `type`, so the key is unrecognised whether or not it AGREES with the
+  // discriminator — which is exactly what the SDK raises for both cases. This
+  // raises the same issue from the shared path, so every surface answers the
+  // same request the same way, including the ones that never run the
+  // advertised schema at all.
+  //
+  // Cheap enough to run first: an own-property test walks nothing, so it
+  // cannot be the step that traverses an unbounded input.
+  if (tool.specType && Object.hasOwn(record, "type")) {
+    throw new z.ZodError([
+      {
+        code: z.ZodIssueCode.unrecognized_keys,
+        keys: ["type"],
+        path: [],
+        message: `Unrecognized key(s) in object: 'type'. ${name} always renders a ${tool.specType}; its \`type\` is not a caller argument.`,
+      },
+    ]);
+  }
+
   const root = tool.specType ? { ...record, type: tool.specType } : record.root;
   const candidate = { weave: WEAVE_DOCUMENT_VERSION, root };
 
