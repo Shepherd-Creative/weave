@@ -6,28 +6,37 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // App-mode proof: drives the built view through the MCP Apps postMessage
 // protocol the way a real host does (ui/initialize handshake, then a
-// ui/notifications/tool-result), instead of the ?spec= dev harness. This is
+// ui/notifications/tool-result), instead of the ?document= dev harness. This is
 // the path Claude Desktop exercises — the dev harness never runs there.
 //
 // Hosts differ in what they forward: Claude Desktop was observed (2026-07-07)
 // stripping structuredContent from the tool-result notification, which made
-// the widget silently blank. Each case below delivers the spec on a different
+// the widget silently blank. Each case below delivers the document on a different
 // channel; all three must render.
 
 const HTML = path.resolve(__dirname, "../../dist/mcp-app.html");
-const rawSpec = readFileSync(path.resolve(__dirname, "fixtures/dashboard-spec.json"), "utf8");
-const spec = JSON.parse(rawSpec);
+const rawDocument = readFileSync(
+  path.resolve(__dirname, "fixtures/dashboard-document.json"),
+  "utf8",
+);
+const weaveDocument = JSON.parse(rawDocument);
 
-const CONTENT_TEXT = `Weave render_dashboard spec:\n\`\`\`json\n${JSON.stringify(spec, null, 2)}\n\`\`\``;
+const CONTENT_TEXT = `Weave render_dashboard document:\n\`\`\`json\n${JSON.stringify(weaveDocument, null, 2)}\n\`\`\``;
 
 const CASES = [
   {
-    name: "spec-compliant host: structuredContent.spec",
-    result: { content: [{ type: "text", text: "spec attached" }], structuredContent: { spec } },
+    name: "spec-compliant host: structuredContent.document",
+    result: {
+      content: [{ type: "text", text: "document attached" }],
+      structuredContent: { document: weaveDocument },
+    },
   },
   {
-    name: "structuredContent-stripping host: _meta[weave/spec]",
-    result: { content: [{ type: "text", text: "spec attached" }], _meta: { "weave/spec": spec } },
+    name: "structuredContent-stripping host: _meta[weave/document]",
+    result: {
+      content: [{ type: "text", text: "document attached" }],
+      _meta: { "weave/document": weaveDocument },
+    },
   },
   {
     name: "meta-and-structuredContent-stripping host: fenced json in content",

@@ -8,7 +8,7 @@ Once populated, this example will demonstrate:
 1. Running `@shepherd-creative/weave-mcp-server` alongside Next dev
 2. Concatenating the SKILL content into the agent's system prompt
 3. Registering the 5 render tools via CopilotKit's `useCopilotAction`
-4. Rendering returned specs with `<Weave spec={...} />`
+4. Rendering returned documents with `<Weave document={...} />`
 5. Survive-refresh behaviour (pending assistant-message-sync fix in host app A4)
 
 Build / dev scripts are no-ops during B3.

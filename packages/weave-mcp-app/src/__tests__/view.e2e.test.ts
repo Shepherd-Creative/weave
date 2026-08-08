@@ -1,21 +1,24 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { SpecSchema } from "@shepherd-creative/weave-primitives/schemas";
+import { validateWeaveDocument } from "@shepherd-creative/weave-primitives/schemas";
 import tokens from "@shepherd-creative/weave-tokens/tokens.json";
 import { type Browser, chromium } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { injectTheme, validateThemeCss } from "../theme.js";
-import { computedRootVar, openSpecPage } from "./view-helpers.js";
+import { computedRootVar, openDocumentPage } from "./view-helpers.js";
 
 const HTML = path.resolve(__dirname, "../../dist/mcp-app.html");
-const rawSpec = readFileSync(path.resolve(__dirname, "fixtures/dashboard-spec.json"), "utf8");
+const rawDocument = readFileSync(
+  path.resolve(__dirname, "fixtures/dashboard-document.json"),
+  "utf8",
+);
 
 // Verified locally before committing to this approach: file:// URLs on this
 // Chromium build (v1228 / Chrome for Testing 149) preserve query strings
-// fine, so no throwaway http server is needed to carry ?spec= to the page.
+// fine, so no throwaway http server is needed to carry ?document= to the page.
 
-describe("view renders a weave spec standalone", () => {
+describe("view renders a weave document standalone", () => {
   let browser: Browser;
   beforeAll(async () => {
     browser = await chromium.launch();
@@ -24,23 +27,27 @@ describe("view renders a weave spec standalone", () => {
     await browser?.close();
   });
 
-  it("fixture is a valid spec", () => {
-    expect(() => SpecSchema.parse(JSON.parse(rawSpec))).not.toThrow();
+  it("fixture is a valid v1 document", () => {
+    // Non-vacuity: the fixture every render assertion below depends on must
+    // pass the SAME canonical gate the view uses, not a looser one.
+    const parsed = validateWeaveDocument(JSON.parse(rawDocument));
+    expect(parsed.weave).toBe(1);
+    expect(parsed.root.type).toBe("Grid");
   });
 
   it("renders primitives and consumes token variables", async () => {
-    const { page, consoleErrors, pageErrors } = await openSpecPage(browser, HTML, rawSpec);
+    const { page, consoleErrors, pageErrors } = await openDocumentPage(browser, HTML, rawDocument);
 
-    // A schema-invalid spec surfaces as a ZodError pageerror with an empty
+    // A schema-invalid document surfaces as a ZodError pageerror with an empty
     // #root — the load-bearing assertion is that NO page errors occurred at
     // all, not just that none mention the harness's parse-failure text.
     expect(pageErrors).toEqual([]);
 
     // Harness JSON/base64 parse failures render as plain text into #root.
     const rootText = await page.locator("#root").innerText();
-    expect(rootText).not.toContain("failed to parse spec");
+    expect(rootText).not.toContain("failed to parse document");
     for (const msg of consoleErrors) {
-      expect(msg).not.toContain("failed to parse spec");
+      expect(msg).not.toContain("failed to parse document");
     }
 
     // Exact match so a fixture reorder can't silently repoint this at the
@@ -83,7 +90,7 @@ describe("view renders a weave spec standalone", () => {
     writeFileSync(themedPath, themedHtml);
 
     try {
-      const { page } = await openSpecPage(browser, themedPath, rawSpec);
+      const { page } = await openDocumentPage(browser, themedPath, rawDocument);
       // The injected :root wins over the base tokens.css default (#09090b),
       // proving cascade order lets the brand theme override the base.
       const bg = await computedRootVar(page, "--background");

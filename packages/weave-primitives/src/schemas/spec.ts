@@ -1,36 +1,11 @@
 import { z } from "zod";
-import { IconSchema, LabelSchema, NumberSchema } from "./atoms.js";
-import {
-  ChartSchema,
-  DataRowSchema,
-  KPISchema,
-  StatSchema,
-} from "./molecules.js";
-import {
-  ChartCardSchema,
-  MetricBandSchema,
-  NoteCardSchema,
-  TableCardSchema,
-} from "./organisms.js";
-import {
-  type GridSpec,
-  type StackSpec,
-  makeGridSchema,
-  makeStackSchema,
-} from "./layouts.js";
-import type {
-  ChartSpec,
-  DataRowSpec,
-  KPISpec,
-  StatSpec,
-} from "./molecules.js";
-import type {
-  ChartCardSpec,
-  MetricBandSpec,
-  NoteCardSpec,
-  TableCardSpec,
-} from "./organisms.js";
 import type { IconSpec, LabelSpec, NumberSpec } from "./atoms.js";
+import { IconSchema, LabelSchema, NumberSchema } from "./atoms.js";
+import { type GridSpec, makeGridSchema, makeStackSchema, type StackSpec } from "./layouts.js";
+import type { ChartSpec, KPISpec, StatSpec } from "./molecules.js";
+import { ChartSchema, KPISchema, StatSchema } from "./molecules.js";
+import type { ChartCardSpec, MetricBandSpec, NoteCardSpec, TableCardSpec } from "./organisms.js";
+import { ChartCardSchema, MetricBandSchema, NoteCardSchema, TableCardSchema } from "./organisms.js";
 
 /**
  * Spec: the full discriminated union of every primitive the LLM may emit.
@@ -45,7 +20,6 @@ export type Spec =
   | IconSpec
   | KPISpec
   | StatSpec
-  | DataRowSpec
   | ChartSpec
   | MetricBandSpec
   | ChartCardSpec
@@ -81,25 +55,25 @@ export const StackSchema: z.ZodType<StackSpec> = makeStackSchema(
 // discriminatedUnion" regression test in
 // packages/weave-mcp-server/src/__tests__/app.test.ts and the 0.1.1 entry in
 // packages/weave-primitives/CHANGELOG.md.
-export const SpecSchema: z.ZodType<Spec> = z.lazy(() =>
-  // GridSchema / StackSchema are `z.ZodType<...>` (type-erased through
-  // z.lazy), so TS can't prove they satisfy ZodDiscriminatedUnionOption<"type">.
-  // At runtime every member still has `type: z.literal(...)`, which is all
-  // discriminatedUnion needs to branch correctly.
-  // @ts-expect-error — variance on the members tuple; see comment above
-  z.discriminatedUnion("type", [
-    NumberSchema,
-    LabelSchema,
-    IconSchema,
-    KPISchema,
-    StatSchema,
-    DataRowSchema,
-    ChartSchema,
-    MetricBandSchema,
-    ChartCardSchema,
-    TableCardSchema,
-    NoteCardSchema,
-    GridSchema,
-    StackSchema,
-  ]) as unknown as z.ZodType<Spec>,
+export const SpecSchema: z.ZodType<Spec> = z.lazy(
+  () =>
+    // GridSchema / StackSchema are `z.ZodType<...>` (type-erased through
+    // z.lazy), so TS can't prove they satisfy ZodDiscriminatedUnionOption<"type">.
+    // At runtime every member still has `type: z.literal(...)`, which is all
+    // discriminatedUnion needs to branch correctly.
+    // @ts-expect-error — variance on the members tuple; see comment above
+    z.discriminatedUnion("type", [
+      NumberSchema,
+      LabelSchema,
+      IconSchema,
+      KPISchema,
+      StatSchema,
+      ChartSchema,
+      MetricBandSchema,
+      ChartCardSchema,
+      TableCardSchema,
+      NoteCardSchema,
+      GridSchema,
+      StackSchema,
+    ]) as unknown as z.ZodType<Spec>,
 );

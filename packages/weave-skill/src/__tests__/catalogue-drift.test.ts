@@ -68,6 +68,15 @@ describe("SKILL.md names only available primitives", () => {
   });
 });
 
+/**
+ * `DataRow` carries a `type` and appears in worked examples, but it is NOT a
+ * catalogue primitive — Wave 1 demoted it to `TableCard` internals, because on
+ * its own it renders a `<tr>` with no table around it (F2). It is the only
+ * shape with that status, so it is named explicitly rather than the guard being
+ * relaxed to "anything the catalogue omits is probably fine".
+ */
+const TABLE_INTERNAL_SHAPES = ["DataRow"];
+
 describe("SKILL.md is internally consistent", () => {
   it("uses no primitive type in its worked examples that the catalogue omits", () => {
     const section = catalogueSection();
@@ -83,7 +92,57 @@ describe("SKILL.md is internally consistent", () => {
     );
     expect(usedInExamples.size, "SKILL.md must carry worked JSON examples").toBeGreaterThan(0);
 
-    expect([...usedInExamples].filter((t) => !catalogue.has(t))).toEqual([]);
+    const unexplained = [...usedInExamples].filter(
+      (t) => !catalogue.has(t) && !TABLE_INTERNAL_SHAPES.includes(t),
+    );
+    expect(unexplained).toEqual([]);
+  });
+
+  it("keeps the catalogue omitting the table-internal shapes", () => {
+    // The exemption above is only safe while the catalogue really does omit
+    // them. Without this, adding `DataRow` back to the catalogue would go
+    // unnoticed and the model would be told it can place one anywhere.
+    const catalogue = new Set(
+      backtickedNames(
+        catalogueSection()
+          .split("\n")
+          .filter((l) => /Atoms:|Molecules:|Organisms:|Layouts:/.test(l))
+          .join("\n"),
+      ),
+    );
+    for (const shape of TABLE_INTERNAL_SHAPES) {
+      expect(catalogue.has(shape), `${shape} is table-internal and must not be catalogued`).toBe(
+        false,
+      );
+    }
+  });
+
+  it("explains where a table-internal shape may appear", () => {
+    // An exempted shape the skill never explains is worse than one it forbids:
+    // the model sees it in an example and infers it is a general primitive.
+    const section = catalogueSection();
+    for (const shape of TABLE_INTERNAL_SHAPES) {
+      expect(section, `catalogue must say where ${shape} is allowed`).toContain(shape);
+      expect(section).toContain("TableCard.rows");
+    }
+  });
+
+  it("never shows a table-internal shape as a root or a layout child", () => {
+    // The rule Wave 1 enforces in code, checked against the prose that teaches
+    // it: in every worked example a DataRow must sit inside a `rows` array.
+    for (const shape of TABLE_INTERNAL_SHAPES) {
+      const occurrences = [...SKILL.matchAll(new RegExp(`"type":\\s*"${shape}"`, "g"))];
+      expect(occurrences.length, `no worked example uses ${shape}`).toBeGreaterThan(0);
+      for (const occurrence of occurrences) {
+        const preceding = SKILL.slice(0, occurrence.index);
+        const nearestRows = preceding.lastIndexOf('"rows"');
+        const nearestChildren = preceding.lastIndexOf('"children"');
+        expect(
+          nearestRows > nearestChildren,
+          `a ${shape} in a worked example is not inside a rows array`,
+        ).toBe(true);
+      }
+    }
   });
 });
 

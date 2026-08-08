@@ -1,25 +1,32 @@
 import { z } from "zod";
-import { AlignSchema, DensitySchema, IconNameSchema, ToneSchema } from "./tokens.js";
+import { BodyTextSchema, LIMITS, NodeIdentity, TextSchema } from "./bounds.js";
 import { ChartSchema, DataRowSchema, KPISchema } from "./molecules.js";
+import { AlignSchema, DensitySchema, IconNameSchema, ToneSchema } from "./tokens.js";
 
 // --- MetricBand ------------------------------------------------------
 
-export const MetricBandSchema = z.object({
-  type: z.literal("MetricBand"),
-  items: z.array(KPISchema).min(1).max(8),
-  density: DensitySchema.optional(),
-});
+export const MetricBandSchema = z
+  .object({
+    ...NodeIdentity,
+    type: z.literal("MetricBand"),
+    items: z.array(KPISchema).min(1).max(LIMITS.metricBandItems),
+    density: DensitySchema.optional(),
+  })
+  .strict();
 export type MetricBandSpec = z.infer<typeof MetricBandSchema>;
 
 // --- NoteCard --------------------------------------------------------
 
-export const NoteCardSchema = z.object({
-  type: z.literal("NoteCard"),
-  title: z.string().optional(),
-  body: z.string(),
-  tone: z.enum(["default", "info", "warning", "muted"]).optional(),
-  icon: IconNameSchema.optional(),
-});
+export const NoteCardSchema = z
+  .object({
+    ...NodeIdentity,
+    type: z.literal("NoteCard"),
+    title: TextSchema.optional(),
+    body: BodyTextSchema,
+    tone: z.enum(["default", "info", "warning", "muted"]).optional(),
+    icon: IconNameSchema.optional(),
+  })
+  .strict();
 export type NoteCardSpec = z.infer<typeof NoteCardSchema>;
 
 // --- ChartCard -------------------------------------------------------
@@ -30,29 +37,46 @@ import { LabelSchema } from "./atoms.js";
 
 export const ChartCardFooterSchema = z.union([LabelSchema, NoteCardSchema]);
 
-export const ChartCardSchema = z.object({
-  type: z.literal("ChartCard"),
-  title: z.string(),
-  caption: z.string().optional(),
-  chart: ChartSchema,
-  footer: ChartCardFooterSchema.optional(),
-});
+export const ChartCardSchema = z
+  .object({
+    ...NodeIdentity,
+    type: z.literal("ChartCard"),
+    title: TextSchema,
+    caption: TextSchema.optional(),
+    chart: ChartSchema,
+    footer: ChartCardFooterSchema.optional(),
+  })
+  .strict();
 export type ChartCardSpec = z.infer<typeof ChartCardSchema>;
 
 // --- TableCard -------------------------------------------------------
 
-export const TableHeaderSchema = z.object({
-  text: z.string(),
-  align: AlignSchema.optional(),
-  tone: ToneSchema.optional(),
-});
+export const TableHeaderSchema = z
+  .object({
+    text: TextSchema,
+    align: AlignSchema.optional(),
+    tone: ToneSchema.optional(),
+  })
+  .strict();
 
-export const TableCardSchema = z.object({
-  type: z.literal("TableCard"),
-  title: z.string(),
-  caption: z.string().optional(),
-  headers: z.array(TableHeaderSchema),
-  rows: z.array(DataRowSchema),
-  density: z.enum(["compact", "comfortable"]).optional(),
-});
+/**
+ * A table.
+ *
+ * Header and row counts are bounded here. "Exactly one cell per header" is a
+ * cross-field rule and lives in the canonical validator instead: Zod 3's
+ * `discriminatedUnion` requires every member to be a `ZodObject`, and
+ * `.superRefine()` produces a `ZodEffects`, which the union rejects at
+ * construction time (measured on zod 3.25.76). See packages/weave-primitives/src/schemas/document.ts.
+ */
+export const TableCardSchema = z
+  .object({
+    ...NodeIdentity,
+    type: z.literal("TableCard"),
+    title: TextSchema,
+    caption: TextSchema.optional(),
+    headers: z.array(TableHeaderSchema).min(1).max(LIMITS.tableHeaders),
+    rows: z.array(DataRowSchema).max(LIMITS.tableRows),
+    density: z.enum(["compact", "comfortable"]).optional(),
+  })
+  .strict();
 export type TableCardSpec = z.infer<typeof TableCardSchema>;

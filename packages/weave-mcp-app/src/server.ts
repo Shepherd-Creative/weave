@@ -41,20 +41,21 @@ export type CreateServerOptions = {
 const GUIDANCE_TOOL_HINT =
   " Brand composition guidance is configured for this host; call get_skill before composing.";
 
-// Every render tool returns { spec } as structuredContent — the View renders
-// from it. Declaring an outputSchema is LOAD-BEARING for Claude Desktop: the
-// MCP spec couples structuredContent to outputSchema, and Desktop does not
-// forward structuredContent to the app view for tools that advertise none
-// (observed 2026-07-07: identical registration without outputSchema produced
-// an invisible zero-height widget; the working mermaid-app reference differs
-// only by declaring one). The full recursive spec union can't be expressed
-// here for the same lazy-union reason as render_dashboard's inputSchema, so
-// the schema is deliberately loose — the spec was already validated by
-// invokeTool before it is returned.
+// Every render tool returns { document } as structuredContent — the View
+// renders from it. Declaring an outputSchema is LOAD-BEARING for Claude
+// Desktop: the MCP spec couples structuredContent to outputSchema, and Desktop
+// does not forward structuredContent to the app view for tools that advertise
+// none (observed 2026-07-07: identical registration without outputSchema
+// produced an invisible zero-height widget; the working mermaid-app reference
+// differs only by declaring one). The recursive root union can't be expressed
+// here, so the schema is deliberately loose — the document was already
+// validated by invokeTool against the canonical contract before it is returned.
 // Raw shape (not z.object) — registerAppTool's outputSchema takes
 // ZodRawShapeCompat, mirroring its inputSchema parameter.
 const RENDER_OUTPUT_SHAPE = {
-  spec: z.record(z.unknown()).describe("Validated Weave dashboard spec (primitive tree)."),
+  document: z
+    .record(z.unknown())
+    .describe("Validated WeaveDocumentV1: { weave: 1, root: <layout or organism> }."),
 };
 
 export function createServer(opts?: CreateServerOptions): McpServer {
@@ -63,26 +64,40 @@ export function createServer(opts?: CreateServerOptions): McpServer {
   const guidance = opts?.guidance ?? null;
 
   for (const tool of TOOLS) {
-    // registerAppTool's inputSchema accepts a raw Zod shape (ZodRawShapeCompat)
-    // or a StandardSchemaWithJSON, mirroring the base SDK's registerTool. The
-    // four organism tools carry an object schema (a `.omit({type})` result),
-    // whose `.shape` is a genuine ZodRawShapeCompat — pass it directly.
+    // Register the SCHEMA, not its `.shape`.
     //
-    // render_dashboard's schema is SpecSchema, a discriminated union (no
-    // `.shape`). We pass the whole schema: the SDK's normalizeObjectSchema
-    // returns undefined for a non-object schema and falls back to parsing the
-    // schema itself, so the real recursive union validates the dashboard with
-    // NO key stripping. A raw passthrough shape would instead be wrapped in a
-    // plain z.object() that strips organism fields before invokeTool sees them.
-    // The cast satisfies the parameter type (SpecSchema isn't statically a raw
-    // shape); it is runtime-correct — verified by the nested-Grid e2e case.
-    // Trade-off: tools/list advertises an empty JSON schema for this tool (the
-    // SDK cannot normalise the lazy union); revisit when the SDK consumes
-    // ~standard.jsonSchema (modelcontextprotocol/typescript-sdk PR #1689).
-    const shape =
-      tool.name === "render_dashboard"
-        ? (tool.inputSchema as unknown as Record<string, z.ZodTypeAny>)
-        : (tool.inputSchema as z.AnyZodObject).shape;
+    // registerAppTool's inputSchema accepts a raw Zod shape (ZodRawShapeCompat)
+    // or a schema object, mirroring the base SDK's registerTool — but the two
+    // are not equivalent. Handed a raw shape, the SDK rebuilds it with
+    // `objectFromShape()`, i.e. a plain `z.object(...)`, and a plain object
+    // STRIPS unknown keys instead of refusing them. Passing `.shape` therefore
+    // silently discarded the `.strict()` these schemas are built with.
+    //
+    // That is what made this surface disagree with `/mcp`, which passes the
+    // whole object: a caller-supplied `type` was deleted here before the
+    // handler ever ran, so `{ type: "Stack", body: "ok" }` reached invokeTool
+    // as `{ body: "ok" }` and came back a valid NoteCard. Nothing downstream
+    // could have caught it — the key was gone, and with it the evidence that
+    // it had ever been sent. A guard cannot run on input that was thrown away
+    // upstream of it, which is the same lesson the unknown-key hole taught.
+    //
+    // F8 is fixed upstream of here. render_dashboard used to advertise
+    // SpecSchema — a `z.lazy()` union with no `.shape` — and the SDK's
+    // normalizeObjectSchema silently produced an EMPTY schema for it, leaving
+    // the one tool that composes everything else undiscoverable. It is now a
+    // bounded object gateway (`{ root }`), a real ZodObject like the rest, so
+    // every tool can be registered by schema without a special case.
+    //
+    // The cast covers a typing gap, not a behavioural one. ext-apps 1.7.4
+    // declares `inputSchema?: ZodRawShapeCompat | StandardSchemaWithJSON`,
+    // which excludes a Zod 3 object (no `~standard.jsonSchema`), while the base
+    // SDK method it forwards to — unchanged, `registerAppTool` only normalises
+    // `_meta` — declares `ZodRawShapeCompat | AnySchema` and takes the schema
+    // branch in `getZodSchemaObject`. The mcp-server's `/mcp` registration
+    // passes the same objects through that same method today. What proves this
+    // is the stdio e2e, which asks the built bundle over a real wire; the cast
+    // itself proves nothing, which is why it is not the only thing here.
+    const inputSchema = tool.inputSchema as unknown as z.ZodRawShape;
 
     // Append the guidance hint to a LOCAL copy of the description; never mutate
     // the shared TOOLS array (it is imported and reused across servers).
@@ -94,19 +109,19 @@ export function createServer(opts?: CreateServerOptions): McpServer {
       {
         title: tool.name,
         description,
-        inputSchema: shape,
+        inputSchema,
         outputSchema: RENDER_OUTPUT_SHAPE,
         _meta: { ui: { resourceUri: RESOURCE_URI } },
       },
       async (args: Record<string, unknown>): Promise<CallToolResult> => {
         try {
-          const spec = invokeTool(tool.name, args);
-          // The spec travels on THREE channels because hosts differ in what
+          const document = invokeTool(tool.name, args);
+          // The document travels on THREE channels because hosts differ in what
           // they forward to the app view (Claude Desktop was observed on
           // 2026-07-07 stripping structuredContent from the tool-result
           // notification). The view tries them in order:
-          //   1. structuredContent.spec  — the spec-compliant channel
-          //   2. _meta["weave/spec"]     — sidesteps structuredContent stripping
+          //   1. structuredContent.document — the spec-compliant channel
+          //   2. _meta["weave/document"]    — sidesteps structuredContent stripping
           //   3. the fenced ```json block in content — parsed as last resort
           // The content format is therefore LOAD-BEARING: keep the fenced
           // json block intact if editing this.
@@ -114,11 +129,11 @@ export function createServer(opts?: CreateServerOptions): McpServer {
             content: [
               {
                 type: "text",
-                text: `Weave ${tool.name} spec:\n\`\`\`json\n${JSON.stringify(spec, null, 2)}\n\`\`\``,
+                text: `Weave ${tool.name} document:\n\`\`\`json\n${JSON.stringify(document, null, 2)}\n\`\`\``,
               },
             ],
-            structuredContent: { spec },
-            _meta: { "weave/spec": spec },
+            structuredContent: { document },
+            _meta: { "weave/document": document },
           };
         } catch (err) {
           return {
