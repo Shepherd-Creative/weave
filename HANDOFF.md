@@ -1,10 +1,106 @@
 # Handoff: Primitive Portfolio — Wave 1 (versioned document contract and universal validation)
 
 **Generated**: 2026-08-08
-**Branch**: `feature/primitive-portfolio-wave-1` (worktree `/Users/pierregallet/Documents/weave-wave-1`)
-**Status**: Implemented, reviewed **four times**, remediated after each round, locally verified, committed. **Pushed — [PR #9](https://github.com/Shepherd-Creative/weave/pull/9) is open against `main`.** Its first CI run was red (a test-side `JSON.stringify` overflow); that is fixed, and the fix's own blind spot is fixed on top of it. **Hermes' independent read-only review of `3419bc7` returned APPROVE** with no blocking code findings; this commit is the documentation-integrity correction it asked for, and is the only change on top of the approved head. Merge is Pierre's call.
+**Wave 1 branch**: `feature/primitive-portfolio-wave-1` — **merged into `main`**.
+**Status**: **Wave 1 is CLOSED.** [PR #9](https://github.com/Shepherd-Creative/weave/pull/9) is **MERGED**. The next action is **Wave 2, in a fresh branch and worktree**, which may begin only once [PR #11](https://github.com/Shepherd-Creative/weave/pull/11) is `MERGED` **and** [issue #10](https://github.com/Shepherd-Creative/weave/issues/10) is `CLOSED` — both halves, stated in full under *Current state*.
 
-> Supersedes the Wave 0 handoff. Wave 0 is **merged** — `0568b4f Wave 0: truth, documentation and CI gate (#7)` is this branch's base — so its one open exit-gate item (a PR starting `ci.yml`) is closed.
+> Supersedes the Wave 0 handoff. Wave 0 is **merged** — `0568b4f Wave 0: truth, documentation and CI gate (#7)` is the Wave 1 branch's base — so its one open exit-gate item (a PR starting `ci.yml`) is closed.
+
+## Current state — Wave 1 is closed
+
+Wave 1 has **two** gates, and they are deliberately recorded in **different** forms, because they are different kinds of thing: the implementation gate as a durable fact about the past, the record-correction gate as a condition to evaluate rather than a state to read off this page.
+
+- **The Wave 1 implementation gate: CLOSED.** PR #9 is merged — a fact about the past, so it stays true. **Do not push to `feature/primitive-portfolio-wave-1`, and do not wait on a merge decision; it has been made.**
+- **The canonical-record correction gate: satisfied exactly when [PR #11](https://github.com/Shepherd-Creative/weave/pull/11) is `MERGED` and [issue #10](https://github.com/Shepherd-Creative/weave/issues/10) is `CLOSED`.** This document is that correction.
+
+**Wave 2 may begin only when the second condition holds.** Evaluate it; do not read it off this page, which cannot know its own fate:
+
+```bash
+gh pr view 11 -R Shepherd-Creative/weave --json state -q .state      # want: MERGED
+gh issue view 10 -R Shepherd-Creative/weave --json state -q .state   # want: CLOSED
+```
+
+**No volatile current state of the record-correction gate is asserted here, deliberately.** The implementation gate above is different in kind and is recorded as the durable fact it is: its `CLOSED` names a completed past event — PR #9 merged — which stays true however this correction turns out. The record-correction gate has no such settled fact to record either way, and that is exactly where a state assertion goes wrong: writing that the correction is still pending is false the moment it lands; writing that it has landed is false until then. An earlier draft of this section did the former while claiming in the next breath that it hard-coded nothing; its successor over-corrected into a blanket disclaimer covering **both** gates, which contradicted the durable fact recorded above it. A reviewer caught each in turn, and a re-read caught the same over-reach surviving one line further up, in a sentence that claimed both gates were recorded as conditions when one of them is recorded as a fact. A durable condition survives both worlds; a volatile state does not. When the condition holds, Wave 2 starts in its own branch and worktree cut from current `main`. The local plan states the same condition.
+
+Merge evidence, derived from `git` and the GitHub API rather than from any executor's summary:
+
+| Fact | Value |
+|---|---|
+| PR #9 state | **`MERGED`** — squash-merged 2026-08-08T19:26:21Z |
+| Merge commit on `main` | `21ab2a17d0f1d804993fcb52a7f8c4945feac873` |
+| PR head — the commit CI ran and that was squash-merged | `c782173bcc99cf057f35d09a17ded0ab95b85965` |
+| **PR-head tree == merge-commit tree** | `32f31d9bce5b622c651d67af2dac1564699ae5f5` |
+| Merge parent (previous `main`) | `0568b4f1104c097c33a2df8abc3776b93051a949`, tree `ae7150e900457f7f5e4f867eb2a433210f03ac2f` |
+| Non-vacuity control on that equality | previous-main tree **differs** from the merge-commit tree |
+| CI on the exact merged head | run `31274315305`, `head_sha` `c782173…`, conclusion **`success`** |
+| Independently APPROVED head — **a different commit** | `3419bc7fd46d5e801b2161a56e7d1426d236df79`, tree `9bd453dbdb54b9c2fa4d667c7539dc5c4033c568` |
+
+**Why the tree equality is the load-bearing fact, and exactly what it does not say.** The merge was a **squash**, so the branch's commits are not reachable from `main` and a reader cannot verify the merge by walking parents. The merge commit's tree being byte-identical to the PR head's tree establishes that *what merged is what CI ran* — nothing was rewritten between the last green run and the merge. The previous-main tree is recorded beside it as the control: it differs, so the equality is a real match rather than two names for one unchanged tree.
+
+**It does not say "what merged is what was reviewed", and an earlier draft of this section wrongly implied that.** The independently approved head is `3419bc7`, whose tree is `9bd453d…` — **not** the merged tree. Calling `32f31d9` "the reviewed tree" would have been false.
+
+**Scope of the independent APPROVE, stated precisely.** Hermes' independent read-only review returned **APPROVE** against the immutable head **`3419bc7`**, with no blocking code findings. Two commits sit between that head and the merged head `c782173`, and both touch **`HANDOFF.md` and nothing else** (`git diff --name-only 3419bc7..c782173` → `HANDOFF.md`). So the approved and merged trees genuinely differ, but **they differ only in this document**: no production or test code changed after the APPROVE, which is why the review's code findings still apply to what merged. `c782173` was not itself independently reviewed, and this document makes no claim that it was. There is also **no GitHub review on PR #9** — `gh api repos/Shepherd-Creative/weave/pulls/9/reviews` returns `[]` — so the APPROVE was delivered out of band and is recorded here rather than on the PR.
+
+**Why this document needed a correction.** The `HANDOFF.md` that merged with PR #9 intentionally stopped at the pre-merge integration gate: it still described the PR as open, told the reader to update the Wave 1 branch, and left the merge decision pending. [Issue #10](https://github.com/Shepherd-Creative/weave/issues/10) tracks that gap. This document is the correction it asks for.
+
+### How this record was verified
+
+A throwaway read-only validator was written in a private scratchpad — `validate-closeout.mjs`, **deliberately not committed**, because it asserts the content of particular documents at one moment and would rot into a false gate the first time Wave 2 edited them. It derives the **git and GitHub** facts in the table above itself (`gh pr view 9`, `gh api …/actions/runs/31274315305`, `gh api …/pulls/9/reviews`, `git rev-parse <sha>^{tree}`, `git rev-list --parents`, `git diff --name-only 3419bc7..c782173`) and only then checks that the canonical records say what those facts support. **One row is not derivable and is not claimed to be**: that Hermes approved `3419bc7` was delivered out of band, so the checker verifies that commit's tree and that PR #9 carries no GitHub review, and takes the approval itself as recorded testimony. No executor summary is an input. **129 checks, 129 passed** on the final text.
+
+**What it actually proves, stated narrowly.** It makes *structural* assertions against exact evidence rows in **three** regions that really are runs of consecutive table rows or list items — this document's current-state table, the corrective PR's body table, and [issue #10](https://github.com/Shepherd-Creative/weave/issues/10)'s evidence list — and against exact sentences in **two** whole sections, this document's **Exit gate** and the local plan's closing record, which do contain prose. Five known-false evidence labels must be literally absent from all five. The distinction matters and is stated rather than blurred: in the three row-runs a literal match cannot be anything but the evidence, whereas in the two sections it could in principle be prose, so those two are the weaker half of the guarantee.
+
+**What it does not prove, stated just as plainly.** It does **not** judge the meaning of ordinary prose, anywhere. A false sentence written into a paragraph outside those structured regions would not be caught. That limit is deliberate, and it replaced something worse: an earlier version tried to decide whether a sentence *asserted* the reviewed/merged conflation or merely quoted it in order to deny it, using a regex for negation. A reviewer defeated it twice with same-sentence constructions — *"Calling the old wording a false claim is important, but …"* and *"It would have been false to deny that …"* — each of which made the checker return **GREEN over an outright falsehood**. Natural-language negation is not regex-solvable, and a guard that pretends otherwise is worse than no guard, because it certifies. The semantics were abandoned; the structure is what remains, and the documents claim no more than that.
+
+Every structural assertion was red-probed against a throwaway copy, driven through the checker's `HANDOFF_PATH`, `PLAN_PATH`, `PR_BODY_FILE` and `ISSUE_BODY_FILE` overrides so no canonical record and no remote object was ever modified:
+
+| Probe | Result |
+|---|---|
+| Delete the PR-head tree row from this document's table | red — `S1` (and `B4`) |
+| Delete the approved-head row | red — `S3` (and `B7b`) |
+| Plant a false evidence label **inside** the table | red — `S4` (and `B9b`) |
+| Break the Exit gate's tree sentence | red — `S5` |
+| Plant a prior reviewer's exact bypass sentence in the **Exit gate** | red — `S7`, because that check is a literal, not a judgement |
+| Delete the PR-body tree row | red — `S8` |
+| Revert issue #10's label to its false form | red — `S12` (and `S14`) |
+| Delete the plan's tree row / plant a false label in the plan record | red — `S16` (and `D3`) / `S18` |
+| Re-introduce a hard-coded "the gate is OPEN" | red — `G3` (and `E2e`) |
+| Drop half the Wave 2 condition | red — `G1` |
+| Re-tick a canonical-record-closure claim | red — `G4` |
+| Restore a volatile in-flight state phrase for the record gate | red — `E2g` |
+| Drop the issue half from the header **Status** line | red — `E2h` |
+| Restore the plan's *second*, differently-worded in-progress claim | red — `E3d` |
+| Restore the present-tense claim about what is on `main` (PR body) | red — `E7a`, `E7b` |
+| Re-introduce a hard-coded live state for the record gate in the PR body | red — `E1b` |
+| Restore the over-broad disclaimer covering **both** gates | red — `E2b`, `E2c` |
+| Restore the blanket "both gates are recorded the same way" opening claim | red — `E2f` |
+| Restore the plan's unqualified in-progress closeout heading | red — `E3b`, `E3c` |
+| Revert one stated validator total to the superseded figure | red — `E4b`, `E4e` |
+| Restore the "all five regions are prose-free row runs" overclaim | red — `E5a`, `E5b` |
+| Drop `PLAN_PATH` from the PR body's stated probe mechanism | red — `E5d` |
+| Weaken issue #10's Wave 2 gate back to issue-resolution alone | red — `E6b`, `E6c` |
+| **Found-anchor controls**: delete the evidence table / delete the Exit gate section | red — **15 checks** / **5 checks**, the latter including `S7  R2: region empty, absence check cannot mean anything` |
+| Final | **exit 0 — 129 checks, 129 passed** |
+
+**The checker is merge-safe, which took a reviewer to notice.** An earlier version asserted the prose said the record gate "is OPEN" and that PR #11's live state *was* `OPEN` — so it would have turned red on the very merge it exists to enable, reproducing in the guard the same self-invalidation the documents were corrected to remove. It now checks identity and target (`D9a`, `D9b`), reads issue #10's state without asserting a value (`S19`), and requires the gate to be phrased as a condition while forbidding the hard-coded form.
+
+**Reading the probe results is the point, not counting them.** Several probes flip two checks because a structural assertion and a legacy content check overlap; that is recorded as measured rather than tidied into a neat one-per-probe table. An earlier version of this section claimed one falsification flipped exactly one check when the checker had since grown a second detector for it — **a recorded result is only ever true of the checker that produced it.** The two found-anchor control figures were re-measured for this checker and moved (13 → 15 and 4 → 5) once the region helpers were made to emit both floor assertions even when the anchor is missing; a floor that disappears along with its anchor is a vacuity hole, and it also made the totals move under the very probes that delete anchors.
+
+**One of these probes failed, and the check it targeted was mine.** The `PLAN_PATH` probe came back **green** on its first run: the check scanned the whole PR body, and `PLAN_PATH` is also named in that body's review history, so deleting it from the sentence that describes the probe mechanism left the check satisfied by an unrelated mention. That is the textbook vacuous pass — a guard whose string appears somewhere it was never meant to match. It is now scoped to the mechanism sentence alone, with a floor asserting that sentence was located, and the probe turns it red. **The probe was worth more than the check it broke**, and it is recorded here rather than quietly fixed, because a guard nobody tried to break is not evidence.
+
+**Seven independent reviews, each of which found something the previous one had left.** In order: (1) the evidence table asserted a tree equality that does not hold, the CI check could pass from the prose *describing* the evidence rather than the evidence row, a blanket history banner would have swept up the Wave 2 instructions, and a base-ref sentence pinned a sha this correction's own merge would invalidate; (2) the identical false claim had survived in the **Exit gate** section of a head the checker reported green, because the guard was scoped to the one section where the fault was first found; (3) the replacement sweep was evadable, its non-vacuity control was not derived from the sweep it claimed to control, and this document disagreed with the plan about whether Wave 2 could begin; (4) the closeout was pre-claimed complete while its own gate was open, [issue #10](https://github.com/Shepherd-Creative/weave/issues/10) still carried the original conflation in its own body, and the sweep was still bypassable in-sentence; (5) the record gate was itself hard-coded to a live state, the checker required PR #11 to be `OPEN` and so would have gone red on its own merge, "derives every fact" overclaimed for an out-of-band approval, and the description of the checker's five regions was inaccurate; (6) the corrective PR's body still hard-coded a live state for the record gate two bullets before denying that it did, this section's disclaimer over-reached to cover **both** gates and so contradicted the durable implementation fact recorded above it, the local plan's closeout heading was an unqualified live-state assertion, the stated validator total was stale in two documents, and [issue #10](https://github.com/Shepherd-Creative/weave/issues/10)'s own Wave 2 gate was weaker than every other surface's; (7) three volatile-state claims had survived the round that was supposed to remove them — this section described the gate as being in flight two clauses after disclaiming any such state, the plan carried a *second*, differently-worded in-progress claim 167 lines above the heading that had been fixed, and the PR body opened with a present-tense claim about what is on `main` that its own merge would falsify — the header **Status** line stated only the merge half of a two-part gate, and the probe tables credited this checker with S- and G-series results that an *earlier* checker had produced. All are resolved above — the issue body is corrected and read back, both gates are stated as conditions or as durable past facts, the sweep is gone in favour of structure, and every probe in the tables is now produced by one runner against the checker now on disk.
+
+**Do not infer approval from this document at all.** Each review examined a head older than the fixes it produced, so any sentence here claiming "no review has yet seen this text" would be self-invalidating the moment the next one does — a regress a reviewer pointed out after it happened. **The live source is the PR itself**: `gh pr view 11 -R Shepherd-Creative/weave --json reviewDecision,reviews`. Treat this text as unapproved unless that says otherwise.
+
+## Historical execution record — everything below is scoped to the Wave 1 branch
+
+The rest of this document records how Wave 1 was built, reviewed **four times** and remediated after each round. It is **kept as written**, in the present tense of the Wave 1 branch, so each finding can still be read against the claim it contradicted.
+
+Read it with two rules:
+
+- **Every measurement below is of the Wave 1 branch, never of current `main`.** Most are pinned to a named immutable head — `0806ac8`, `fe70778`, `ad4f2d9`, `0df4dba`, `4fc162e`, `0b04d39`, `3419bc7`, `c782173` — which is why they stay true. One is not: "Every gate re-run on the remediated tree" under **Verification** names no head, and means the branch tip as it stood when that passage was written. Read it as a fact about a past tree, not as a claim you can re-run today.
+- **Instructions in the historical span (a base ref, a worktree path, a next step) applied to the Wave 1 branch and are superseded by "Current state" above.** Where such a passage says the PR is open or that a merge decision is pending, it is recording the moment it was written.
+
+**The historical span is not the whole rest of the file.** It runs from **Goal** to **Failed approaches**. Three sections after it are **current, not history, and are to be followed**: **Exit gate**, **Resume instructions — starting Wave 2**, and **Warnings**. Naming them matters — a blanket "everything below is history" would invite the next writer to discard the very instructions written for them, which is the same failure this correction exists to fix, one level up.
 
 ## Goal
 
@@ -251,7 +347,7 @@ Every round-3 payload is a valid document root plus **one small** undeclared key
 
 `pnpm lint` exit 1 is the **pre-existing baseline**, unchanged in kind. It dropped 46 → 37 because formatting the files this work already had to touch cleared 11 pre-existing findings — the same effect Wave 0 saw at 48 → 46. Judge lint by `scripts/biome-new-findings.mjs`, never by the raw exit code.
 
-**⚠️ Use `0568b4f` as the gate's base ref, not `main`.** Local `main` is stale at `b9b1617` and predates the merged Wave 0 commit; against it the gate reports a 48-diagnostic baseline that mixes Wave 0's changes into Wave 1's. There is no `origin/main` in this worktree.
+**⚠️ Base-ref guidance, and it has changed since the merge.** *On the Wave 1 branch* the gate's base ref had to be `0568b4f`, not `main`: that worktree's local `main` was stale at `b9b1617`, predated the merged Wave 0 commit, and produced a 48-diagnostic baseline that mixed Wave 0's changes into Wave 1's. **Since the merge that no longer applies** — Wave 1 is in `main`, so a branch cut from `main` uses its own merge-base with `origin/main` as the base ref, and the Wave 1 diff is part of the baseline rather than the head. **No specific commit is pinned here on purpose**: `origin/main` advances, including when this correction lands, so any sha written into this sentence would be stale almost immediately. The durable rule is the one that survives both eras: compute the base ref (`git merge-base origin/main HEAD`) and never pass a bare `main` you have not just fetched.
 
 ## Falsification — the guards are load-bearing
 
@@ -335,13 +431,17 @@ Restored from a backup taken **after** the fix, `diff -q` identical, both fixed 
 - **Citing a path in a comment without checking it resolves.** The Wave 0 citation guard caught seven at once, including a `dist/` path that is gitignored and may not exist.
 - **A `dist/`-reading test in this package.** Turbo's `test` depends on `^build` (upstream only), so this package's own `dist/` may be absent or stale.
 
-## Not yet done
+## Exit gate
 
 - [x] **Independent adversarial review of the diff** (shared execution rule 4). Round 1 against `0806ac8`: verdict "do not approve", three proven blockers plus a whitespace note — see "The review, and what it broke". Round 2 against `fe70778`: one remaining blocker, the conflicting-`type` normalisation, plus the false-positive tests that had hidden it — see "The second review round". Round 3 against `0df4dba`: one remaining blocker, the non-strict `render_dashboard` gateway — see "The third review round". Everything else rounds 2 and 3 exercised (ingress budget, strict node schemas, stdio framing, the reserved-key rule, the full gate) held.
 - [x] **Push, open a PR, and let `ci.yml` run against Wave 1.** Done — PR #9. The first run went red on a test-side stack overflow; see "The CI round" above for the diagnosis, the fix, and the fourth review round that fixed the fix.
 - [x] **Independent review of the pushed diff.** Hermes reviewed the immutable head `3419bc7` read-only and returned **APPROVE**, no blocking code findings, having re-derived `code=depth` and `code=nesting` itself. Its one finding was the stale documentation this commit fixes.
-- [ ] Hermes confirms the documentation-correction head and closes the Wave 1 gate, then Pierre merges. **Do not merge from this worktree** — `main` carries a `protect-main` ruleset and the merge decision is Pierre's.
-- [ ] Only then start Wave 2, in its own branch and worktree.
+- [x] **The merge decision, which was Pierre's.** Made: PR #9 was squash-merged into `main` on 2026-08-08T19:26:21Z as `21ab2a1`, with CI green on the exact merged head `c782173` (run `31274315305`). **The PR-head tree and the merge-commit tree are the same tree, `32f31d9`** — so what merged is what CI ran, nothing having been rewritten between the last green run and the merge.
+- [x] **The scope of the independent APPROVE, kept separate from that tree equality.** The approved head was **`3419bc7`**, a *different* commit whose tree is **`9bd453d`** — so the merged tree is **not** the reviewed tree, and no claim is made here that `c782173` was itself independently reviewed. The two heads differ only in `HANDOFF.md`, so the review's code findings still apply to what merged. See "Current state" for the full evidence.
+That closes the **implementation** gate. Two items remain, and neither is ticked here:
+
+- **Close the canonical records.** The `HANDOFF.md` that merged with PR #9 still described the PR as open; [issue #10](https://github.com/Shepherd-Creative/weave/issues/10) records that gap and [PR #11](https://github.com/Shepherd-Creative/weave/pull/11) carries the correction you are reading. **This item is complete exactly when PR #11 is `MERGED` and issue #10 is `CLOSED`** — a condition to evaluate, not a box this document may tick about itself. The matching Wave 1 record lives in the local plan, which is untracked and is not carried by that PR.
+- **Start Wave 2, in its own branch and worktree cut from current `main`.** This is the next action, and it is **gated on the item above** — see "Current state" for the two commands that settle it. Nothing else in Wave 1 blocks it.
 
 **Round 4's remediation was the implementer's own; it has since been independently approved.** One bounded Codex adversarial review was dispatched against `4fc162e..0b04d39` and did not complete: it was terminated mid-run by OpenAI's content filter while patching a file to falsify a guard, producing no findings and no verdict. Before dying it independently reproduced the central measurement (the `/mcp` response reading `Maximum call stack size exceeded`). It also left a live sabotage in gitignored build output — `git status` was clean and proved nothing; a `--no-ignore-files` sweep found it in `packages/weave-primitives/dist/schemas/index.js`, and a forced rebuild cleared it. **Anything Codex ran after that point is suspect and was re-measured from scratch**, including its reduced-stack suite runs, which used a flag that never reaches the vitest worker.
 
@@ -396,29 +496,31 @@ Written with the review's lesson in mind: **a documented limitation that makes a
 | `packages/weave-primitives/src/__tests__/document.test.ts` | 65 cases. Opens with the harness-sanity test that caught the false-green. |
 | `packages/weave-primitives/src/__tests__/packaging.test.ts` | Guards the "schemas without a renderer" claim at source level. |
 
-## Resume instructions
+## Resume instructions — starting Wave 2
 
-1. `cd /Users/pierregallet/Documents/weave-wave-1`, confirm the tree is clean, then **measure** the branch rather than trusting a number written here:
+Wave 1 is merged; there is nothing left to resume on it. These are the instructions for the next writer, whose job is Wave 2.
+
+1. **Start from current `main`, in a new worktree and branch.** Never reuse the Wave 1 worktree or branch — one live session per working tree, and `feature/primitive-portfolio-wave-1` is a merged, finished branch.
    ```bash
-   git status --short                        # expect no output
-   git rev-list --count 0568b4f..HEAD        # read the answer; do not compare it to this file
-   git log --oneline 0568b4f..HEAD           # what those commits are
+   cd /Users/pierregallet/Documents/weave
+   git fetch origin
+   git rev-parse origin/main          # read the answer; this is your base ref
    ```
-   **No expected count is recorded, deliberately.** Every commit changes it — including a commit that does nothing but correct this file, which is exactly how the previous two counts here went stale. A recorded count is a fact about the moment it was written, and this is the one number that cannot survive its own correction. (Historical statements elsewhere in this document are scoped to a **named immutable head** — the reviewed implementation head `3419bc7` was seven commits from `0568b4f` — which stays true because the head is pinned.)
-2. Re-verify before trusting anything:
+   **No commit count is recorded here, deliberately** — every commit changes it, including one that does nothing but correct this file, which is exactly how two earlier counts here went stale. Measure it; do not compare it to this document. Historical statements elsewhere are pinned to a **named immutable head** instead, which is why they survive.
+2. **Re-verify before trusting anything**, forced, because the Turbo cache is shared with sibling checkouts:
    ```bash
    TURBO_FORCE=true pnpm typecheck && TURBO_FORCE=true pnpm test
    ```
-   Expected exit 0, **496 vitest + 26 `node --test` = 522**.
+   The Wave 1 suite as merged is **496 vitest + 26 `node --test` = 522** — a measurement of the merged tree `32f31d9`, not a target for your branch, which will move it.
    If Playwright fails with `Executable doesn't exist … chromium_headless_shell-1228`:
    `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
-3. Confirm the lint position:
+3. **Confirm the lint position against your own merge base**, not against a remembered ref:
    ```bash
-   node scripts/biome-new-findings.mjs 0568b4f      # NOT `main` — see the warning above
+   node scripts/biome-new-findings.mjs "$(git merge-base origin/main HEAD)"
    ```
-   Expected: `No new Biome findings. 46 pre-existing finding(s) left untouched.`, exit 0, head 37.
-4. **The PR already exists — do not open another.** [PR #9](https://github.com/Shepherd-Creative/weave/pull/9) is open against `main` and its CI is **green**. Update it by ordinary fast-forward push to `feature/primitive-portfolio-wave-1`; never force-push or rewrite history.
-5. **Next step belongs to Hermes, not to this worktree**: independent verification of the exact reviewed head, then Pierre's merge decision. Only after the Wave 1 gate is closed does Wave 2 start — in its own branch and worktree, never here.
+   Read the reported base and head counts; judge lint by this gate's exit code, **never** by raw `pnpm lint`, which is exit 1 on a pre-existing baseline by design.
+4. **Wave 2's scope is in the plan, not here**: `.hermes/plans/2026-08-07_223240-primitive-portfolio.md` in the parent checkout `/Users/pierregallet/Documents/weave`. Its Wave 1 record carries the same merge evidence as "Current state" above; its Wave 1 residual limit 9 (the SDK's Zod parse running before the canonical cost policy on `/mcp` and the MCP App) is **carried forward** and is a transport change, not a test fix.
+5. **Write a new handoff for Wave 2.** This document is Wave 1's record and should be superseded, the way it superseded Wave 0's — not extended.
 
 ## Warnings
 
