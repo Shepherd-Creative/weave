@@ -1,6 +1,6 @@
 {
   "name": "@shepherd-creative/weave-mcp-server",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "HTTP server exposing Weave render tools for LLM agents.",
   "license": "MIT",
   "repository": {

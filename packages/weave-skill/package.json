@@ -1,6 +1,6 @@
 {
   "name": "@shepherd-creative/weave-skill",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "SKILL.md teaching LLMs to compose Weave primitives, plus a loader utility.",
   "license": "MIT",
   "repository": {

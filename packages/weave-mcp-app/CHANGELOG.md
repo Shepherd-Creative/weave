@@ -1,5 +1,15 @@
 # @shepherd-creative/weave-mcp-app
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [21ab2a1]
+- Updated dependencies [0568b4f]
+  - @shepherd-creative/weave-primitives@0.3.0
+  - @shepherd-creative/weave-skill@0.3.0
+  - @shepherd-creative/weave-mcp-server@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes
