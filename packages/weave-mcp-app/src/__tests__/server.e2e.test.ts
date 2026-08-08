@@ -251,6 +251,74 @@ describe("weave-mcp-app stdio server", () => {
     });
   });
 
+  describe("render_dashboard's gateway takes `root` and nothing else", () => {
+    // The gateway was the last place an unknown key was still dropped in
+    // silence, and the widest: every other tool's args ARE a node, so the strict
+    // node schemas caught undeclared keys downstream. `render_dashboard`'s args
+    // are the gateway object, and a plain `z.object({ root })` STRIPS what it
+    // does not declare — so the key was deleted before the handler ran and no
+    // downstream guard could see it, exactly as `.shape` registration used to do
+    // to `type`.
+    //
+    // Each payload is a valid document root plus ONE small undeclared key, so a
+    // rejection is about that key alone. Small deliberately: a large one is
+    // refused by the stdin framing budget, which would prove the budget instead.
+    const VALID_ROOT = { type: "Stack", children: [{ type: "NoteCard", body: "ok" }] };
+
+    it("accepts the bare gateway object (non-vacuity control)", async () => {
+      const result = await client.callTool({
+        name: "render_dashboard",
+        arguments: { root: VALID_ROOT },
+      });
+      expect(result.isError ?? false).toBe(false);
+      const { document } = result.structuredContent as { document: { root: { type: string } } };
+      expect(document.root.type).toBe("Stack");
+    });
+
+    it("refuses a valid document carrying one small undeclared key", async () => {
+      const result = await client.callTool({
+        name: "render_dashboard",
+        arguments: { root: VALID_ROOT, junk: 1 },
+      });
+      expect(result.isError, "the gateway silently discarded an undeclared key").toBe(true);
+      // No document on any of the three delivery channels — the fault must not
+      // reach the view.
+      expect(result.structuredContent).toBeUndefined();
+      expect(JSON.stringify(result.content)).toContain("junk");
+    });
+
+    it("refuses a caller-written envelope rather than silently downgrading it", async () => {
+      // `{ weave: 2, root }` asks for a format this build does not implement and
+      // used to come back a v1 document with `weave` deleted.
+      const result = await client.callTool({
+        name: "render_dashboard",
+        arguments: { weave: 2, root: VALID_ROOT },
+      });
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toBeUndefined();
+    });
+
+    it("still carries a document's own ids through untouched", async () => {
+      // `id` belongs to the root NODE, not to the gateway.
+      const result = await client.callTool({
+        name: "render_dashboard",
+        arguments: {
+          root: {
+            type: "Stack",
+            id: "g-1",
+            children: [{ type: "NoteCard", id: "g-2", body: "x" }],
+          },
+        },
+      });
+      expect(result.isError ?? false).toBe(false);
+      const { document } = result.structuredContent as {
+        document: { root: { id?: string; children: Array<{ id?: string }> } };
+      };
+      expect(document.root.id).toBe("g-1");
+      expect(document.root.children[0].id).toBe("g-2");
+    });
+  });
+
   it("rejects a ragged table over stdio", async () => {
     const result = await client.callTool({
       name: "render_table_card",

@@ -45,12 +45,22 @@ export type ToolDescriptor = {
  * Restricting it to `RootSpecSchema` also means the advertised schema now
  * describes exactly what a document may be rooted in, rather than the whole
  * primitive union — the projection and the contract say the same thing.
+ *
+ * `.strict()` for the same reason every node and nested object carries it, and
+ * with more at stake here than anywhere else. This object was the last
+ * non-strict one on any surface: every other tool's arguments ARE a node, so an
+ * undeclared key met a strict node schema downstream, while these arguments are
+ * the gateway itself and met nothing. A plain `z.object()` DROPS what it does
+ * not declare, so `{ weave: 2, root }` — a caller asking for a format this build
+ * does not implement — came back a valid v1 document with the version deleted.
  */
-export const DashboardGatewaySchema = z.object({
-  root: RootSpecSchema.describe(
-    "The document root: a layout (Grid, Stack) or a display organism (MetricBand, ChartCard, TableCard, NoteCard). Atoms and molecules compose INSIDE a layout; they are not documents on their own.",
-  ),
-});
+export const DashboardGatewaySchema = z
+  .object({
+    root: RootSpecSchema.describe(
+      "The document root: a layout (Grid, Stack) or a display organism (MetricBand, ChartCard, TableCard, NoteCard). Atoms and molecules compose INSIDE a layout; they are not documents on their own.",
+    ),
+  })
+  .strict();
 
 /**
  * Keys a fixed organism tool does NOT take as arguments.
@@ -227,6 +237,39 @@ export function invokeTool(name: string, args: unknown): WeaveDocumentV1 {
           keys: reserved,
           path: [],
           message: `Unrecognized key(s) in object: ${reserved.map((key) => `'${key}'`).join(", ")}. ${name} always renders a ${tool.specType}; \`type\` and \`id\` are not caller arguments. Compose a document with render_dashboard if you need to set an id.`,
+        },
+      ]);
+    }
+  } else {
+    // The gateway path, and the same rule from the other direction: a fixed
+    // tool's arguments ARE a node, so an undeclared key met a strict node schema
+    // downstream. `render_dashboard`'s arguments are the gateway object, and the
+    // line below reads `record.root` and nothing else — so every other key was
+    // discarded here without a word, on the one surface that never runs the
+    // advertised schema.
+    //
+    // Both layers are needed and neither covers the other. `.strict()` on the
+    // gateway is what `/mcp` and the MCP App run, and without it the SDK deletes
+    // the key upstream of this function, where no guard can reach it. This check
+    // is what REST runs, and REST parses `inputSchema` never.
+    //
+    // Allowed keys come from the advertised schema's own shape rather than a
+    // second list of key names: a mirror of a schema is a thing that goes stale
+    // the day the gateway grows a field.
+    //
+    // `Object.hasOwn`, not `in`: `in` walks the prototype chain, so `toString`
+    // and `constructor` would read as declared keys and be silently discarded —
+    // the exact defect, surviving in the two places nobody would test.
+    const undeclared = Object.keys(record).filter(
+      (key) => !Object.hasOwn(tool.inputSchema.shape, key),
+    );
+    if (undeclared.length > 0) {
+      throw new z.ZodError([
+        {
+          code: z.ZodIssueCode.unrecognized_keys,
+          keys: undeclared,
+          path: [],
+          message: `Unrecognized key(s) in object: ${undeclared.map((key) => `'${key}'`).join(", ")}. ${name} takes a single \`root\` argument holding the document root; the server stamps the \`weave\` version itself.`,
         },
       ]);
     }

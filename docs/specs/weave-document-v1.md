@@ -20,7 +20,9 @@ A Weave document is:
 - `weave` — the format version. An integer, not the package version. A build that does not implement a version refuses the document rather than guessing.
 - `root` — one of **six** node types: `Grid`, `Stack` (layouts) or `MetricBand`, `ChartCard`, `TableCard`, `NoteCard` (display organisms).
 
-Unknown keys are **rejected, not stripped — at every level**: the envelope, every node, and every nested object inside a node (table headers, table cells, KPI deltas, sparkline configs). A caller who sends `onLoad` believes this format does something it does not, and silently dropping it hides that.
+Unknown keys are **rejected, not stripped — at every level**: the envelope, every node, every nested object inside a node (table headers, table cells, KPI deltas, sparkline configs), and the **tool argument objects** the MCP surfaces take. A caller who sends `onLoad` believes this format does something it does not, and silently dropping it hides that.
+
+The tool arguments are worth naming separately, because they were the last level to be closed and the easiest to overlook. Four of the five tools take arguments that *are* a node, so an undeclared key met a strict node schema on its way through. `render_dashboard` takes the gateway object instead — see [`render_dashboard` discoverability](#render_dashboard-discoverability-f8) — and until it was made `.strict()` an undeclared key there met nothing at all.
 
 The reason this is a contract rule rather than a tidiness preference is that stripping *defeated the limits*. Zod's default `z.object()` drops an unknown key **after** receiving it, so an undeclared field could carry anything — 300 KB of string, a million-element array — be walked in full, and then be deleted before anyone weighed it. The document then looked bounded precisely because the evidence had been thrown away.
 
@@ -135,6 +137,8 @@ Bytes are therefore checked at **ingress** — on the wire, before anything pars
 
 `invokeTool` still serialises the candidate and checks it, as a second, narrower guard for any caller that reaches it directly.
 
+The gateway now *refusing* an undeclared key rather than dropping it does not make the ingress budget redundant, and reading it that way would be the same mistake in a new place: the refusal happens after the SDK has already parsed the megabyte. **The key check decides whether a request is answered; only the byte budget decides whether it is read.**
+
 **The stdio semantics, stated rather than implied.** A frame over the budget is discarded whole and the stream resyncs at the next newline; it is never truncated, because a half-forwarded frame would corrupt the *next* message. A discarded frame gets **no JSON-RPC reply** — the message was never framed, so its `id` was never read, and an `id: null` error would only surface on the client as an unmatched response. The caller sees its request time out; the operator sees the reason and the byte count on stderr.
 
 ---
@@ -244,7 +248,27 @@ Stdin is framed under the same `payloadBytes` budget before the transport reads 
 
 Its input schema was `SpecSchema` — a `z.lazy()` union with no `.shape`. The MCP Apps SDK normalises through `.shape` and falls back to an **empty schema**, so the one tool that composes every other primitive told the model nothing about its input.
 
-It is now a bounded object gateway, `z.object({ root: RootSpecSchema })`. Every surface can project it, the advertised schema names exactly the six legal roots, and the runtime path still validates the whole document through `validateWeaveDocument` with no key stripping.
+It is now a bounded object gateway, `z.object({ root: RootSpecSchema }).strict()`. Every surface can project it, the advertised schema names exactly the six legal roots, and the runtime path still validates the whole document through `validateWeaveDocument` with no key stripping.
+
+**The gateway takes `root` and nothing else.** It was the last object on any surface still dropping unknown keys in silence, and the widest, because the other four tools' arguments are a node and met a strict node schema downstream:
+
+```diff
+- POST /invoke/render_dashboard  { "root": { … }, "junk": 1 }      → 200, `junk` discarded
++ POST /invoke/render_dashboard  { "root": { … }, "junk": 1 }      → 400
+- POST /invoke/render_dashboard  { "weave": 2, "root": { … } }     → 200, a v1 document
++ POST /invoke/render_dashboard  { "weave": 2, "root": { … } }     → 400
+```
+
+The second line is why this is more than tidiness. The gateway exists so the **server** stamps the version; a caller who writes the envelope themselves and asks for a format this build does not implement had `weave` deleted and got a v1 document back — the one answer a version negotiation must never give.
+
+Closed in **two layers**, because neither covers the other — each was removed in turn and the other surface stayed green:
+
+- **`.strict()` on the gateway** is what `/mcp` and the MCP App run. Without it the SDK deletes the key *upstream* of the shared path, where no guard can reach it.
+- **`invokeTool` refuses keys the gateway does not advertise**, raising the same `unrecognized_keys` issue. This is what REST runs, because REST parses `inputSchema` never — it read `root` and ignored the rest.
+
+The allowed keys are read from the advertised schema's own shape rather than listed a second time, so the guard cannot drift from the gateway it guards. `Object.hasOwn`, not `in`: `in` walks the prototype chain, which would quietly admit `toString` and `constructor` as declared keys.
+
+A document's own `id`s are untouched by this — `id` is a key of the root **node**, not of the gateway.
 
 ---
 

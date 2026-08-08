@@ -2,7 +2,7 @@
 
 **Generated**: 2026-08-08
 **Branch**: `feature/primitive-portfolio-wave-1` (worktree `/Users/pierregallet/Documents/weave-wave-1`)
-**Status**: Implemented, independently reviewed **twice**, remediated after each round, locally verified, committed. **Nothing pushed, no PR opened.**
+**Status**: Implemented, independently reviewed **three times**, remediated after each round, locally verified, committed. **Nothing pushed, no PR opened.**
 
 > Supersedes the Wave 0 handoff. Wave 0 is **merged** — `0568b4f Wave 0: truth, documentation and CI gate (#7)` is this branch's base — so its one open exit-gate item (a PR starting `ci.yml`) is closed.
 
@@ -22,7 +22,7 @@ All nine Wave 1 tasks. The contract, the measured limits and the migration guide
 - [x] **Optional stable `id`** on every node, unique document-wide.
 - [x] **One validator, four surfaces** — React, REST, MCP JSON-RPC, MCP App all route through `validateWeaveDocument`.
 - [x] **Explicit deprecated adapter** `legacySpecToDocumentV1`, and `<Weave spec>` retained routed through it. It wraps; it never repairs.
-- [x] **`render_dashboard` discoverable again (F8)** via a bounded object gateway.
+- [x] **`render_dashboard` discoverable again (F8)** via a bounded object gateway — `.strict()`, so it takes `root` and nothing else.
 - [x] **Render-only peers optional** after inspecting the built entry points.
 - [x] Migration doc + changeset (minor × 3).
 
@@ -93,6 +93,30 @@ Two details worth keeping:
 - **Both keys are reported in one `unrecognized_keys` issue, in the order the CALLER sent them.** Measured: Zod reports unrecognised keys in input order, so `{body,type,id}` gives `["type","id"]` and `{body,id,type}` gives `["id","type"]` — while the schema's own shape order is `id, type`. A fixed order would have agreed with the SDK on one input and diverged on the other, so the test asserts both.
 - **The reserved list is not trusted to stay right.** `FIXED_TOOL_RESERVED_KEYS` is a hand-written mirror of four `.omit({ type, id })` calls, which is exactly the kind of thing that goes stale. A test derives the omitted keys from the schemas themselves and fails if the two disagree in either direction.
 
+## The third review round — the one object nobody had closed
+
+A third independent review returned one remaining blocker, and it is the unknown-key hole again, in the last place it could still hide.
+
+### `DashboardGatewaySchema` was not strict (P1)
+
+`POST /invoke/render_dashboard {"root":{…},"junk":1}` — **a valid document plus one small undeclared key** — returned **200**, with `junk` gone. `/mcp` returned 200 too, and so did the MCP App. Three surfaces, one wrong answer, and this time they all agreed.
+
+**Why this one survived two rounds of closing exactly this hole.** Round 1 made every node and nested object `.strict()`, and that genuinely covered four of the five tools — their arguments *are* a node, so an undeclared key met a strict schema on its way through. `render_dashboard`'s arguments are the gateway object, which is neither the envelope nor a node, so it fell outside the sweep and outside the sentence in the spec that described it. **A policy stated as a list of levels does not cover a level nobody listed.**
+
+The case that makes it more than tidiness is `{ weave: 2, root }`: a caller writing the envelope themselves and asking for a format this build does not implement had `weave` deleted and got a **v1 document back**. The gateway exists so the server stamps the version — and a version negotiation that answers a request for v2 with a v1 document is the one failure mode the envelope was introduced to prevent.
+
+Fixed in **two independent layers**, proven independent by removing each in turn:
+
+- **`.strict()` on the gateway** (`packages/weave-mcp-server/src/tools.ts`). This is what `/mcp` and the MCP App run. Without it the SDK deletes the key *upstream* of the shared path, where no guard can reach it — the third appearance of "a guard cannot run on input that was thrown away above it".
+- **`invokeTool` refuses keys the gateway does not advertise**, raising the same `unrecognized_keys` issue. This is what REST runs, because REST parses `inputSchema` never: the old line read `record.root` and discarded the rest without a word.
+
+Two details worth keeping:
+
+- **The allowed keys are read from the advertised schema's shape, not listed again.** A second copy would go stale the day the gateway grows a field, and a test pins the two together rather than mirroring one in the other.
+- **`Object.hasOwn`, not `key in shape`.** `in` walks the prototype chain, so `toString` and `constructor` would read as declared keys and be silently discarded — the original defect surviving in the two places nobody would test. Sabotaged: swapping `hasOwn` for `in` produces **exactly 1 red**, on that test alone.
+
+`id` is untouched: it is a key of the root **node**, not of the gateway, and a test on all three surfaces says so.
+
 ## Verification
 
 Every gate re-run on the remediated tree.
@@ -100,13 +124,13 @@ Every gate re-run on the remediated tree.
 | Gate | Result |
 |---|---|
 | `TURBO_FORCE=true pnpm typecheck` | exit 0 |
-| `TURBO_FORCE=true pnpm test` | exit 0 — **474 vitest + 26 `node --test` = 500**; round 2's first pass was 490, round 1 478, Wave 1's first pass 443, the pre-Wave-1 baseline 312 |
+| `TURBO_FORCE=true pnpm test` | exit 0 — **495 vitest + 26 `node --test` = 521**; round 2 closed at 500, its first pass 490, round 1 478, Wave 1's first pass 443, the pre-Wave-1 baseline 312 |
 | `TURBO_FORCE=true pnpm build` | exit 0 |
 | `node scripts/biome-new-findings.mjs 0568b4f` | exit 0 — base 46, head 37, **0 new** |
 | `pnpm lint` | exit 1 — 37 diagnostics, the pre-existing baseline |
 | `git diff --check 0568b4f` | exit 0 |
 
-Per-package: primitives 180 (was 168), theme-cli 102, mcp-server **98** (90 → 82 → 72), mcp-app **65** (63 → 59 → 46), skill 14, tokens 10, adapter-skill 5.
+Per-package: primitives 180 (was 168), theme-cli 102, mcp-server **115** (98 → 90 → 82 → 72), mcp-app **69** (65 → 63 → 59 → 46), skill 14, tokens 10, adapter-skill 5.
 
 Round 1's 35 new tests were all written **before** the fix and watched fail. The exact failure text matters in two of them:
 
@@ -138,6 +162,20 @@ Closing `id` added **10 more** (mcp-server 90 → 98, mcp-app 63 → 65). Six we
 | drift guard on the reserved list | errored — `FIXED_TOOL_RESERVED_KEYS is not iterable`, the export not existing yet |
 | MCP App over stdio | **already green before the fix.** That surface began refusing `id` the moment tools were registered by schema rather than `.shape`; these two cases lock behaviour the previous commit produced rather than driving new behaviour, and are labelled as such in the test |
 | `render_dashboard` keeps ids (×3 surfaces) | **green from the start by design** — they assert the escape hatch the decision depends on, so they must pass before and after |
+
+Round 3 added **21 tests** (mcp-server 98 → 115, mcp-app 65 → 69). Twelve were watched fail against the unfixed tree; one was falsified by sabotage because it was written after the code it guards; eight are non-vacuity controls that must pass from the start:
+
+| Guard | RED evidence |
+|---|---|
+| `invokeTool` refuses undeclared gateway keys | 6 unit cases; the plainest reported `expected { weave: 1, root: { …(2) } } to be undefined` — **a document came back** from a request carrying a key the server had deleted |
+| REST | 2 cases returned **200** to `{root, junk:1}` and to `{weave:2, root}` — the reviewer's finding, reproduced |
+| `/mcp` | 2 cases returned `isError: undefined` with the document rendered |
+| `DashboardGatewaySchema` itself | `safeParse({root, junk:1}).success` was **true** — the advertised schema the other two surfaces run |
+| MCP App over stdio | 2 e2e cases came back `isError: undefined` with a valid Stack document |
+| `Object.hasOwn` over `key in shape` | written after the guard, so falsified instead: swapping it back produces **exactly 1 red**, on the prototype-chain case alone |
+| bare gateway accepted (×3 surfaces), ids preserved (×3), allowed keys derived from the schema | **green from the start by design** — without them every rejection above could be a rejection of the root, or of ids the gateway must not touch |
+
+Every round-3 payload is a valid document root plus **one small** undeclared key — small deliberately, because a large one is refused by the ingress budget and the test would then be proving the budget rather than the gateway.
 
 `pnpm lint` exit 1 is the **pre-existing baseline**, unchanged in kind. It dropped 46 → 37 because formatting the files this work already had to touch cleared 11 pre-existing findings — the same effect Wave 0 saw at 48 → 46. Judge lint by `scripts/biome-new-findings.mjs`, never by the raw exit code.
 
@@ -187,6 +225,16 @@ Restored from backups taken **after** the fix, `diff -q` identical on both files
 
 Restored from the post-fix backup, `diff -q` identical, both fixed lines confirmed present, `dist/` rebuilt, `grep -rl --no-ignore-files 'SABOTAGE_[AB]_MARKER'` returning **0** against the same gitignored-bundle control.
 
+**Third review round.** The 21 new tests carry their own RED evidence (see Verification). Both layers were *additionally* sabotaged, for the same reason as round 2: the question is not whether each works but whether **either one alone is enough**, because if one silently covered the other, deleting the redundant layer later would look safe and would not be.
+
+| Sabotage | Result |
+|---|---|
+| `invokeTool`'s gateway guard made inert (filters for a key nobody sends, so the branch still exists and never fires) | **9 red** in mcp-server — every REST and unit case. The MCP App e2e stayed **green**, with the sabotage confirmed present in `dist/index.js`: that surface is held by `.strict()`, not by this check |
+| `.strict()` removed from `DashboardGatewaySchema` | **3 red** in mcp-server (`/mcp` ×2, plus the advertised-schema unit case) and **2 red** over stdio — **with `invokeTool`'s guard fully intact**. REST stayed green. The layers are independent in both directions |
+| `Object.hasOwn` replaced by `key in shape` | **exactly 1 red**, on the prototype-chain case alone. A guard using `in` would have passed every other test in the suite |
+
+Restored from a backup taken **after** the fix, `diff -q` identical, both fixed lines (`.strict();` and the `Object.hasOwn` filter) confirmed present by line number, `dist/` rebuilt, and a tree-wide `grep -rl --no-ignore-files 'SABOTAGE_[GH][012]_MARKER'` returning **0** against a non-vacuity control that did return the gitignored `packages/weave-mcp-app/dist/index.js`.
+
 ## Key decisions
 
 | Decision | Rationale |
@@ -196,7 +244,7 @@ Restored from the post-fix backup, `diff -q` identical, both fixed lines confirm
 | Tool `inputSchema` is an **advertised projection**; `validateWeaveDocument` is the runtime authority | Exactly the plan's task-9 wording. Keeps `.shape` for the MCP Apps SDK while the real contract runs underneath. |
 | `render_dashboard` gateway takes `{ root }`, not a whole document | The server stamps the version, so a caller cannot send a wrong one and the model never writes the envelope. |
 | Payload bytes checked at **ingress** on every surface that has a wire, not inside `validateWeaveDocument` | Measuring bytes in the validator would serialise a document nobody asked to serialise, on every React render — so the budget is spent on the wire instead: REST before `JSON.parse`, `/mcp` with a streaming byte counter before the SDK, the MCP App by framing stdin. Direct React has no wire and is bounded by node/values/nesting/string caps. **Revised after review**: the original design measured the *constructed candidate* for the two SDK surfaces, which is a measurement taken after the payload has already been discarded. |
-| The unknown-key policy is **closed by default, with exactly one documented exception** | Every node and nested object is `.strict()`; `ChartDatumSchema` stays a `z.record()` because a chart series is named by the caller. Enumerating the exception is the point — "some objects are open" is how the next one gets added without an argument. |
+| The unknown-key policy is **closed by default, with exactly one documented exception** | Every node, every nested object **and the tool argument gateway** are `.strict()`; `ChartDatumSchema` stays a `z.record()` because a chart series is named by the caller. Enumerating the exception is the point — "some objects are open" is how the next one gets added without an argument. **Round 3's lesson is the mirror image**: the policy had been written as a list of levels (envelope, node, nested object), and the gateway was a level nobody listed, so it stayed open through two rounds of closing exactly this hole. State a closed-by-default policy as a default, not as an inventory. |
 | `values` (300,000) measured against the **values-maximising** legal document, not the all-axes-maxed one | A sparkline cell is one object carrying 100 scalar leaves, so the shape that maximises objects is not the shape that maximises traversal. The all-axes-maxed document traverses 12,189 values; nine tables of sparkline cells traverse **260,816** and are the largest `nodes` admits. A cap read off the wrong document would have refused an ordinary dashboard. |
 | Separate `nesting` cap (40) alongside the `depth` cap (6) | `depth` counts containers and is the contract. `nesting` counts raw object levels and exists only so a 20,000-deep chain is a clean rejection rather than a `RangeError` escaping as a 500. |
 | `nodes` (3,000) sits **above** the all-axes-maxed document (2,158) | A cost cap that rejected the largest document its own sibling caps permit would be a bug report waiting to happen. It bites on the multiplicative case: 12 children × 6 levels. |
@@ -217,7 +265,7 @@ Restored from the post-fix backup, `diff -q` identical, both fixed lines confirm
 
 ## Not yet done
 
-- [x] **Independent adversarial review of the diff** (shared execution rule 4). Round 1 against `0806ac8`: verdict "do not approve", three proven blockers plus a whitespace note — see "The review, and what it broke". Round 2 against `fe70778`: one remaining blocker, the conflicting-`type` normalisation, plus the false-positive tests that had hidden it — see "The second review round". Everything else round 2 exercised (ingress budget, strict schemas, stdio framing, the full gate) held.
+- [x] **Independent adversarial review of the diff** (shared execution rule 4). Round 1 against `0806ac8`: verdict "do not approve", three proven blockers plus a whitespace note — see "The review, and what it broke". Round 2 against `fe70778`: one remaining blocker, the conflicting-`type` normalisation, plus the false-positive tests that had hidden it — see "The second review round". Round 3 against `0df4dba`: one remaining blocker, the non-strict `render_dashboard` gateway — see "The third review round". Everything else rounds 2 and 3 exercised (ingress budget, strict node schemas, stdio framing, the reserved-key rule, the full gate) held.
 - [ ] Push, open a PR, and let `ci.yml` run against Wave 1.
 - [ ] Only then declare the Wave 1 gate closed and start Wave 2.
 
@@ -252,7 +300,7 @@ Written with the review's lesson in mind: **a documented limitation that makes a
 | `packages/weave-primitives/src/schemas/bounds.ts` | `LIMITS` and the bounded primitives, each cap carrying its measurement — and the unknown-key policy, written where the caps live. |
 | `packages/weave-primitives/bench/document-limits.bench.mjs` | The evidence. Self-contained; needs `dist/` only for its whole-document sections, which now report `values` alongside objects and bytes. |
 | `docs/specs/weave-document-v1.md` | Contract, recorded benchmark, migration guide, deprecation timetable. |
-| `packages/weave-mcp-server/src/tools.ts` | `DashboardGatewaySchema` (F8) and `invokeTool`, which every transport shares — including the rule that a fixed tool's `type` is not a caller argument. |
+| `packages/weave-mcp-server/src/tools.ts` | `DashboardGatewaySchema` (F8, `.strict()`) and `invokeTool`, which every transport shares — including the rule that a fixed tool's `type` is not a caller argument, and that the gateway takes `root` and nothing else. |
 | `packages/weave-mcp-server/src/ingress.ts` | The `/mcp` byte budget — why the SDK boundary forces it here and not downstream. |
 | `packages/weave-mcp-app/src/server.ts` | Registers each tool by **schema, not `.shape`** — and why that distinction is load-bearing rather than stylistic. |
 | `packages/weave-mcp-app/src/bounded-stdin.ts` | The stdio framing budget and its documented semantics. |
@@ -262,12 +310,12 @@ Written with the review's lesson in mind: **a documented limitation that makes a
 
 ## Resume instructions
 
-1. `cd /Users/pierregallet/Documents/weave-wave-1`, confirm the tree is clean and 4 commits ahead of `0568b4f`.
+1. `cd /Users/pierregallet/Documents/weave-wave-1`, confirm the tree is clean and 5 commits ahead of `0568b4f`.
 2. Re-verify before trusting anything:
    ```bash
    TURBO_FORCE=true pnpm typecheck && TURBO_FORCE=true pnpm test
    ```
-   Expected exit 0, 474 vitest + 26 `node --test`.
+   Expected exit 0, 495 vitest + 26 `node --test`.
    If Playwright fails with `Executable doesn't exist … chromium_headless_shell-1228`:
    `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
 3. Confirm the lint position:

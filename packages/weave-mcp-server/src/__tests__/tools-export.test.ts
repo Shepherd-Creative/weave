@@ -6,7 +6,13 @@ import {
 } from "@shepherd-creative/weave-primitives/schemas";
 import { describe, expect, it } from "vitest";
 import { ZodError } from "zod";
-import { FIXED_TOOL_RESERVED_KEYS, invokeTool, TOOLS, TOOLS_BY_NAME } from "../tools.js";
+import {
+  DashboardGatewaySchema,
+  FIXED_TOOL_RESERVED_KEYS,
+  invokeTool,
+  TOOLS,
+  TOOLS_BY_NAME,
+} from "../tools.js";
 import { FIXED_TOOL_TYPES, VALID_FIXED_TOOL_ARGS } from "./fixtures.js";
 
 describe("tools registry surface", () => {
@@ -183,5 +189,147 @@ describe("a fixed tool's `type` and `id` are not caller arguments", () => {
     });
     expect(document.root.id).toBe("root-1");
     expect((document.root as { children: Array<{ id?: string }> }).children[0].id).toBe("note-1");
+  });
+});
+
+/**
+ * The gateway is the last place an unknown key was still being dropped in
+ * silence, and it was the widest: every other tool's args ARE a node, so the
+ * strict node schemas caught undeclared keys downstream. `render_dashboard`'s
+ * args are the gateway object, whose only declared key is `root` — and
+ * `z.object()` without `.strict()` strips the rest, on the two surfaces that run
+ * the advertised schema, while `invokeTool` simply read `record.root` and never
+ * looked at the rest at all.
+ *
+ * Every payload below is a valid document root plus ONE small undeclared key, so
+ * a rejection is about that key and nothing else — and small deliberately: the
+ * ingress budget already refuses a large one, and a test that leaned on the
+ * budget would prove the budget, not this.
+ */
+describe("render_dashboard's gateway takes `root` and nothing else", () => {
+  const VALID_ROOT = { type: "Stack", children: [{ type: "NoteCard", body: "ok" }] };
+
+  it("accepts the bare gateway object (non-vacuity control)", () => {
+    // Without this, every rejection below could be a rejection of the root.
+    const document = invokeTool("render_dashboard", { root: VALID_ROOT });
+    expect(document.weave).toBe(1);
+    expect(document.root.type).toBe("Stack");
+  });
+
+  it("refuses a valid document carrying one small undeclared key", () => {
+    expect(
+      () => invokeTool("render_dashboard", { root: VALID_ROOT, junk: 1 }),
+      "the gateway silently discarded an undeclared key",
+    ).toThrow(ZodError);
+  });
+
+  it("reports it as an unrecognised key on the gateway, the issue /mcp raises", () => {
+    let caught: unknown;
+    try {
+      invokeTool("render_dashboard", { root: VALID_ROOT, junk: 1 });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ZodError);
+    const { issues } = caught as ZodError;
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("unrecognized_keys");
+    expect((issues[0] as { keys?: string[] }).keys).toEqual(["junk"]);
+    expect(issues[0].path).toEqual([]);
+  });
+
+  it("returns no document at all when an undeclared key is present", () => {
+    // The defect was never a status code. It was a document built from a
+    // request the server had quietly rewritten.
+    let document: unknown = "unset";
+    try {
+      document = invokeTool("render_dashboard", { root: VALID_ROOT, junk: 1 });
+    } catch {
+      document = undefined;
+    }
+    expect(document).toBeUndefined();
+  });
+
+  it("refuses a caller-written envelope rather than silently downgrading it", () => {
+    // The case that makes this more than tidiness. The gateway exists so the
+    // SERVER stamps the version; a caller who writes the envelope themselves —
+    // `{ weave: 2, root }`, asking for a format this build does not implement —
+    // had `weave` deleted and got a v1 document back, which is the one answer a
+    // version negotiation must never give.
+    for (const weave of [1, 2]) {
+      expect(
+        () => invokeTool("render_dashboard", { weave, root: VALID_ROOT }),
+        `weave: ${weave} was silently dropped`,
+      ).toThrow(ZodError);
+    }
+  });
+
+  it("names every undeclared key in one issue, in the order the caller sent them", () => {
+    // Same reporting contract the fixed tools carry: Zod reports unrecognised
+    // keys in INPUT order, so a guard emitting a fixed order would agree with
+    // the SDK on one input and diverge on the other.
+    for (const args of [
+      { root: VALID_ROOT, alpha: 1, beta: 2 },
+      { beta: 2, root: VALID_ROOT, alpha: 1 },
+    ]) {
+      let caught: unknown;
+      try {
+        invokeTool("render_dashboard", args);
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(ZodError);
+      const { issues } = caught as ZodError;
+      expect(issues).toHaveLength(1);
+      expect((issues[0] as { keys?: string[] }).keys).toEqual(
+        Object.keys(args).filter((k) => k !== "root"),
+      );
+    }
+  });
+
+  it("refuses the same key in the ADVERTISED schema too, not only in invokeTool", () => {
+    // The second layer, and it is not redundant: `/mcp` and the MCP App run this
+    // schema and hand `invokeTool` whatever survives it. A non-strict gateway
+    // deletes the key upstream of the shared guard, so the guard cannot see it
+    // — the same "a guard cannot run on input thrown away above it" shape the
+    // `.shape`-vs-schema registration bug had.
+    expect(DashboardGatewaySchema.safeParse({ root: VALID_ROOT }).success).toBe(true);
+
+    const rejected = DashboardGatewaySchema.safeParse({ root: VALID_ROOT, junk: 1 });
+    expect(rejected.success).toBe(false);
+    if (rejected.success) return;
+    expect(rejected.error.issues[0].code).toBe("unrecognized_keys");
+    expect((rejected.error.issues[0] as { keys?: string[] }).keys).toEqual(["junk"]);
+  });
+
+  it("refuses a key that only the prototype chain would call declared", () => {
+    // `key in shape` walks the prototype chain, so `toString` and `constructor`
+    // read as declared keys and get discarded in silence — the original defect,
+    // surviving in the two places nobody would think to test. The guard uses
+    // `Object.hasOwn`, and this is what says so.
+    for (const key of ["toString", "constructor", "hasOwnProperty"]) {
+      expect(
+        () => invokeTool("render_dashboard", { root: VALID_ROOT, [key]: 1 }),
+        `\`${key}\` was accepted as a declared gateway key`,
+      ).toThrow(ZodError);
+    }
+  });
+
+  it("derives the allowed keys from the advertised schema, not a hand-written list", () => {
+    // A second copy of "the gateway takes root" would go stale the day the
+    // gateway grows a key. The guard reads the schema's own shape, so this test
+    // pins the two together rather than mirroring one in the other.
+    expect(Object.keys(TOOLS_BY_NAME.render_dashboard.inputSchema.shape)).toEqual(["root"]);
+  });
+
+  it("still carries a document's own ids through untouched", () => {
+    // `id` is a key of the ROOT NODE, not of the gateway. A guard that confused
+    // the two would refuse every document that names anything — so this is the
+    // line between "the gateway is closed" and "documents lost their ids".
+    const document = invokeTool("render_dashboard", {
+      root: { type: "Stack", id: "root-1", children: [{ type: "NoteCard", id: "n1", body: "ok" }] },
+    });
+    expect(document.root.id).toBe("root-1");
+    expect((document.root as { children: Array<{ id?: string }> }).children[0].id).toBe("n1");
   });
 });

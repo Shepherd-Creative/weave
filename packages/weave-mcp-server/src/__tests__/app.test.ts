@@ -398,9 +398,11 @@ describe("weave-mcp-server", () => {
     });
 
     it("refuses a large discarded argument at ingress, before building a candidate", async () => {
-      // `render_dashboard` reads only `root`; `junk` never reaches the document.
-      // So nothing downstream of ingress can refuse this — the raw-body budget
-      // is the only guard, and this is the REST control for the /mcp case.
+      // The gateway now refuses `junk` on its own, but this asserts something
+      // the key check cannot: that the refusal happens at INGRESS, on the raw
+      // bytes, before anything materialises them. The status is the whole point
+      // — 413, not the 400 the key check returns — so a budget quietly moved
+      // downstream of the parse would go red here rather than pass as a 400.
       const res = await app.request("/invoke/render_dashboard", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -410,6 +412,64 @@ describe("weave-mcp-server", () => {
         }),
       });
       expect(res.status).toBe(413);
+    });
+  });
+
+  /**
+   * The gateway was the last place an unknown key was still dropped in silence,
+   * and the widest: every other tool's args ARE a node, so the strict node
+   * schemas caught undeclared keys downstream. `render_dashboard`'s args are the
+   * gateway object, and REST never runs the advertised schema at all — it read
+   * `record.root` and ignored everything else.
+   *
+   * Each payload is a valid document root plus ONE small undeclared key.
+   * Small deliberately: a large one is refused by the ingress budget above, so a
+   * test using one would prove the budget rather than this.
+   */
+  describe("render_dashboard's gateway takes `root` and nothing else (REST)", () => {
+    const VALID_ROOT = { type: "Stack", children: [{ type: "NoteCard", body: "ok" }] };
+
+    it("accepts the bare gateway object (non-vacuity control)", async () => {
+      const res = await post("render_dashboard", { root: VALID_ROOT });
+      expect(res.status).toBe(200);
+      expect((await res.json()).document.root.type).toBe("Stack");
+    });
+
+    it("refuses a valid document carrying one small undeclared key", async () => {
+      const res = await post("render_dashboard", { root: VALID_ROOT, junk: 1 });
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.document).toBeUndefined();
+      expect(
+        (body.issues as Array<{ code: string; keys?: string[] }>).some(
+          (issue) => issue.code === "unrecognized_keys" && issue.keys?.includes("junk"),
+        ),
+      ).toBe(true);
+    });
+
+    it("refuses a caller-written envelope rather than silently downgrading it", async () => {
+      // `{ weave: 2, root }` asks for a format this build does not implement.
+      // It used to have `weave` deleted and come back a v1 document — the one
+      // answer a version negotiation must never give.
+      const res = await post("render_dashboard", { weave: 2, root: VALID_ROOT });
+      expect(res.status).toBe(400);
+      expect((await res.json()).document).toBeUndefined();
+    });
+
+    it("still carries a document's own ids through untouched", async () => {
+      // `id` belongs to the root NODE, not to the gateway. This is the line
+      // between "the gateway is closed" and "documents lost their ids".
+      const res = await post("render_dashboard", {
+        root: {
+          type: "Stack",
+          id: "root-1",
+          children: [{ type: "NoteCard", id: "n1", body: "x" }],
+        },
+      });
+      expect(res.status).toBe(200);
+      const { root } = (await res.json()).document;
+      expect(root.id).toBe("root-1");
+      expect(root.children[0].id).toBe("n1");
     });
   });
 
@@ -628,6 +688,60 @@ describe("weave-mcp-server", () => {
       expect(overMcp.result.structuredContent).toBeUndefined();
       expect(overRest.status).toBe(400);
       expect((await overRest.json()).document).toBeUndefined();
+    });
+
+    it("answers an undeclared gateway key the same way REST does (surface parity)", async () => {
+      // Both surfaces accepted this. `/mcp` accepted it for its own reason: the
+      // SDK runs the advertised gateway schema, and a non-strict `z.object()`
+      // STRIPS what it does not declare — so `junk` was deleted before
+      // `invokeTool` ran and no shared guard could ever have seen it.
+      const args = { root: { type: "NoteCard", body: "ok" }, junk: 1 };
+
+      const overMcp = await (
+        await jsonRpc({
+          jsonrpc: "2.0",
+          id: 37,
+          method: "tools/call",
+          params: { name: "render_dashboard", arguments: args },
+        })
+      ).json();
+      const overRest = await post("render_dashboard", args);
+
+      expect(overMcp.result.isError).toBe(true);
+      expect(JSON.stringify(overMcp.result.content)).toContain("unrecognized_keys");
+      expect(overMcp.result.structuredContent).toBeUndefined();
+      expect(overRest.status).toBe(400);
+      expect((await overRest.json()).document).toBeUndefined();
+    });
+
+    it("accepts the bare gateway object over /mcp (non-vacuity control)", async () => {
+      const res = await jsonRpc({
+        jsonrpc: "2.0",
+        id: 38,
+        method: "tools/call",
+        params: {
+          name: "render_dashboard",
+          arguments: { root: { type: "NoteCard", body: "ok" } },
+        },
+      });
+      const body = await res.json();
+      expect(body.result.isError).toBeUndefined();
+      expect(body.result.structuredContent.root.type).toBe("NoteCard");
+    });
+
+    it("refuses a caller-written envelope over /mcp too", async () => {
+      const res = await jsonRpc({
+        jsonrpc: "2.0",
+        id: 39,
+        method: "tools/call",
+        params: {
+          name: "render_dashboard",
+          arguments: { weave: 2, root: { type: "NoteCard", body: "ok" } },
+        },
+      });
+      const body = await res.json();
+      expect(body.result.isError).toBe(true);
+      expect(body.result.structuredContent).toBeUndefined();
     });
 
     it("tools/call render_metric_band returns structuredContent + text", async () => {
