@@ -290,6 +290,79 @@ describe("weave-mcp-server", () => {
     });
   });
 
+  describe("a fixed tool's root cannot be overridden by the request body", () => {
+    /**
+     * `render_note_card` advertises a NoteCard. It used to build its root as
+     * `{ type: tool.specType, ...record }`, so a caller-supplied `type` won the
+     * spread and the tool rendered whatever root it was handed — over REST,
+     * which never parses `inputSchema` at all.
+     */
+    it("does not let a conflicting discriminator turn render_note_card into a Stack", async () => {
+      const res = await post("render_note_card", {
+        type: "Stack",
+        children: [{ type: "NoteCard", body: "tool override" }],
+      });
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      // Non-vacuity: a 400 could come from anywhere. The proof is that no
+      // document came back at all, and that the failure is `children` being an
+      // unrecognised key — i.e. the root really was built as a NoteCard.
+      expect(body.document).toBeUndefined();
+      expect(
+        (body.issues as Array<{ code: string; keys?: string[] }>).some(
+          (issue) => issue.code === "unrecognized_keys" && issue.keys?.includes("children"),
+        ),
+      ).toBe(true);
+    });
+
+    it("does not let a conflicting discriminator retype any other fixed tool", async () => {
+      for (const [name, args] of [
+        ["render_metric_band", { type: "NoteCard", body: "x" }],
+        ["render_table_card", { type: "NoteCard", body: "x" }],
+        ["render_chart_card", { type: "NoteCard", body: "x" }],
+      ] as const) {
+        const res = await post(name, args);
+        expect(res.status, `${name} accepted an overridden root`).toBe(400);
+      }
+    });
+
+    it("still renders the advertised root when the body carries the matching type", async () => {
+      // The fix must not break a caller who redundantly names the right type.
+      const res = await post("render_note_card", { type: "NoteCard", body: "fine" });
+      expect(res.status).toBe(200);
+      expect((await res.json()).document.root.type).toBe("NoteCard");
+    });
+  });
+
+  describe("unknown keys over REST", () => {
+    it("rejects an undeclared key on a node", async () => {
+      const res = await post("render_note_card", { body: "ok", onLoad: "alert(1)" });
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects an undeclared array field on a nested node", async () => {
+      const res = await post("render_dashboard", {
+        root: { type: "Stack", children: [{ type: "NoteCard", body: "ok", junk: [1, 2, 3] }] },
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("refuses a large discarded argument at ingress, before building a candidate", async () => {
+      // `render_dashboard` reads only `root`; `junk` never reaches the document.
+      // So nothing downstream of ingress can refuse this — the raw-body budget
+      // is the only guard, and this is the REST control for the /mcp case.
+      const res = await app.request("/invoke/render_dashboard", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          root: { type: "NoteCard", body: "ok" },
+          junk: "x".repeat(LIMITS.payloadBytes),
+        }),
+      });
+      expect(res.status).toBe(413);
+    });
+  });
+
   describe("render_dashboard discoverability (F8)", () => {
     it("advertises an object schema naming its root property", async () => {
       // Before Wave 1 this tool's schema was the lazy Spec union, which the MCP
@@ -570,6 +643,75 @@ describe("weave-mcp-server", () => {
       });
       const body = await res.json();
       expect(body.result.isError).toBe(true);
+    });
+
+    it("refuses an oversized JSON-RPC request before the SDK parses it", async () => {
+      // The hole this closes: `/mcp` handed the raw request straight to the SDK,
+      // and the only size check ran on the CONSTRUCTED candidate — after the SDK
+      // had parsed the body and stripped everything the tool did not declare.
+      // `render_dashboard` reads only `root`, so `junk` is discarded and the
+      // candidate is tiny: no downstream check can ever see this payload.
+      const res = await jsonRpc({
+        jsonrpc: "2.0",
+        id: 33,
+        method: "tools/call",
+        params: {
+          name: "render_dashboard",
+          arguments: {
+            root: { type: "NoteCard", body: "ok" },
+            junk: "x".repeat(LIMITS.payloadBytes),
+          },
+        },
+      });
+      expect(res.status).toBe(413);
+      const body = await res.json();
+      // Non-vacuity: prove nothing was rendered, not merely that a status came back.
+      expect(JSON.stringify(body)).not.toContain('"weave"');
+    });
+
+    it("counts UTF-8 bytes at ingress, not UTF-16 code units", () => {
+      // Guards the same trap the payload tests carry: a `.length` check would
+      // admit three times the cap for multibyte content.
+      const filler = "€".repeat(LIMITS.payloadBytes / 2);
+      expect(filler.length).toBeLessThan(LIMITS.payloadBytes);
+      expect(new TextEncoder().encode(filler).length).toBeGreaterThan(LIMITS.payloadBytes);
+      return jsonRpc({
+        jsonrpc: "2.0",
+        id: 34,
+        method: "tools/call",
+        params: {
+          name: "render_dashboard",
+          arguments: { root: { type: "NoteCard", body: "ok" }, junk: filler },
+        },
+      }).then((res) => {
+        expect(res.status).toBe(413);
+      });
+    });
+
+    it("accepts a JSON-RPC request comfortably inside the ingress budget", async () => {
+      // Non-vacuity for the budget: it must not refuse ordinary traffic.
+      const res = await jsonRpc({
+        jsonrpc: "2.0",
+        id: 35,
+        method: "tools/call",
+        params: { name: "render_note_card", arguments: { body: "ok" } },
+      });
+      expect(res.status).toBe(200);
+      expect((await res.json()).result.isError).toBeUndefined();
+    });
+
+    it("tools/call rejects an undeclared key on a node", async () => {
+      const res = await jsonRpc({
+        jsonrpc: "2.0",
+        id: 36,
+        method: "tools/call",
+        params: {
+          name: "render_dashboard",
+          arguments: { root: { type: "NoteCard", body: "ok", onLoad: "alert(1)" } },
+        },
+      });
+      const body = await res.json();
+      expect(body.result?.isError ?? body.error !== undefined).toBe(true);
     });
 
     it("advertises render_dashboard with a usable object schema", async () => {

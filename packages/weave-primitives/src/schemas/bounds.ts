@@ -39,6 +39,22 @@ export const LIMITS = {
   depth: 6,
   /** Max objects in one document. Above the all-axes-maxed shape (2,158) so the per-axis caps stay honest; costs ~1.7 ms to reach (flat-node curve: 1,000 → 0.50 ms, 5,000 → 2.91 ms). */
   nodes: 3_000,
+  /**
+   * Max values the structural walk may visit — every array element and every
+   * object property, scalars included.
+   *
+   * `nodes` counts objects only, so it says nothing about an array of scalars:
+   * a single undeclared field holding a million zeros was walked in full before
+   * anything rejected it. This is the cap that bounds the walk itself.
+   *
+   * Measured, above the values-maximising LEGAL document rather than above a
+   * typical one. Sparkline cells carry 100 scalar leaves per object, so the
+   * worst legal shape is tables of them: nine sparkline tables measure 2,954
+   * objects / **260,816 values** and are the largest the `nodes` cap admits
+   * (ten are refused at 3,282 objects). See the benchmark's "values-maximising
+   * legal document" section.
+   */
+  values: 300_000,
   /** Max characters in a label, title, caption, header or table cell. */
   text: 200,
   /** Max characters of prose in a NoteCard body — roughly two pages. */
@@ -66,6 +82,30 @@ export const LIMITS = {
   /** Max points in a sparkline. A sparkline is ~100px wide, so more than one point per pixel is not drawable. */
   sparklinePoints: 100,
 } as const;
+
+/**
+ * ## The unknown-key policy
+ *
+ * **Every node schema and every nested input object is `.strict()`.** An
+ * undeclared key is a rejection, never a silent removal.
+ *
+ * Stripping was not a smaller version of rejecting; it was a hole. Zod's
+ * default `z.object()` drops unknown keys *after* they have been received, so
+ * an undeclared field carried whatever the caller liked — 300 KB of string, a
+ * million-element array — and was then dropped without ever being weighed
+ * against a limit. The document looked bounded because the evidence of it not
+ * being bounded had been deleted. Closing the objects means the same input is
+ * an `unrecognized_keys` issue on every surface, and `LIMITS.values` bounds
+ * what the structural walk spends discovering that.
+ *
+ * **One shape stays open, deliberately:** `ChartDatumSchema` is a `z.record()`,
+ * because a chart series is named by the caller — "gross margin %" is data, not
+ * schema. Its keys are bounded in count and length and its values must be
+ * finite numbers or bounded strings, and the canonical validator additionally
+ * requires them to match the chart's declared `categoryKey`/`valueKeys`. It is
+ * the only open record in the contract; anything else added later should be
+ * closed unless it can make the same argument.
+ */
 
 /**
  * A number that can actually be rendered.

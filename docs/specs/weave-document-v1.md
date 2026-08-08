@@ -20,7 +20,11 @@ A Weave document is:
 - `weave` — the format version. An integer, not the package version. A build that does not implement a version refuses the document rather than guessing.
 - `root` — one of **six** node types: `Grid`, `Stack` (layouts) or `MetricBand`, `ChartCard`, `TableCard`, `NoteCard` (display organisms).
 
-Unknown top-level keys are **rejected**, not stripped. A caller who sends `onLoad` believes this format does something it does not, and silently dropping it hides that.
+Unknown keys are **rejected, not stripped — at every level**: the envelope, every node, and every nested object inside a node (table headers, table cells, KPI deltas, sparkline configs). A caller who sends `onLoad` believes this format does something it does not, and silently dropping it hides that.
+
+The reason this is a contract rule rather than a tidiness preference is that stripping *defeated the limits*. Zod's default `z.object()` drops an unknown key **after** receiving it, so an undeclared field could carry anything — 300 KB of string, a million-element array — be walked in full, and then be deleted before anyone weighed it. The document then looked bounded precisely because the evidence had been thrown away.
+
+**One shape stays open, and only one:** a chart's `data` records are a `z.record()`, because a series is named by the caller — `"gross margin %"` is data, not schema. Their keys are bounded in count (≤ `chartSeries` + 1) and length (`chartKeyText`), their values must be finite numbers or bounded strings, and the validator additionally requires every key to be the declared `categoryKey` or one of `valueKeys`. Anything added to the contract later should be closed unless it can make the same argument.
 
 ### What may no longer be a root
 
@@ -40,8 +44,8 @@ Three layers, and the split is forced rather than stylistic:
 
 | Layer | Rules | Enforced by |
 |---|---|---|
-| **Structural bounds** | array lengths, string lengths, finite numbers, enums | the leaf schemas — so they hold wherever a schema is used |
-| **Cost policy** | payload bytes, container depth, object count, raw nesting | `validateWeaveDocument`, *before* Zod sees the input |
+| **Structural bounds** | array lengths, string lengths, finite numbers, enums, unknown keys | the leaf schemas — so they hold wherever a schema is used |
+| **Cost policy** | payload bytes, container depth, object count, raw nesting, values traversed | `validateWeaveDocument`, *before* Zod sees the input |
 | **Cross-field rules** | one cell per header, chart keys matching declared series, document-wide unique ids | `validateWeaveDocument`, as Zod issues on the envelope |
 
 Cross-field rules cannot live in the leaf schemas. Zod 3's `discriminatedUnion` requires every member to be a `ZodObject`; `.superRefine()` yields a `ZodEffects`, which the union rejects **at construction time**. Measured on zod 3.25.76:
@@ -58,7 +62,7 @@ The consequence is worth stating plainly: `TableCardSchema.parse()` on its own c
 | Thrown | When |
 |---|---|
 | `z.ZodError` | shape, bounds, root membership, or a cross-field rule |
-| `WeaveDocumentError` | payload / depth / nodes / nesting policy, malformed JSON, or a misused adapter. Carries a `code`. |
+| `WeaveDocumentError` | payload / depth / nodes / nesting / values policy, malformed JSON, or a misused adapter. Carries a `code`. |
 
 Both are input errors. REST maps `code: "payload"` to **413** and everything else to **400**.
 
@@ -70,7 +74,7 @@ Run `node packages/weave-primitives/bench/document-limits.bench.mjs`. It builds 
 
 Recorded run, Node v22.23.2, zod 3.25.76, Apple silicon:
 
-| Axis | 
+| Axis |
 |---|
 | **Chart points** (1 series): 10 → 0.066 ms · 200 → 0.392 ms / 6,464 B · 1,000 → 0.866 ms · 5,000 → 4.444 ms / 172,864 B |
 | **Chart series** (100 points): 8 → 0.193 ms / 8,318 B · 16 → 0.491 ms · 64 → 1.391 ms / 67,632 B |
@@ -82,10 +86,14 @@ Recorded run, Node v22.23.2, zod 3.25.76, Apple silicon:
 
 Two whole-document measurements anchor the global caps:
 
-| Document | objects | bytes | verdict |
-|---|---|---|---|
-| Busiest dashboard anyone would compose — 8 widgets, 4 charts at the point cap, 2 full tables | 1,473 | 47,596 | **accepted** |
-| Every per-axis cap at its maximum, simultaneously | 2,158 | 126,048 | **accepted** |
+| Document | objects | values | bytes | verdict |
+|---|---|---|---|---|
+| Busiest dashboard anyone would compose — 8 widgets, 4 charts at the point cap, 2 full tables | 1,473 | 4,435 | 47,596 | **accepted** |
+| Every per-axis cap at its maximum, simultaneously | 2,158 | 12,189 | 126,048 | **accepted** |
+| The **values-maximising** legal document — 9 tables of sparkline cells | 2,954 | 260,816 | 818,256 | **accepted** |
+| …and a tenth table | 3,282 | 289,795 | 909,168 | rejected (`nodes`) |
+
+The third row is what sets `values`. "Objects" and "values" diverge sharply because a sparkline cell is one object carrying 100 scalar leaves, so the shape that maximises objects is not the shape that maximises traversal. A cap read off the all-axes-maxed document (12,189) would have refused an ordinary nine-table dashboard.
 
 ### The caps
 
@@ -94,6 +102,7 @@ Two whole-document measurements anchor the global caps:
 | `payloadBytes` | 262,144 | 5.5× the realistic dashboard, 2.1× the all-axes-maxed one. Checked in **UTF-8 bytes**: `€` is one UTF-16 code unit and three bytes, so a `.length` check would admit three times the cap. |
 | `depth` | 6 | Unchanged from the already-shipped `render_dashboard` cap. SKILL.md's worked examples reach 3. |
 | `nodes` | 3,000 | Above the all-axes-maxed shape (2,158), so the per-axis caps stay honest. It bites on the *multiplicative* case the per-axis caps miss: 12 children × 6 levels of nesting is tens of thousands of objects with every individual axis legal. |
+| `values` | 300,000 | Every array element and object property the structural walk visits, scalars included. `nodes` counts objects only, so it says nothing about an array of scalars — an undeclared field holding a million zeros was walked in full before anything refused it. Above the values-maximising legal document (260,816), which is the largest `nodes` admits. |
 | `nesting` | 40 | Not a contract cap — a stack-overflow guard. A chain of 20,000 ordinary objects would otherwise raise a `RangeError` from the walk itself, escaping as a 500 rather than a clean rejection. A depth-6 document nests about 20. |
 | `text` | 200 chars | Labels, titles, captions, headers, cells. Zero parse cost; the axis is payload and layout. |
 | `body` | 4,000 chars | NoteCard prose — roughly two pages. |
@@ -109,15 +118,24 @@ Two whole-document measurements anchor the global caps:
 
 **Non-finite numbers are rejected everywhere.** `z.number()` rejects `NaN` but **accepts `Infinity`** (measured on zod 3.25.76). JSON cannot carry it, so the transports are not a backstop — but the direct `<Weave>` path takes in-memory objects, where it reaches the DOM as the literal string `"Infinity"`.
 
-### Where payload size is *not* checked
+### Where payload size is checked, and where it is not
 
 `validateWeaveDocument` does not measure bytes. It takes an object; measuring would mean serialising a document nobody asked to serialise, on every React render.
 
-Bytes are checked where a payload actually exists:
+Bytes are therefore checked at **ingress** — on the wire, before anything parses — on every surface that has a wire. All three use the same `payloadBytes` budget, so they refuse the same message:
 
-- **REST** reads the body as text and checks it **before** `JSON.parse`, so an oversized body is refused without being materialised.
-- **MCP JSON-RPC and the MCP App** never expose the raw body — the SDK has already parsed it — so `invokeTool` serialises the candidate document and checks that. Safe because the structural walk has already bounded node count and nesting by then.
-- **Direct `<Weave>`** has no payload. Node count, nesting and bounded string fields are what constrain it, and they are enforced identically.
+| Surface | Where the budget is spent |
+|---|---|
+| **REST** `/invoke/:name` | reads the body as text and checks it before `JSON.parse` |
+| **MCP JSON-RPC** `/mcp` | streams the body with a byte counter and refuses on the chunk that crosses the limit (**413**), before the request reaches the MCP SDK. `content-length` is not trusted: it is absent under chunked encoding and is a claim rather than a fact |
+| **MCP App** (stdio) | a bounded framing stream sits between `process.stdin` and the transport, forwarding only whole newline-delimited frames within the budget |
+| **Direct `<Weave>`** | no wire, so no bytes. Bounded instead by `nodes`, `values`, `nesting` and the bounded string fields |
+
+**Why ingress and not the candidate document.** The check used to run on the *constructed* candidate — i.e. after the SDK had parsed the message and dropped every key the tool's advertised schema did not declare. `render_dashboard` reads only `root`, so a request could carry a megabyte of discarded argument and leave a few hundred bytes of candidate behind; by the time anything measured, the payload no longer existed to be measured. A budget spent after the parse is not a budget.
+
+`invokeTool` still serialises the candidate and checks it, as a second, narrower guard for any caller that reaches it directly.
+
+**The stdio semantics, stated rather than implied.** A frame over the budget is discarded whole and the stream resyncs at the next newline; it is never truncated, because a half-forwarded frame would corrupt the *next* message. A discarded frame gets **no JSON-RPC reply** — the message was never framed, so its `id` was never read, and an `id: null` error would only surface on the client as an unmatched response. The caller sees its request time out; the operator sees the reason and the byte count on stderr.
 
 ---
 
@@ -167,6 +185,15 @@ A lone KPI migrates by gaining a container:
 
 New status code: **413** for a payload over the byte cap. Everything else that was 400 is still 400.
 
+**A fixed tool's root is its own.** `render_metric_band`, `render_chart_card`, `render_table_card` and `render_note_card` each stamp their advertised `type` onto the arguments **last**, so a body carrying a conflicting `type` cannot retype the document. It is rejected as an unrecognised key by the real schema instead:
+
+```diff
+- POST /invoke/render_note_card  { "type": "Stack", "children": [ … ] }   → 200, a Stack
++ POST /invoke/render_note_card  { "type": "Stack", "children": [ … ] }   → 400
+```
+
+This matters most on REST, which never parses `inputSchema` at all — the advertised contract was true only of surfaces whose SDK happened to strip the extra key first, which is not a place a contract can live.
+
 ### MCP JSON-RPC
 
 `tools/call` returns the document as `structuredContent` and as the stringified `content[0].text`:
@@ -175,6 +202,8 @@ New status code: **413** for a payload over the byte cap. Everything else that w
 - structuredContent: { "type": "MetricBand", … }
 + structuredContent: { "weave": 1, "root": { "type": "MetricBand", … } }
 ```
+
+A request whose raw bytes exceed `payloadBytes` is refused with **413** and a JSON-RPC error body before the SDK parses it — see "Where payload size is checked".
 
 ### MCP App
 
@@ -187,6 +216,8 @@ All three delivery channels carry the document (the three exist because hosts di
 | fenced text | ` ```json ` block, `Weave <tool> spec:` | same block, `Weave <tool> document:` |
 
 `outputSchema` advertises `document` rather than `spec`. The view's dev harness takes `?document=<base64>` instead of `?spec=`.
+
+Stdin is framed under the same `payloadBytes` budget before the transport reads it; an oversized frame is dropped whole, reported on stderr, and never answered.
 
 ### `render_dashboard` discoverability (F8)
 

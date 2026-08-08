@@ -166,7 +166,17 @@ export function invokeTool(name: string, args: unknown): WeaveDocumentV1 {
   }
 
   const record = args !== null && typeof args === "object" ? (args as Record<string, unknown>) : {};
-  const root = tool.specType ? { type: tool.specType, ...record } : record.root;
+  // `type` is stamped LAST, so it wins.
+  //
+  // Built the other way round the spread let a caller-supplied `type` override
+  // the tool's own discriminator, and `render_note_card` would happily return a
+  // Stack of anything. The advertised schema said otherwise but nothing ran it:
+  // REST does not parse `inputSchema` at all, and the SDK surfaces only strip
+  // keys — neither is a place a contract can live. Stamping last makes the
+  // advertised root true of every surface by construction, and a caller who
+  // sent a conflicting `type` now gets an unrecognised-key rejection from the
+  // real schema rather than a document they were never entitled to.
+  const root = tool.specType ? { ...record, type: tool.specType } : record.root;
   const candidate = { weave: WEAVE_DOCUMENT_VERSION, root };
 
   assertDocumentStructuralLimits(candidate);

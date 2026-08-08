@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { Weave } from "../renderer/Weave.js";
-import { WeaveDocumentError } from "../schemas/index.js";
+import { LIMITS, WeaveDocumentError } from "../schemas/index.js";
 
 describe("Weave renderer", () => {
   it("renders a standalone headline KPI wrapped in a Stack", () => {
@@ -216,6 +216,44 @@ describe("Weave document API", () => {
         />,
       ),
     ).toThrow(z.ZodError);
+  });
+
+  it("rejects a large unknown scalar field with no transport involved", () => {
+    // The direct React path has no payload guard by design, so an undeclared
+    // field was the one place a document could carry unbounded content: 300 KB
+    // on a NoteCard validated clean and was silently dropped.
+    expect(() =>
+      render(
+        <Weave
+          document={document({
+            type: "NoteCard",
+            body: "ok",
+            onLoad: "x".repeat(300_000),
+          })}
+        />,
+      ),
+    ).toThrow(z.ZodError);
+  });
+
+  it("refuses a large unknown array before walking all of it", () => {
+    // WeaveDocumentError, not ZodError: the traversal budget has to refuse this
+    // during the structural walk. A ZodError here would mean the walk visited
+    // every element first and only then discovered the key was undeclared.
+    let thrown: unknown;
+    try {
+      render(
+        <Weave
+          document={document({
+            type: "NoteCard",
+            body: "ok",
+            junk: new Array(LIMITS.values + 1).fill(0),
+          })}
+        />,
+      );
+    } catch (err) {
+      thrown = err;
+    }
+    expect((thrown as WeaveDocumentError)?.code).toBe("values");
   });
 
   it("rejects a non-finite value that no transport could have carried", () => {

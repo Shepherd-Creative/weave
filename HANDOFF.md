@@ -2,7 +2,7 @@
 
 **Generated**: 2026-08-08
 **Branch**: `feature/primitive-portfolio-wave-1` (worktree `/Users/pierregallet/Documents/weave-wave-1`)
-**Status**: Implemented, locally verified, committed. **Nothing pushed, no PR opened.** Awaiting independent adversarial review before the Wave 1 gate is declared closed.
+**Status**: Implemented, independently reviewed, remediated, locally verified, committed. **Nothing pushed, no PR opened.**
 
 > Supersedes the Wave 0 handoff. Wave 0 is **merged** — `0568b4f Wave 0: truth, documentation and CI gate (#7)` is this branch's base — so its one open exit-gate item (a PR starting `ci.yml`) is closed.
 
@@ -26,18 +26,62 @@ All nine Wave 1 tasks. The contract, the measured limits and the migration guide
 - [x] **Render-only peers optional** after inspecting the built entry points.
 - [x] Migration doc + changeset (minor × 3).
 
+## The review, and what it broke
+
+An independent adversarial review of `0806ac8` returned **do not approve**, with three proven blockers. All three were real, all three are fixed in the follow-up commit. They are recorded here because each one is a *shape* of mistake worth not repeating, not just a bug.
+
+### 1. Stripping unknown keys silently defeated the limits (P1)
+
+Only the envelope was `.strict()`. Every node and nested object was a default `z.object()`, which drops unknown keys **after** receiving them — so an undeclared field carried whatever a caller liked, was walked in full, and was then deleted before anything weighed it. The reviewer's repro: a `NoteCard` with `onLoad: "x".repeat(300_000)` validated clean and came back as `{type:"NoteCard", body:"ok"}`; `junk: Array(1_000_000).fill(0)` also validated, after a ~23 ms full traversal.
+
+**The lesson is not "we forgot `.strict()`".** It is that *the document looked bounded precisely because the evidence had been thrown away*. Handoff residual limit 3 (now removed) had recorded stripping as a known trade-off deferred to Wave 5 — it was not a trade-off, it was the hole. **A "documented limitation" that makes a stated guarantee false is a defect wearing a note.**
+
+Fixed in two independent layers, and they were falsified separately on purpose:
+
+- **Every node and nested object schema is now `.strict()`** — atoms, molecules, organisms, layouts, table headers, table cells, deltas, sparkline configs. The single permitted open shape is `ChartDatumSchema` (a `z.record()`), because a chart series is named by the caller; its keys stay bounded in count and length, its values in type, and the validator still requires them to match the declared `categoryKey`/`valueKeys`.
+- **`LIMITS.values` (300,000)** bounds the structural walk itself. With strict schemas alone the million-element array was still *walked in full* before Zod refused it — proven by the intermediate RED, where that test reported `unrecognized_keys` rather than `weave:values`. `nodes` counts objects and therefore sees nothing in an array of scalars.
+
+### 2. REST could retype a fixed tool's root (P1)
+
+`invokeTool` built `{ type: tool.specType, ...record }`, so a caller-supplied `type` won the spread. `POST /invoke/render_note_card {"type":"Stack","children":[…]}` returned **200** and a Stack. The advertised `inputSchema` said otherwise, but nothing ran it: REST never parses it at all, and the SDK surfaces only *strip* the extra key. **An advertised schema is not a contract on any surface that does not execute it.** Now stamped last (`{ ...record, type: tool.specType }`), so the conflicting key is refused by the real schema.
+
+### 3. Two of the four surfaces had no ingress budget (P2)
+
+`/mcp` handed the raw request straight to the MCP SDK, and the MCP App let `ReadBuffer` frame stdin unaided. The only size check ran on the **constructed candidate document** — after the SDK had parsed the message and dropped every undeclared key. `render_dashboard` reads only `root`, so a request could carry a megabyte of discarded argument and be measured at a few hundred bytes. **A budget spent after the parse is not a budget.**
+
+Both now spend the budget at the door, on the same `payloadBytes` number REST uses:
+
+- `/mcp` streams the body with a byte counter (`packages/weave-mcp-server/src/ingress.ts`) and answers **413** on the chunk that crosses the limit. `content-length` is deliberately not trusted — absent under chunked encoding, and a claim rather than a fact.
+- The MCP App puts a bounded framing stream between `process.stdin` and the transport (`packages/weave-mcp-app/src/bounded-stdin.ts`). An oversized frame is discarded **whole** and the stream resyncs at the next newline; truncating would corrupt the *next* message, which is worse than the fault being fixed. A discarded frame gets no JSON-RPC reply — its `id` was never read — so the caller times out and the operator sees the size on stderr. Stated as semantics in the spec rather than left to be discovered.
+
+### 4. Trailing whitespace at `docs/specs/weave-document-v1.md:73`
+
+Fixed. `git diff --check 0568b4f` is now exit 0.
+
 ## Verification
 
-Every gate re-run on the committed tree.
+Every gate re-run on the remediated tree.
 
 | Gate | Result |
 |---|---|
 | `TURBO_FORCE=true pnpm typecheck` | exit 0 |
-| `TURBO_FORCE=true pnpm test` | exit 0 — **417 vitest + 26 `node --test` = 443**; baseline was 286 + 26 = 312 |
+| `TURBO_FORCE=true pnpm test` | exit 0 — **452 vitest + 26 `node --test` = 478**; Wave 1's first pass was 443, the pre-Wave-1 baseline 312 |
 | `TURBO_FORCE=true pnpm build` | exit 0 |
 | `node scripts/biome-new-findings.mjs 0568b4f` | exit 0 — base 46, head 37, **0 new** |
 | `pnpm lint` | exit 1 — 37 diagnostics (22 errors / 6 warnings / 9 infos) |
-| `git diff --check` | exit 0 |
+| `git diff --check 0568b4f` | exit 0 |
+
+Per-package: primitives 180 (was 168), theme-cli 102, mcp-server 82 (was 72), mcp-app 59 (was 46), skill 14, tokens 10, adapter-skill 5.
+
+The remediation's 35 new tests were all written **before** the fix and watched fail. The exact failure text matters in two of them:
+
+| Guard | RED evidence |
+|---|---|
+| strict node/nested schemas | 7 validator cases reported `accepted` — the reviewer's finding, reproduced |
+| `LIMITS.values` | isolated **after** strict landed: the same case reported `unrecognized_keys`, proving Zod walked the whole million-element array before refusing it. Only then did it become `weave:values` |
+| fixed-tool root | 2 REST cases returned **200** with the caller's own root type |
+| `/mcp` ingress | 3 cases returned **200** with the document rendered from an oversized request |
+| stdio framing | 9 unit cases could not even import the module; the e2e was **answered**, `isError: false` |
 
 `pnpm lint` exit 1 is the **pre-existing baseline**, unchanged in kind. It dropped 46 → 37 because formatting the files this work already had to touch cleared 11 pre-existing findings — the same effect Wave 0 saw at 48 → 46. Judge lint by `scripts/biome-new-findings.mjs`, never by the raw exit code.
 
@@ -62,6 +106,15 @@ A green suite is not evidence. Each guard below was sabotaged, watched fail, and
 
 Restore verified three ways: `diff -q` against backups taken **after** the fix, the fixed code present on the code line, and a tree-wide `grep -rl --no-ignore-files 'SABOTAGE_S[1-6]_MARKER'` returning **0** against a non-vacuity control of **37**.
 
+**Remediation round.** The 35 new tests carry their own RED evidence (see Verification), which covers every new guard except two whose first-pass red was trivially satisfied. Those two were sabotaged directly:
+
+| Sabotage | Result |
+|---|---|
+| Bounded framing forwards the held bytes instead of discarding the frame (truncate rather than drop) | **5 red** — including "accepts a frame exactly at the limit" and "defaults to the shared payload budget", i.e. the off-by-one and the default both matter |
+| `LIMITS.values` lowered to 100,000 — below the values-maximising legal document | **1 red**: "admits the largest legal document the other caps permit" reported `weave:values`. The cap's non-vacuity guard is load-bearing, so a future tightening cannot silently start refusing legal documents |
+
+Restored from post-fix backups, `diff -q` identical, the fix present on the code line, downstream `dist/` rebuilt (the framing sabotage lives in a bundle), and a tree-wide `grep -rl --no-ignore-files 'SABOTAGE_R[12]_MARKER'` returning **0** against a non-vacuity control of **11** dist files. Note esbuild strips comments, so a comment-only marker never reaches `dist/index.js` — the unit tests import source, which is where that sabotage was proven.
+
 ## Key decisions
 
 | Decision | Rationale |
@@ -70,7 +123,9 @@ Restore verified three ways: `diff -q` against backups taken **after** the fix, 
 | Cross-field rules live in the **canonical validator**, not the leaf schemas | Forced, not stylistic. Zod 3's `discriminatedUnion` requires `ZodObject` members and `.superRefine()` yields `ZodEffects`, which the union rejects at construction (`TypeError: Cannot read properties of undefined (reading 'type')`, zod 3.25.76). Consequence: `TableCardSchema.parse()` alone checks counts but not raggedness. |
 | Tool `inputSchema` is an **advertised projection**; `validateWeaveDocument` is the runtime authority | Exactly the plan's task-9 wording. Keeps `.shape` for the MCP Apps SDK while the real contract runs underneath. |
 | `render_dashboard` gateway takes `{ root }`, not a whole document | The server stamps the version, so a caller cannot send a wrong one and the model never writes the envelope. |
-| Payload bytes checked where a payload **exists**, not inside `validateWeaveDocument` | REST checks raw text before `JSON.parse`; `invokeTool` serialises for the surfaces the SDK has already parsed; direct React has no payload and is bounded by node/nesting/string caps instead. Measuring bytes in the validator would serialise a document nobody asked to serialise, on every render. |
+| Payload bytes checked at **ingress** on every surface that has a wire, not inside `validateWeaveDocument` | Measuring bytes in the validator would serialise a document nobody asked to serialise, on every React render — so the budget is spent on the wire instead: REST before `JSON.parse`, `/mcp` with a streaming byte counter before the SDK, the MCP App by framing stdin. Direct React has no wire and is bounded by node/values/nesting/string caps. **Revised after review**: the original design measured the *constructed candidate* for the two SDK surfaces, which is a measurement taken after the payload has already been discarded. |
+| The unknown-key policy is **closed by default, with exactly one documented exception** | Every node and nested object is `.strict()`; `ChartDatumSchema` stays a `z.record()` because a chart series is named by the caller. Enumerating the exception is the point — "some objects are open" is how the next one gets added without an argument. |
+| `values` (300,000) measured against the **values-maximising** legal document, not the all-axes-maxed one | A sparkline cell is one object carrying 100 scalar leaves, so the shape that maximises objects is not the shape that maximises traversal. The all-axes-maxed document traverses 12,189 values; nine tables of sparkline cells traverse **260,816** and are the largest `nodes` admits. A cap read off the wrong document would have refused an ordinary dashboard. |
 | Separate `nesting` cap (40) alongside the `depth` cap (6) | `depth` counts containers and is the contract. `nesting` counts raw object levels and exists only so a 20,000-deep chain is a clean rejection rather than a `RangeError` escaping as a 500. |
 | `nodes` (3,000) sits **above** the all-axes-maxed document (2,158) | A cost cap that rejected the largest document its own sibling caps permit would be a bug report waiting to happen. It bites on the multiplicative case: 12 children × 6 levels. |
 | Benchmark builds **unbounded mirrors** of the shipped schemas | The evidence for a cap is what happens past it; the shipped schemas short-circuit there. The two whole-document sections do use the real validator, because the question there is whether the caps admit a legal document. |
@@ -90,39 +145,44 @@ Restore verified three ways: `diff -q` against backups taken **after** the fix, 
 
 ## Not yet done
 
-- [ ] **Independent adversarial review of the diff** (shared execution rule 4). Not obtained. Codex was not attempted this session — Wave 0 recorded three failed attempts and the root cause (`scripts/codex-companion.mjs` only detaches under `--background`).
+- [x] **Independent adversarial review of the diff** (shared execution rule 4). Obtained against `0806ac8`; verdict "do not approve", three proven blockers plus a whitespace note. All four remediated — see "The review, and what it broke".
 - [ ] Push, open a PR, and let `ci.yml` run against Wave 1.
 - [ ] Only then declare the Wave 1 gate closed and start Wave 2.
 
 ## Residual limits, stated rather than hidden
 
+Written with the review's lesson in mind: **a documented limitation that makes a stated guarantee false is a defect wearing a note.** Each item below is checked against "does this make any claim in the spec untrue?" — none of them do.
+
 1. **`TableCardSchema.parse()` alone does not catch a ragged table.** Documented in the schema and the spec; every real path goes through the validator, but a consumer reaching for the leaf schema directly gets counts only.
-2. **`validateWeaveDocument` does not measure payload bytes.** By design (see Key decisions). Direct React consumers get node, nesting and string caps instead.
-3. **Node schemas still strip unknown keys** rather than rejecting them; only the envelope is `.strict()`. Rejecting arbitrary props on nodes is Wave 5's "reject URL/JS/command/free-text action props" work.
-4. **Chart "known fields" is only enforced when the chart declares `categoryKey` or `valueKeys`.** A chart that declares neither has unconstrained (but bounded) keys.
-5. **The `id` field is validated and unique but consumed by nothing.** Reserved for Wave 4's Tabs and Wave 5's registry.
-6. **`nesting: 40` was not derived from a stack-depth measurement**, only from the observation that a legal depth-6 document nests about 20. It is a guard rail with headroom, not a tuned number.
+2. **`validateWeaveDocument` does not measure payload bytes.** By design (see Key decisions). Every surface that has a wire spends the budget at ingress instead; direct React has no wire and is bounded by node, values, nesting and string caps.
+3. **`values: 300_000` is a bound, not a tight one.** It sits 1.15× above the largest legal document (260,816 values), so on the direct React path a hostile input can still cost one full traversal of ~300k values (single-digit ms) before rejection. On the wire surfaces `payloadBytes` bites long before it. Tightening it means lowering `sparklinePoints` or `nodes` first, and re-measuring.
+4. **Chart "known fields" is only enforced when the chart declares `categoryKey` or `valueKeys`.** A chart that declares neither has unconstrained (but bounded) keys — bounded meaning ≤ 9 keys per record, each ≤ 64 chars, values finite numbers or ≤ 200-char strings. This is the one place a caller still chooses key names, and it is the deliberate open record.
+5. **A stdio frame over the budget is answered with silence, not an error.** The message was never framed, so its `id` was never read; an `id: null` JSON-RPC error would surface on an SDK client as an unmatched response rather than a failure. The caller times out; the operator gets the byte count on stderr. Documented in the spec's ingress section.
+6. **The `id` field is validated and unique but consumed by nothing.** Reserved for Wave 4's Tabs and Wave 5's registry.
+7. **`nesting: 40` was not derived from a stack-depth measurement**, only from the observation that a legal depth-6 document nests about 20. It is a guard rail with headroom, not a tuned number.
 
 ## Files to know
 
 | File | Why |
 |---|---|
 | `packages/weave-primitives/src/schemas/document.ts` | The contract: envelope, root union, cost policy, cross-field rules, the adapter. |
-| `packages/weave-primitives/src/schemas/bounds.ts` | `LIMITS` and the bounded primitives, each cap carrying its measurement. |
-| `packages/weave-primitives/bench/document-limits.bench.mjs` | The evidence. Self-contained; needs `dist/` only for its last two sections. |
+| `packages/weave-primitives/src/schemas/bounds.ts` | `LIMITS` and the bounded primitives, each cap carrying its measurement — and the unknown-key policy, written where the caps live. |
+| `packages/weave-primitives/bench/document-limits.bench.mjs` | The evidence. Self-contained; needs `dist/` only for its whole-document sections, which now report `values` alongside objects and bytes. |
 | `docs/specs/weave-document-v1.md` | Contract, recorded benchmark, migration guide, deprecation timetable. |
 | `packages/weave-mcp-server/src/tools.ts` | `DashboardGatewaySchema` (F8) and `invokeTool`, which every transport shares. |
-| `packages/weave-primitives/src/__tests__/document.test.ts` | 55 cases. Opens with the harness-sanity test that caught the false-green. |
+| `packages/weave-mcp-server/src/ingress.ts` | The `/mcp` byte budget — why the SDK boundary forces it here and not downstream. |
+| `packages/weave-mcp-app/src/bounded-stdin.ts` | The stdio framing budget and its documented semantics. |
+| `packages/weave-primitives/src/__tests__/document.test.ts` | 65 cases. Opens with the harness-sanity test that caught the false-green. |
 | `packages/weave-primitives/src/__tests__/packaging.test.ts` | Guards the "schemas without a renderer" claim at source level. |
 
 ## Resume instructions
 
-1. `cd /Users/pierregallet/Documents/weave-wave-1`, confirm the tree is clean and 1 commit ahead of `0568b4f`.
+1. `cd /Users/pierregallet/Documents/weave-wave-1`, confirm the tree is clean and 2 commits ahead of `0568b4f`.
 2. Re-verify before trusting anything:
    ```bash
    TURBO_FORCE=true pnpm typecheck && TURBO_FORCE=true pnpm test
    ```
-   Expected exit 0, 417 vitest + 26 `node --test`.
+   Expected exit 0, 452 vitest + 26 `node --test`.
    If Playwright fails with `Executable doesn't exist … chromium_headless_shell-1228`:
    `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
 3. Confirm the lint position:
@@ -130,8 +190,8 @@ Restore verified three ways: `diff -q` against backups taken **after** the fix, 
    node scripts/biome-new-findings.mjs 0568b4f      # NOT `main` — see the warning above
    ```
    Expected: `No new Biome findings. 46 pre-existing finding(s) left untouched.`, exit 0, head 37.
-4. Obtain the independent adversarial review of the diff.
-5. Then push, open the PR, and update the plan's Wave 1 record to close the gate.
+4. Push, open the PR, and let `ci.yml` run against Wave 1.
+5. Then update the plan's Wave 1 record to close the gate.
 
 ## Warnings
 
@@ -140,3 +200,5 @@ Restore verified three ways: `diff -q` against backups taken **after** the fix, 
 - **Rebuild `weave-primitives` before running the mcp-server or mcp-app suites** after touching schemas: those packages resolve primitives from `dist/`, and a stale `dist/` makes imports read `undefined` — which is exactly how a whole suite reports green over nothing.
 - **`packages/weave-mcp-app/dist/weave-skill.md` is a build copy of SKILL.md** (gitignored, refreshed by `pnpm build`). Rebuild after editing SKILL.md.
 - **The Biome gate can report a pre-existing finding you did not introduce**, by design — see Wave 0's "The gate's contract" in the git history of this file. Fix the reported finding; do not loosen the matcher.
+- **Adding `.strict()` changes formatting**, because Biome rewraps `z.object({…}).strict()` onto a `z\n.object({…})\n.strict()` chain. Four files came back as new Biome findings on the first gate run purely for that. Run `pnpm format` on the changed files before reading the gate, and build the file list with `git diff --name-only --diff-filter=d` plus `git ls-files --others --exclude-standard` so new files are included — a formatting miss on an untracked file is invisible until the gate.
+- **A comment-only sabotage marker never reaches `packages/weave-mcp-app/dist/index.js`**: esbuild strips comments. Sabotage that bundle through a string the build must keep, or prove the point against the source the unit tests import.

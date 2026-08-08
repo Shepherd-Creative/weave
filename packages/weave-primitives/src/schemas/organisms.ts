@@ -5,24 +5,28 @@ import { AlignSchema, DensitySchema, IconNameSchema, ToneSchema } from "./tokens
 
 // --- MetricBand ------------------------------------------------------
 
-export const MetricBandSchema = z.object({
-  ...NodeIdentity,
-  type: z.literal("MetricBand"),
-  items: z.array(KPISchema).min(1).max(LIMITS.metricBandItems),
-  density: DensitySchema.optional(),
-});
+export const MetricBandSchema = z
+  .object({
+    ...NodeIdentity,
+    type: z.literal("MetricBand"),
+    items: z.array(KPISchema).min(1).max(LIMITS.metricBandItems),
+    density: DensitySchema.optional(),
+  })
+  .strict();
 export type MetricBandSpec = z.infer<typeof MetricBandSchema>;
 
 // --- NoteCard --------------------------------------------------------
 
-export const NoteCardSchema = z.object({
-  ...NodeIdentity,
-  type: z.literal("NoteCard"),
-  title: TextSchema.optional(),
-  body: BodyTextSchema,
-  tone: z.enum(["default", "info", "warning", "muted"]).optional(),
-  icon: IconNameSchema.optional(),
-});
+export const NoteCardSchema = z
+  .object({
+    ...NodeIdentity,
+    type: z.literal("NoteCard"),
+    title: TextSchema.optional(),
+    body: BodyTextSchema,
+    tone: z.enum(["default", "info", "warning", "muted"]).optional(),
+    icon: IconNameSchema.optional(),
+  })
+  .strict();
 export type NoteCardSpec = z.infer<typeof NoteCardSchema>;
 
 // --- ChartCard -------------------------------------------------------
@@ -33,23 +37,27 @@ import { LabelSchema } from "./atoms.js";
 
 export const ChartCardFooterSchema = z.union([LabelSchema, NoteCardSchema]);
 
-export const ChartCardSchema = z.object({
-  ...NodeIdentity,
-  type: z.literal("ChartCard"),
-  title: TextSchema,
-  caption: TextSchema.optional(),
-  chart: ChartSchema,
-  footer: ChartCardFooterSchema.optional(),
-});
+export const ChartCardSchema = z
+  .object({
+    ...NodeIdentity,
+    type: z.literal("ChartCard"),
+    title: TextSchema,
+    caption: TextSchema.optional(),
+    chart: ChartSchema,
+    footer: ChartCardFooterSchema.optional(),
+  })
+  .strict();
 export type ChartCardSpec = z.infer<typeof ChartCardSchema>;
 
 // --- TableCard -------------------------------------------------------
 
-export const TableHeaderSchema = z.object({
-  text: TextSchema,
-  align: AlignSchema.optional(),
-  tone: ToneSchema.optional(),
-});
+export const TableHeaderSchema = z
+  .object({
+    text: TextSchema,
+    align: AlignSchema.optional(),
+    tone: ToneSchema.optional(),
+  })
+  .strict();
 
 /**
  * A table.
@@ -60,13 +68,15 @@ export const TableHeaderSchema = z.object({
  * `.superRefine()` produces a `ZodEffects`, which the union rejects at
  * construction time (measured on zod 3.25.76). See packages/weave-primitives/src/schemas/document.ts.
  */
-export const TableCardSchema = z.object({
-  ...NodeIdentity,
-  type: z.literal("TableCard"),
-  title: TextSchema,
-  caption: TextSchema.optional(),
-  headers: z.array(TableHeaderSchema).min(1).max(LIMITS.tableHeaders),
-  rows: z.array(DataRowSchema).max(LIMITS.tableRows),
-  density: z.enum(["compact", "comfortable"]).optional(),
-});
+export const TableCardSchema = z
+  .object({
+    ...NodeIdentity,
+    type: z.literal("TableCard"),
+    title: TextSchema,
+    caption: TextSchema.optional(),
+    headers: z.array(TableHeaderSchema).min(1).max(LIMITS.tableHeaders),
+    rows: z.array(DataRowSchema).max(LIMITS.tableRows),
+    density: z.enum(["compact", "comfortable"]).optional(),
+  })
+  .strict();
 export type TableCardSpec = z.infer<typeof TableCardSchema>;

@@ -27,106 +27,126 @@ const DeltaToneSchema = z.enum(["positive", "negative", "muted"]);
 const PERCENT_VALUE_HINT =
   'With format "percent" this is a fraction of 1: 0.034 renders as "3.4%".';
 
-export const KpiDeltaSchema = z.object({
-  value: FiniteNumberSchema.describe(PERCENT_VALUE_HINT),
-  format: z
-    .enum(["percent", "int", "decimal"])
-    .optional()
-    .describe('"percent" renders value×100 with a % sign — pass fractions (0.142 → "14.2%").'),
-  tone: DeltaToneSchema.optional(),
-  showSign: z.boolean().optional(),
-});
+export const KpiDeltaSchema = z
+  .object({
+    value: FiniteNumberSchema.describe(PERCENT_VALUE_HINT),
+    format: z
+      .enum(["percent", "int", "decimal"])
+      .optional()
+      .describe('"percent" renders value×100 with a % sign — pass fractions (0.142 → "14.2%").'),
+    tone: DeltaToneSchema.optional(),
+    showSign: z.boolean().optional(),
+  })
+  .strict();
 
-export const StatDeltaSchema = z.object({
-  value: FiniteNumberSchema.describe(PERCENT_VALUE_HINT),
-  format: z
-    .enum(["percent", "int"])
-    .optional()
-    .describe('"percent" renders value×100 with a % sign — pass fractions (0.142 → "14.2%").'),
-  tone: ToneSchema.optional(),
-});
-
-// --- Sparkline sub-shape (not rendered until B5 — schema exists so the
-// LLM can emit it; B3's KPI component ignores the prop with a TODO.) ----
-
-const SparklineVariantSchema = z.enum(["line", "bar", "area"]);
-
-export const KpiSparklineSchema = z.object({
-  data: SparklineDataSchema,
-  variant: SparklineVariantSchema.optional(),
-});
-
-// --- KPI -------------------------------------------------------------
-
-export const KPISchema = z.object({
-  ...NodeIdentity,
-  type: z.literal("KPI"),
-  label: TextSchema,
-  value: FiniteNumberSchema.describe(PERCENT_VALUE_HINT),
-  format: NumberFormatSchema.optional(),
-  precision: z.number().int().min(0).max(10).optional(),
-  currency: z.string().length(3).optional(),
-  size: z.enum(["lg", "xl"]).optional(),
-  tone: ToneSchema.optional(),
-  delta: KpiDeltaSchema.optional(),
-  icon: IconNameSchema.optional(),
-  sparkline: KpiSparklineSchema.optional(),
-  caption: TextSchema.optional(),
-});
-export type KPISpec = z.infer<typeof KPISchema>;
-
-// --- Stat ------------------------------------------------------------
-
-export const StatSchema = z.object({
-  ...NodeIdentity,
-  type: z.literal("Stat"),
-  label: TextSchema,
-  value: FiniteNumberSchema,
-  format: NumberFormatSchema.optional(),
-  precision: z.number().int().min(0).max(10).optional(),
-  size: z.enum(["sm", "md"]).optional(),
-  tone: ToneSchema.optional(),
-  delta: StatDeltaSchema.optional(),
-});
-export type StatSpec = z.infer<typeof StatSchema>;
-
-// --- DataRow ---------------------------------------------------------
-
-export const DataCellSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("text"),
-    value: TextSchema,
-    tone: ToneSchema.optional(),
-    align: AlignSchema.optional(),
-  }),
-  z.object({
-    kind: z.literal("number"),
-    value: FiniteNumberSchema,
-    format: NumberFormatSchema.optional(),
-    precision: z.number().int().min(0).max(10).optional(),
-    currency: z.string().length(3).optional(),
-    tone: ToneSchema.optional(),
-  }),
-  z.object({
-    kind: z.literal("badge"),
-    value: TextSchema,
-    tone: ToneSchema.optional(),
-    variant: z.enum(["solid", "soft", "outline"]).optional(),
-  }),
-  z.object({
-    kind: z.literal("delta"),
+export const StatDeltaSchema = z
+  .object({
     value: FiniteNumberSchema.describe(PERCENT_VALUE_HINT),
     format: z
       .enum(["percent", "int"])
       .optional()
       .describe('"percent" renders value×100 with a % sign — pass fractions (0.142 → "14.2%").'),
     tone: ToneSchema.optional(),
-  }),
-  z.object({
-    kind: z.literal("sparkline"),
+  })
+  .strict();
+
+// --- Sparkline sub-shape (not rendered until B5 — schema exists so the
+// LLM can emit it; B3's KPI component ignores the prop with a TODO.) ----
+
+const SparklineVariantSchema = z.enum(["line", "bar", "area"]);
+
+export const KpiSparklineSchema = z
+  .object({
     data: SparklineDataSchema,
     variant: SparklineVariantSchema.optional(),
-  }),
+  })
+  .strict();
+
+// --- KPI -------------------------------------------------------------
+
+export const KPISchema = z
+  .object({
+    ...NodeIdentity,
+    type: z.literal("KPI"),
+    label: TextSchema,
+    value: FiniteNumberSchema.describe(PERCENT_VALUE_HINT),
+    format: NumberFormatSchema.optional(),
+    precision: z.number().int().min(0).max(10).optional(),
+    currency: z.string().length(3).optional(),
+    size: z.enum(["lg", "xl"]).optional(),
+    tone: ToneSchema.optional(),
+    delta: KpiDeltaSchema.optional(),
+    icon: IconNameSchema.optional(),
+    sparkline: KpiSparklineSchema.optional(),
+    caption: TextSchema.optional(),
+  })
+  .strict();
+export type KPISpec = z.infer<typeof KPISchema>;
+
+// --- Stat ------------------------------------------------------------
+
+export const StatSchema = z
+  .object({
+    ...NodeIdentity,
+    type: z.literal("Stat"),
+    label: TextSchema,
+    value: FiniteNumberSchema,
+    format: NumberFormatSchema.optional(),
+    precision: z.number().int().min(0).max(10).optional(),
+    size: z.enum(["sm", "md"]).optional(),
+    tone: ToneSchema.optional(),
+    delta: StatDeltaSchema.optional(),
+  })
+  .strict();
+export type StatSpec = z.infer<typeof StatSchema>;
+
+// --- DataRow ---------------------------------------------------------
+
+export const DataCellSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("text"),
+      value: TextSchema,
+      tone: ToneSchema.optional(),
+      align: AlignSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("number"),
+      value: FiniteNumberSchema,
+      format: NumberFormatSchema.optional(),
+      precision: z.number().int().min(0).max(10).optional(),
+      currency: z.string().length(3).optional(),
+      tone: ToneSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("badge"),
+      value: TextSchema,
+      tone: ToneSchema.optional(),
+      variant: z.enum(["solid", "soft", "outline"]).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("delta"),
+      value: FiniteNumberSchema.describe(PERCENT_VALUE_HINT),
+      format: z
+        .enum(["percent", "int"])
+        .optional()
+        .describe('"percent" renders value×100 with a % sign — pass fractions (0.142 → "14.2%").'),
+      tone: ToneSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("sparkline"),
+      data: SparklineDataSchema,
+      variant: SparklineVariantSchema.optional(),
+    })
+    .strict(),
 ]);
 export type DataCell = z.infer<typeof DataCellSchema>;
 
@@ -139,11 +159,13 @@ export type DataCell = z.infer<typeof DataCellSchema>;
  * carries exactly one cell per header — a cross-field rule Zod cannot express
  * inside a `discriminatedUnion` member. See packages/weave-primitives/src/schemas/document.ts.
  */
-export const DataRowSchema = z.object({
-  ...NodeIdentity,
-  type: z.literal("DataRow"),
-  cells: z.array(DataCellSchema).max(LIMITS.tableHeaders),
-});
+export const DataRowSchema = z
+  .object({
+    ...NodeIdentity,
+    type: z.literal("DataRow"),
+    cells: z.array(DataCellSchema).max(LIMITS.tableHeaders),
+  })
+  .strict();
 export type DataRowSpec = z.infer<typeof DataRowSchema>;
 
 // --- Chart -----------------------------------------------------------
@@ -164,19 +186,21 @@ export const ChartDatumSchema = z
     message: `A chart record may carry at most ${LIMITS.chartSeries + 1} keys (one category plus ${LIMITS.chartSeries} series).`,
   });
 
-export const ChartSchema = z.object({
-  ...NodeIdentity,
-  type: z.literal("Chart"),
-  variant: ChartVariantSchema,
-  data: z.array(ChartDatumSchema).max(LIMITS.chartPoints),
-  categoryKey: ChartKeySchema.optional(),
-  valueKeys: z.array(ChartKeySchema).max(LIMITS.chartSeries).optional(),
-  seriesTones: z.array(ToneSchema).max(LIMITS.chartSeries).optional(),
-  showLegend: z.boolean().optional(),
-  showGrid: z.boolean().optional(),
-  showTooltip: z.boolean().optional(),
-  height: z.enum(["sm", "md", "lg"]).optional(),
-});
+export const ChartSchema = z
+  .object({
+    ...NodeIdentity,
+    type: z.literal("Chart"),
+    variant: ChartVariantSchema,
+    data: z.array(ChartDatumSchema).max(LIMITS.chartPoints),
+    categoryKey: ChartKeySchema.optional(),
+    valueKeys: z.array(ChartKeySchema).max(LIMITS.chartSeries).optional(),
+    seriesTones: z.array(ToneSchema).max(LIMITS.chartSeries).optional(),
+    showLegend: z.boolean().optional(),
+    showGrid: z.boolean().optional(),
+    showTooltip: z.boolean().optional(),
+    height: z.enum(["sm", "md", "lg"]).optional(),
+  })
+  .strict();
 export type ChartSpec = z.infer<typeof ChartSchema>;
 
 // Size schema re-export used by size-constrained props elsewhere.

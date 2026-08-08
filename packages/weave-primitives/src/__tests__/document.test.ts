@@ -238,6 +238,169 @@ describe("node-count policy", () => {
   });
 });
 
+describe("unknown-key policy", () => {
+  /**
+   * Report the REASON, never "it threw".
+   *
+   * Stripping and rejecting are both silent from the caller's side unless the
+   * assertion names the issue: an unknown key that is dropped produces a
+   * *successful* parse, and an unknown key that is rejected produces an
+   * `unrecognized_keys` issue. Naming the code is also what distinguishes "the
+   * traversal budget refused this" from "Zod refused it after walking it all",
+   * which is the whole point of the budget.
+   */
+  const rejection = (fn: () => unknown): string[] => {
+    try {
+      fn();
+    } catch (err) {
+      if (err instanceof z.ZodError) return [...new Set(err.issues.map((i) => i.code))];
+      if (err instanceof WeaveDocumentError) return [`weave:${err.code}`];
+      return [`unexpected:${(err as Error).name}`];
+    }
+    return ["accepted"];
+  };
+
+  it("rejects an unknown key on the root node rather than stripping it", () => {
+    // Stripping is what made the bounded-document claim false: a key nobody
+    // declared was walked, silently dropped, and never counted against a limit.
+    expect(rejection(() => validateWeaveDocument(doc(noteCard({ onLoad: "alert(1)" }))))).toEqual([
+      "unrecognized_keys",
+    ]);
+  });
+
+  it("rejects an unknown key carrying a large scalar", () => {
+    // Direct React has no payload guard by design, so on that path an unknown
+    // string field was unbounded: 300 KB of it validated and returned clean.
+    expect(
+      rejection(() => validateWeaveDocument(doc(noteCard({ onLoad: "x".repeat(300_000) })))),
+    ).toEqual(["unrecognized_keys"]);
+  });
+
+  it("rejects an unknown key on a node nested inside an organism", () => {
+    expect(
+      rejection(() =>
+        validateWeaveDocument(
+          doc({
+            type: "MetricBand",
+            items: [{ type: "KPI", label: "A", value: 1, onClick: "steal()" }],
+          }),
+        ),
+      ),
+    ).toEqual(["unrecognized_keys"]);
+  });
+
+  it("rejects an unknown key on a layout container", () => {
+    expect(
+      rejection(() =>
+        validateWeaveDocument(doc({ type: "Stack", children: [noteCard()], onScroll: "x" })),
+      ),
+    ).toEqual(["unrecognized_keys"]);
+  });
+
+  it("rejects an unknown key on a bare nested object that is not a node", () => {
+    // Table headers, cells and deltas carry no `type`, so "make the node
+    // schemas strict" is not enough on its own — every nested input object has
+    // to close.
+    expect(
+      rejection(() =>
+        validateWeaveDocument(
+          doc({
+            type: "TableCard",
+            title: "T",
+            headers: [{ text: "H", href: "javascript:alert(1)" }],
+            rows: [{ type: "DataRow", cells: [{ kind: "text", value: "x" }] }],
+          }),
+        ),
+      ),
+    ).toEqual(["unrecognized_keys"]);
+  });
+
+  it("rejects an unknown key on a KPI delta", () => {
+    expect(
+      rejection(() =>
+        validateWeaveDocument(
+          doc({
+            type: "MetricBand",
+            items: [{ type: "KPI", label: "A", value: 1, delta: { value: 0.1, onTap: "x" } }],
+          }),
+        ),
+      ),
+    ).toEqual(["unrecognized_keys"]);
+  });
+
+  it("rejects an unknown key on a table cell", () => {
+    expect(
+      rejection(() =>
+        validateWeaveDocument(
+          doc({
+            type: "TableCard",
+            title: "T",
+            headers: [{ text: "H" }],
+            rows: [{ type: "DataRow", cells: [{ kind: "text", value: "x", onClick: "x" }] }],
+          }),
+        ),
+      ),
+    ).toEqual(["unrecognized_keys"]);
+  });
+
+  it("refuses a huge unknown array BEFORE walking all of it", () => {
+    // The reason matters more than the rejection here. Strict schemas alone
+    // would reject this too — but only after the structural walk had visited
+    // every element, which is the unbounded traversal the budget exists to
+    // stop. `weave:values` is the walk refusing; `unrecognized_keys` would mean
+    // it walked the lot first.
+    expect(
+      rejection(() =>
+        validateWeaveDocument(doc(noteCard({ junk: new Array(LIMITS.values + 1).fill(0) }))),
+      ),
+    ).toEqual(["weave:values"]);
+  });
+
+  it("admits the largest legal document the other caps permit", () => {
+    // Non-vacuity for the traversal budget. Sparkline cells carry 100 scalar
+    // leaves per object, so a table of them is the values-maximising legal
+    // shape: nine of them measure 2,954 objects / 260,816 values, just under
+    // the `nodes` cap. A budget that refused this would be a bug, not a guard.
+    const sparklineTable = () => ({
+      type: "TableCard",
+      title: "T",
+      headers: Array.from({ length: LIMITS.tableHeaders }, (_, i) => ({ text: `H${i}` })),
+      rows: Array.from({ length: LIMITS.tableRows }, () => ({
+        type: "DataRow",
+        cells: Array.from({ length: LIMITS.tableHeaders }, () => ({
+          kind: "sparkline",
+          data: Array.from({ length: LIMITS.sparklinePoints }, (_, i) => i),
+        })),
+      })),
+    });
+    const root = { type: "Stack", children: Array.from({ length: 9 }, sparklineTable) };
+    expect(rejection(() => validateWeaveDocument(doc(root)))).toEqual(["accepted"]);
+  });
+
+  it("keeps chart data records open, because their keys are the caller's", () => {
+    // The one permitted open shape. A chart series is named by the caller, so
+    // its record cannot be a closed object — the constraint on it is that the
+    // keys match what the chart declared, which is a different rule.
+    expect(
+      rejection(() =>
+        validateWeaveDocument(
+          doc({
+            type: "ChartCard",
+            title: "T",
+            chart: {
+              type: "Chart",
+              variant: "bar",
+              categoryKey: "region name",
+              valueKeys: ["gross margin %"],
+              data: [{ "region name": "EMEA", "gross margin %": 0.42 }],
+            },
+          }),
+        ),
+      ),
+    ).toEqual(["accepted"]);
+  });
+});
+
 describe("payload-size policy", () => {
   /**
    * Assert the REASON, never just the class.

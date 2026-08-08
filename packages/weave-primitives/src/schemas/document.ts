@@ -20,10 +20,12 @@ import { GridSchema, StackSchema } from "./spec.js";
  * ## Where each rule lives, and why
  *
  * - **Structural bounds** (array lengths, string lengths, finite numbers,
- *   enums) live in the leaf schemas, so they apply wherever a schema is used.
- * - **Cost policy** (payload bytes, container depth, object count, raw
- *   nesting) is checked here, BEFORE Zod sees the input — the point is to not
- *   walk a hostile tree twice.
+ *   enums, and the closed shape of every node and nested object) live in the
+ *   leaf schemas, so they apply wherever a schema is used.
+ * - **Cost policy** (payload bytes, container depth, object count, values
+ *   traversed, raw nesting) is checked here, BEFORE Zod sees the input — the
+ *   point is to not walk a hostile tree twice, and to stop walking a hostile
+ *   one at all past the point where it can still be legal.
  * - **Cross-field rules** (one cell per header, chart keys matching the
  *   declared series, document-wide unique ids) are checked here too, as Zod
  *   issues on the envelope. They cannot live in the leaf schemas: Zod 3's
@@ -93,6 +95,7 @@ export type WeaveDocumentErrorCode =
   | "depth"
   | "nodes"
   | "nesting"
+  | "values"
   | "already-versioned"
   | "missing-input";
 
@@ -141,11 +144,27 @@ export function assertPayloadWithinLimit(raw: string): void {
  * array levels and exists only to stop the walk itself overflowing the JS
  * stack: without it a chain of 20,000 ordinary objects raises a `RangeError`
  * that escapes as a 500 instead of a clean rejection.
+ *
+ * `values` counts every value the walk visits — array elements and object
+ * properties, scalars included — and is what makes "aborts on the first breach"
+ * true of BREADTH as well as depth. `nodes` counts objects, so before this cap
+ * existed a single undeclared field holding a million zeros was walked in full
+ * before Zod refused it: closed schemas rejected that document, but only after
+ * paying for all of it. The cap has to be enforced HERE rather than by the
+ * schemas, because the schemas are the thing that runs second.
  */
 export function assertDocumentStructuralLimits(input: unknown): void {
   let objects = 0;
+  let values = 0;
 
   const visit = (node: unknown, containers: number, nesting: number): void => {
+    values += 1;
+    if (values > LIMITS.values) {
+      throw new WeaveDocumentError(
+        "values",
+        `Document traverses more than ${LIMITS.values} values. Something in it is far larger than the contract admits.`,
+      );
+    }
     if (nesting > LIMITS.nesting) {
       throw new WeaveDocumentError(
         "nesting",
@@ -274,9 +293,10 @@ function addSemanticIssues(document: WeaveDocumentV1, ctx: z.RefinementCtx): voi
 // --- the document schema and its entry points ---------------------------
 
 /**
- * The envelope. `.strict()` is deliberate: an unrecognised top-level key is a
- * caller who believes this format does something it does not, and silently
- * dropping it hides that.
+ * The envelope. `.strict()` here, and on every node and nested object schema:
+ * an unrecognised key is a caller who believes this format does something it
+ * does not, and silently dropping it hides that — and, worse, hides how big it
+ * was. See the unknown-key policy in bounds.ts.
  */
 export const WeaveDocumentV1Schema = z
   .object({

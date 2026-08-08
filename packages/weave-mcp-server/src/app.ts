@@ -3,6 +3,7 @@ import { loadSkill } from "@shepherd-creative/weave-skill";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
+import { readBoundedBody, withBufferedBody } from "./ingress.js";
 import { handleMcpRequest } from "./mcp.js";
 import { invokeTool, TOOLS_BY_NAME, toolsJsonManifest, WeaveDocumentError } from "./tools.js";
 
@@ -38,8 +39,29 @@ export function createApp() {
   // /invoke/:name, but wire-compatible with CopilotKit BuiltInAgent's
   // mcpServers config and any other MCP client. Accepts GET/POST/DELETE
   // per the Streamable HTTP spec; the transport routes internally.
+  //
+  // The body is weighed BEFORE the SDK sees it. Everything the SDK does —
+  // parsing the envelope, validating arguments, dropping undeclared keys — is
+  // work performed on an unbounded input, and it destroys the evidence that the
+  // input was unbounded. See ingress.ts.
   app.all("/mcp", async (c) => {
-    return handleMcpRequest(c.req.raw);
+    let buffered: Uint8Array | null;
+    try {
+      buffered = await readBoundedBody(c.req.raw);
+    } catch (err) {
+      if (err instanceof WeaveDocumentError) {
+        return c.json(
+          {
+            jsonrpc: "2.0",
+            id: null,
+            error: { code: -32600, message: err.message },
+          },
+          413,
+        );
+      }
+      throw err;
+    }
+    return handleMcpRequest(withBufferedBody(c.req.raw, buffered));
   });
 
   app.post("/invoke/:name", async (c) => {

@@ -322,6 +322,25 @@ const countObjects = (node) => {
   return n;
 };
 
+/**
+ * Every value the structural walk visits — the unit the `values` cap counts.
+ *
+ * Deliberately mirrors `assertDocumentStructuralLimits`'s `visit()` one for
+ * one: one count per call, scalars included. It diverges from `countObjects`
+ * wherever an object carries many scalar leaves, which is exactly the case the
+ * `nodes` cap cannot see.
+ */
+const countValues = (node) => {
+  let n = 1;
+  if (node === null || typeof node !== "object") return n;
+  if (Array.isArray(node)) {
+    for (const item of node) n += countValues(item);
+    return n;
+  }
+  for (const value of Object.values(node)) n += countValues(value);
+  return n;
+};
+
 function measure(label, root) {
   const document = { weave: 1, root };
   let verdict;
@@ -333,6 +352,7 @@ function measure(label, root) {
   }
   console.log(`\n### ${label}`);
   console.log(`objects: ${countObjects(document).toLocaleString("en-US")}`);
+  console.log(`values: ${countValues(document).toLocaleString("en-US")}`);
   console.log(`payload bytes: ${bytes(document).toLocaleString("en-US")}`);
   console.log(`parse ms (unbounded mirror): ${timeMs(() => UnboundedSpec.parse(root)).toFixed(3)}`);
   console.log(`shipped validator: ${verdict}`);
@@ -415,5 +435,30 @@ measure("Busiest realistic dashboard (8 widgets, charts at the point cap)", {
     { type: "NoteCard", body: "Context for the numbers above." },
   ],
 });
+
+// What sets `values`. A sparkline cell is ONE object carrying 100 scalar
+// leaves, so the shape that maximises objects is not the shape that maximises
+// traversal — reading a values cap off the all-axes-maxed document above would
+// have refused an ordinary dashboard of sparkline tables. Grow it until `nodes`
+// refuses it: the last accepted row is the number the cap has to clear.
+const sparklineTable = () => ({
+  type: "TableCard",
+  title: "T",
+  headers: Array.from({ length: LIMITS.tableHeaders }, (_, i) => ({ text: `H${i}` })),
+  rows: Array.from({ length: LIMITS.tableRows }, () => ({
+    type: "DataRow",
+    cells: Array.from({ length: LIMITS.tableHeaders }, () => ({
+      kind: "sparkline",
+      data: Array.from({ length: LIMITS.sparklinePoints }, (_, i) => i),
+    })),
+  })),
+});
+
+for (const tables of [9, 10]) {
+  measure(`Values-maximising legal document — ${tables} tables of sparkline cells`, {
+    type: "Stack",
+    children: Array.from({ length: tables }, sparklineTable),
+  });
+}
 
 console.log(`\nnode version: ${process.version}`);
