@@ -75,12 +75,33 @@ function comments(source: string): string {
  * anything not named below continues the path, so an unanticipated suffix stays
  * attached and gets reported.
  *
- * A citation ends at `BREAK`: whitespace, the delimiters a comment wraps a
- * citation in, the `:` of a `path:line` reference, and the characters a path
- * cannot carry. `TAIL_ONLY` characters are legal inside a path but never last,
- * so a citation closing a sentence still stops before the full stop.
+ * A citation ends at `BREAK`, which is three named groups and nothing else:
+ *
+ *  - ASCII: whitespace, the delimiters a comment wraps a citation in, the `:`
+ *    of a `path:line` reference, and prose separators a citation never spans;
+ *  - typographic: the quotes and guillemets that stand in for those ASCII
+ *    wrappers, the dash family, and the ellipsis — marks that belong to prose
+ *    and never to a path;
+ *  - `TAIL_ONLY`: `.` and `!`, legal inside a path but never last, so a
+ *    citation closing a sentence still stops before the full stop.
+ *
+ * The typographic group is the counterweight to the suffix rule above, and
+ * needs stating separately because it pulls the other way. A real suffix stays
+ * attached because it is part of the path; a typographic mark must not, because
+ * it never is. Keeping one attached turns ordinary prose into an unresolved
+ * filename — a false report, and the same damage as a truncated citation
+ * arriving from the opposite direction.
+ *
+ * Written as `\\uXXXX` escapes so the two mirrored copies of this scanner stay
+ * byte-identical and the class is legible without a font that distinguishes
+ * the dashes.
  */
-const BREAK = "\\s()\\[\\]{}<>\"'`,;:|\\\\?*";
+const BREAK =
+  "\\s()\\[\\]{}<>\"'`,;:|\\\\?*" +
+  // “ ” ‘ ’ „ ‚ « » ‹ ›
+  "\\u201C\\u201D\\u2018\\u2019\\u201E\\u201A\\u00AB\\u00BB\\u2039\\u203A" +
+  // ‒ – — ― …
+  "\\u2012\\u2013\\u2014\\u2015\\u2026";
 const TAIL_ONLY = ".!";
 const TRAILING = new RegExp(`(?:[^${BREAK}]*[^${BREAK}${TAIL_ONLY}])?`).source;
 
@@ -204,6 +225,28 @@ describe("citation grammar", () => {
     expect(citations("// evidence: `docs/tick.md`")).toContain("docs/tick.md");
     expect(citations('// evidence: "docs/quote.md"')).toContain("docs/quote.md");
     expect(citations("// evidence: 'docs/apos.md'")).toContain("docs/apos.md");
+  });
+
+  it("ends a citation at typographic sentence punctuation", () => {
+    // The mirror image of the suffix rule, and it needs stating separately: a
+    // real suffix stays attached because it is part of the path, while a
+    // typographic mark never is. Keeping one attached turns ordinary prose into
+    // an unresolved filename, which is a false report — the same damage as a
+    // truncated citation, from the opposite direction.
+    expect(citations("// see README.md… for the rest")).toEqual(["README.md"]);
+    expect(citations("// see [the readme](README.md…)")).toEqual(["README.md"]);
+    expect(citations("// see README.md—the old copy")).toEqual(["README.md"]);
+    expect(citations("// the file README.md’s header")).toEqual(["README.md"]);
+  });
+
+  it("treats every mark in the typographic terminator class as an ending", () => {
+    // Pins the documented class so a future edit cannot quietly drop a member.
+    // Ellipsis, the dash family, and the typographic quotes and guillemets that
+    // stand in for the ASCII wrappers already in BREAK.
+    const marks = "…‒–—―“”‘’„‚«»‹›";
+    for (const mark of marks) {
+      expect(citations(`// see README.md${mark}tail`)).toEqual(["README.md"]);
+    }
   });
 
   it("still stops a citation before a line reference", () => {
