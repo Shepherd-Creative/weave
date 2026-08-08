@@ -8,19 +8,19 @@
 
 ## Current state — Wave 1 is closed
 
-Wave 1 has **two** gates, and only one of them is closed. Keeping them apart is the point of this section.
+Wave 1 has **two** gates. They are recorded here as conditions, not as states.
 
-- **The Wave 1 implementation gate is CLOSED.** PR #9 is merged. **Do not push to `feature/primitive-portfolio-wave-1`, and do not wait on a merge decision — it has been made.**
-- **The canonical-record correction gate is OPEN**, tracked by [PR #11](https://github.com/Shepherd-Creative/weave/pull/11) and [issue #10](https://github.com/Shepherd-Creative/weave/issues/10). This document is the correction; it is not finished until that PR lands.
+- **The Wave 1 implementation gate: CLOSED.** PR #9 is merged — a fact about the past, so it stays true. **Do not push to `feature/primitive-portfolio-wave-1`, and do not wait on a merge decision; it has been made.**
+- **The canonical-record correction gate: satisfied exactly when [PR #11](https://github.com/Shepherd-Creative/weave/pull/11) is `MERGED` and [issue #10](https://github.com/Shepherd-Creative/weave/issues/10) is `CLOSED`.** This document is that correction.
 
-**Wave 2 may begin only when PR #11 is `MERGED` and issue #10 is `CLOSED`.** Derive that live — do not infer it from this document, which cannot know its own fate:
+**Wave 2 may begin only when the second condition holds.** Evaluate it; do not read it off this page, which cannot know its own fate:
 
 ```bash
 gh pr view 11 -R Shepherd-Creative/weave --json state -q .state      # want: MERGED
 gh issue view 10 -R Shepherd-Creative/weave --json state -q .state   # want: CLOSED
 ```
 
-**No state is hard-coded here on purpose.** Writing "the correction has landed" would be false until it does; writing "still in flight" would be false the moment it does. A condition you can evaluate stays true in both worlds, which is the property every claim in this document is supposed to have. When it is satisfied, Wave 2 starts in its own branch and worktree cut from current `main`. The local plan states the same gate.
+**Neither gate's current state is asserted here, deliberately.** Writing "the correction is still in flight" is false the moment it lands; writing "it has landed" is false until then. An earlier draft of this very section did the former while claiming in the next breath that it hard-coded nothing — the contradiction a reviewer caught. A condition survives both worlds; a state does not. When it holds, Wave 2 starts in its own branch and worktree cut from current `main`. The local plan states the same condition.
 
 Merge evidence, derived from `git` and the GitHub API rather than from any executor's summary:
 
@@ -45,13 +45,13 @@ Merge evidence, derived from `git` and the GitHub API rather than from any execu
 
 ### How this record was verified
 
-A throwaway read-only validator was written in a private scratchpad — `validate-closeout.mjs`, **deliberately not committed**, because it asserts the content of particular documents at one moment and would rot into a false gate the first time Wave 2 edited them. It derives every fact in the table above from `git` and the GitHub API itself (`gh pr view 9`, `gh api …/actions/runs/31274315305`, `gh api …/pulls/9/reviews`, `git rev-parse <sha>^{tree}`, `git rev-list --parents`, `git diff --name-only 3419bc7..c782173`) and only then checks that the canonical records say what those facts support. No executor summary is an input. **93 checks, all green** on the final text.
+A throwaway read-only validator was written in a private scratchpad — `validate-closeout.mjs`, **deliberately not committed**, because it asserts the content of particular documents at one moment and would rot into a false gate the first time Wave 2 edited them. It derives the **git and GitHub** facts in the table above itself (`gh pr view 9`, `gh api …/actions/runs/31274315305`, `gh api …/pulls/9/reviews`, `git rev-parse <sha>^{tree}`, `git rev-list --parents`, `git diff --name-only 3419bc7..c782173`) and only then checks that the canonical records say what those facts support. **One row is not derivable and is not claimed to be**: that Hermes approved `3419bc7` was delivered out of band, so the checker verifies that commit's tree and that PR #9 carries no GitHub review, and takes the approval itself as recorded testimony. No executor summary is an input. **93 checks, all green** on the final text.
 
-**What it actually proves, stated narrowly.** It makes *structural* assertions against the exact evidence rows of five regions — this document's current-state table, its **Exit gate** section, the corrective PR's body table, [issue #10](https://github.com/Shepherd-Creative/weave/issues/10)'s evidence list, and the local plan's closing record — plus the live state of PR #11 and issue #10. Inside those regions, and **only** there, it also asserts that five known-false evidence labels are literally absent. Those regions are runs of consecutive table rows or list items with no explanatory prose in them, so a literal match there means what it says.
+**What it actually proves, stated narrowly.** It makes *structural* assertions against exact evidence rows in **three** regions that really are runs of consecutive table rows or list items — this document's current-state table, the corrective PR's body table, and [issue #10](https://github.com/Shepherd-Creative/weave/issues/10)'s evidence list — and against exact sentences in **two** whole sections, this document's **Exit gate** and the local plan's closing record, which do contain prose. Five known-false evidence labels must be literally absent from all five. The distinction matters and is stated rather than blurred: in the three row-runs a literal match cannot be anything but the evidence, whereas in the two sections it could in principle be prose, so those two are the weaker half of the guarantee.
 
 **What it does not prove, stated just as plainly.** It does **not** judge the meaning of ordinary prose, anywhere. A false sentence written into a paragraph outside those structured regions would not be caught. That limit is deliberate, and it replaced something worse: an earlier version tried to decide whether a sentence *asserted* the reviewed/merged conflation or merely quoted it in order to deny it, using a regex for negation. A reviewer defeated it twice with same-sentence constructions — *"Calling the old wording a false claim is important, but …"* and *"It would have been false to deny that …"* — each of which made the checker return **GREEN over an outright falsehood**. Natural-language negation is not regex-solvable, and a guard that pretends otherwise is worse than no guard, because it certifies. The semantics were abandoned; the structure is what remains, and the documents claim no more than that.
 
-Every structural assertion was red-probed against a throwaway copy, driven through the checker's `HANDOFF_PATH`, `PR_BODY_FILE` and `ISSUE_BODY_FILE` overrides so no canonical record and no remote object was ever modified:
+Every structural assertion was red-probed against a throwaway copy, driven through the checker's `HANDOFF_PATH`, `PLAN_PATH`, `PR_BODY_FILE` and `ISSUE_BODY_FILE` overrides so no canonical record and no remote object was ever modified:
 
 | Probe | Result |
 |---|---|
@@ -59,19 +59,23 @@ Every structural assertion was red-probed against a throwaway copy, driven throu
 | Delete the approved-head row | red — `S3` (and `B7b`) |
 | Plant a false evidence label **inside** the table | red — `S4` (and `B9b`) |
 | Break the Exit gate's tree sentence | red — `S5` |
-| Plant the reviewer's exact bypass sentence in the **Exit gate** | red — `S7`, because that check is a literal, not a judgement |
+| Plant a prior reviewer's exact bypass sentence in the **Exit gate** | red — `S7`, because that check is a literal, not a judgement |
 | Delete the PR-body tree row | red — `S8` |
 | Revert issue #10's label to its false form | red — `S12` (and `S14`) |
-| Remove the live Wave 2 gate condition | red — `G1` |
+| Delete the plan's tree row / plant a false label in the plan record | red — `S16` (and `D3`) / `S18` |
+| Re-introduce a hard-coded "the gate is OPEN" | red — `G3` |
+| Drop half the Wave 2 condition | red — `G1` |
 | Re-tick a canonical-record-closure claim | red — `G4` |
-| **Found-anchor control**: delete the evidence table outright | red — **13 checks**, including the region floor, so an empty region can never read as a pass |
-| Final | **exit 0 — 93 checks, 93 passed** |
+| **Found-anchor controls**: delete the evidence table / delete the Exit gate section | red — **13 checks** / **4 checks**, the latter including `S7  R2: region empty, absence check cannot mean anything` |
+| Final | **exit 0 — 99 checks, 99 passed** |
+
+**The checker is merge-safe, which took a reviewer to notice.** An earlier version asserted the prose said the record gate "is OPEN" and that PR #11's live state *was* `OPEN` — so it would have turned red on the very merge it exists to enable, reproducing in the guard the same self-invalidation the documents were corrected to remove. It now checks identity and target (`D9a`, `D9b`), reads issue #10's state without asserting a value (`S19`), and requires the gate to be phrased as a condition while forbidding the hard-coded form.
 
 **Reading the probe results is the point, not counting them.** Several probes flip two checks because a structural assertion and a legacy content check overlap; that is recorded as measured rather than tidied into a neat one-per-probe table. An earlier version of this section claimed one falsification flipped exactly one check when the checker had since grown a second detector for it — **a recorded result is only ever true of the checker that produced it.**
 
 **Four independent reviews, each of which found something the previous one had left.** In order: (1) the evidence table asserted a tree equality that does not hold, the CI check could pass from the prose *describing* the evidence rather than the evidence row, a blanket history banner would have swept up the Wave 2 instructions, and a base-ref sentence pinned a sha this correction's own merge would invalidate; (2) the identical false claim had survived in the **Exit gate** section of a head the checker reported green, because the guard was scoped to the one section where the fault was first found; (3) the replacement sweep was evadable, its non-vacuity control was not derived from the sweep it claimed to control, and this document disagreed with the plan about whether Wave 2 could begin; (4) the closeout was pre-claimed complete while its own gate was open, [issue #10](https://github.com/Shepherd-Creative/weave/issues/10) still carried the original conflation in its own body, and the sweep was still bypassable in-sentence. All are resolved above — the issue body is corrected and read back, the gate is now a live condition, and the sweep is gone in favour of structure.
 
-**No review has examined the present text.** Each of the four examined something older, and the fixes for the fourth are what you are reading. Nothing here carries an approval, and the final line of the exit gate below is a condition to evaluate rather than a claim to trust.
+**Do not infer approval from this document at all.** Each review examined a head older than the fixes it produced, so any sentence here claiming "no review has yet seen this text" would be self-invalidating the moment the next one does — a regress a reviewer pointed out after it happened. **The live source is the PR itself**: `gh pr view 11 -R Shepherd-Creative/weave --json reviewDecision,reviews`. Treat this text as unapproved unless that says otherwise.
 
 ## Historical execution record — everything below is scoped to the Wave 1 branch
 
