@@ -217,6 +217,38 @@ describe("weave-mcp-app stdio server", () => {
         expect(result.structuredContent).toBeUndefined();
       }
     });
+
+    it("refuses a caller-supplied `id` on every fixed tool", async () => {
+      // This surface reached the right answer for the wrong reason twice over:
+      // it silently STRIPPED `id` until tools were registered by schema rather
+      // than by `.shape`, at which point the strict schema began refusing it.
+      // So this locks behaviour the previous commit produced rather than
+      // driving new behaviour here — the genuine red for `id` is on REST.
+      for (const [name, args] of Object.entries(VALID_FIXED_TOOL_ARGS)) {
+        const result = await client.callTool({ name, arguments: { ...args, id: "caller-chosen" } });
+        expect(result.isError, `${name} accepted a caller-supplied id`).toBe(true);
+        expect(result.structuredContent).toBeUndefined();
+      }
+    });
+
+    it("keeps ids working on the canonical document path", async () => {
+      const result = await client.callTool({
+        name: "render_dashboard",
+        arguments: {
+          root: {
+            type: "Stack",
+            id: "root-1",
+            children: [{ type: "NoteCard", id: "n1", body: "x" }],
+          },
+        },
+      });
+      expect(result.isError ?? false).toBe(false);
+      const { document } = result.structuredContent as {
+        document: { root: { id?: string; children: Array<{ id?: string }> } };
+      };
+      expect(document.root.id).toBe("root-1");
+      expect(document.root.children[0].id).toBe("n1");
+    });
   });
 
   it("rejects a ragged table over stdio", async () => {

@@ -52,6 +52,21 @@ export const DashboardGatewaySchema = z.object({
   ),
 });
 
+/**
+ * Keys a fixed organism tool does NOT take as arguments.
+ *
+ * These are exactly the keys each fixed tool's `inputSchema` omits from its
+ * node schema (`…Schema.omit({ type, id })`), so sending either is sending a
+ * key the tool does not advertise. `invokeTool` refuses both; the surfaces that
+ * run the advertised schema refuse them on their own.
+ *
+ * A hand-written list mirroring a schema is a thing that goes stale, so it is
+ * not trusted to stay right — a test derives the omitted keys from the schemas
+ * themselves and fails if the two ever disagree in either direction. See
+ * `packages/weave-mcp-server/src/__tests__/tools-export.test.ts`.
+ */
+export const FIXED_TOOL_RESERVED_KEYS = ["type", "id"] as const;
+
 export const TOOLS: ToolDescriptor[] = [
   {
     name: "render_metric_band",
@@ -167,10 +182,10 @@ export function invokeTool(name: string, args: unknown): WeaveDocumentV1 {
 
   const record = args !== null && typeof args === "object" ? (args as Record<string, unknown>) : {};
 
-  // A fixed tool does not take a `type` argument, so being sent one is an
-  // error — never something to reconcile.
+  // A fixed tool does not take `type` or `id` arguments, so being sent one is
+  // an error — never something to reconcile.
   //
-  // This has now been wrong in both directions. Built as
+  // `type` has now been wrong in both directions. Built as
   // `{ type: tool.specType, ...record }`, a caller-supplied `type` won the
   // spread and `render_note_card` returned whatever root it was handed.
   // Stamping it LAST stopped the retyping but replaced it with a quieter
@@ -180,24 +195,41 @@ export function invokeTool(name: string, args: unknown): WeaveDocumentV1 {
   // actually runs the advertised `…omit({ type, id })` schema. Two surfaces,
   // two answers, and the surface that disagreed was the one nobody could see.
   //
-  // Neither overwriting nor ignoring it is a contract. The advertised schema
-  // omits `type`, so the key is unrecognised whether or not it AGREES with the
-  // discriminator — which is exactly what the SDK raises for both cases. This
-  // raises the same issue from the shared path, so every surface answers the
-  // same request the same way, including the ones that never run the
-  // advertised schema at all.
+  // `id` had the same shape and a third answer: REST stamped it onto the root,
+  // `/mcp` refused it, and the MCP App dropped it silently. A field with no
+  // contract behind it should not be quietly honoured on one surface, and
+  // preserving it here would mint the ID semantics these tools do not yet
+  // define. Ids stay available where they mean something — a `render_dashboard`
+  // document carries them through untouched.
   //
-  // Cheap enough to run first: an own-property test walks nothing, so it
-  // cannot be the step that traverses an unbounded input.
-  if (tool.specType && Object.hasOwn(record, "type")) {
-    throw new z.ZodError([
-      {
-        code: z.ZodIssueCode.unrecognized_keys,
-        keys: ["type"],
-        path: [],
-        message: `Unrecognized key(s) in object: 'type'. ${name} always renders a ${tool.specType}; its \`type\` is not a caller argument.`,
-      },
-    ]);
+  // Neither overwriting nor ignoring is a contract. Both keys are omitted from
+  // the advertised schema, so each is unrecognised whether or not it AGREES
+  // with what the tool would have stamped — exactly what the SDK raises. This
+  // raises the same issue from the shared path, so every surface answers the
+  // same request the same way, including the ones that never run the advertised
+  // schema at all.
+  //
+  // Key order follows the CALLER's object, because that is what Zod reports
+  // (measured: `{body,type,id}` → `["type","id"]`, `{body,id,type}` →
+  // `["id","type"]`, while the schema's own shape order is `id, type`). A fixed
+  // order here would agree with the SDK on one input and diverge on the other.
+  //
+  // Cheap enough to run first: reading a key list walks no values, so it cannot
+  // be the step that traverses an unbounded input.
+  if (tool.specType) {
+    const reserved = Object.keys(record).filter((key) =>
+      (FIXED_TOOL_RESERVED_KEYS as readonly string[]).includes(key),
+    );
+    if (reserved.length > 0) {
+      throw new z.ZodError([
+        {
+          code: z.ZodIssueCode.unrecognized_keys,
+          keys: reserved,
+          path: [],
+          message: `Unrecognized key(s) in object: ${reserved.map((key) => `'${key}'`).join(", ")}. ${name} always renders a ${tool.specType}; \`type\` and \`id\` are not caller arguments. Compose a document with render_dashboard if you need to set an id.`,
+        },
+      ]);
+    }
   }
 
   const root = tool.specType ? { ...record, type: tool.specType } : record.root;

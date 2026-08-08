@@ -82,6 +82,17 @@ Fixed in **two independent layers**, because neither covers the other — proven
 
 `render_dashboard` is untouched: it carries its root under `root` and stamps no discriminator, so there is nothing to contradict.
 
+### The same rule then closed `id` (engineering decision, not a review finding)
+
+The `type` fix left `id` diverging in the same shape — REST stamped a caller's `id` onto the root, `/mcp` refused it, and the MCP App had been dropping it silently until tools were registered by schema. It was recorded as a residual limit and then **decided rather than left**: fixed organism tools accept no caller `id` either, refused identically on all three surfaces.
+
+The reasoning is that a fixed tool has no ID contract to honour. Nothing in these five tools consumes `id`, so preserving a caller's would mint semantics the tools do not define — and minting semantics quietly, on one surface out of three, is how the `type` defect started. Ids stay available where they mean something: `render_dashboard` takes whole documents and carries every `id` through untouched, which is what Wave 4's Tabs and Wave 5's registry will read. **A test asserts that escape hatch on all three surfaces**, so a later tightening cannot turn a scoping decision into a capability removal without going red.
+
+Two details worth keeping:
+
+- **Both keys are reported in one `unrecognized_keys` issue, in the order the CALLER sent them.** Measured: Zod reports unrecognised keys in input order, so `{body,type,id}` gives `["type","id"]` and `{body,id,type}` gives `["id","type"]` — while the schema's own shape order is `id, type`. A fixed order would have agreed with the SDK on one input and diverged on the other, so the test asserts both.
+- **The reserved list is not trusted to stay right.** `FIXED_TOOL_RESERVED_KEYS` is a hand-written mirror of four `.omit({ type, id })` calls, which is exactly the kind of thing that goes stale. A test derives the omitted keys from the schemas themselves and fails if the two disagree in either direction.
+
 ## Verification
 
 Every gate re-run on the remediated tree.
@@ -89,13 +100,13 @@ Every gate re-run on the remediated tree.
 | Gate | Result |
 |---|---|
 | `TURBO_FORCE=true pnpm typecheck` | exit 0 |
-| `TURBO_FORCE=true pnpm test` | exit 0 — **464 vitest + 26 `node --test` = 490**; round 1 was 478, Wave 1's first pass 443, the pre-Wave-1 baseline 312 |
+| `TURBO_FORCE=true pnpm test` | exit 0 — **474 vitest + 26 `node --test` = 500**; round 2's first pass was 490, round 1 478, Wave 1's first pass 443, the pre-Wave-1 baseline 312 |
 | `TURBO_FORCE=true pnpm build` | exit 0 |
 | `node scripts/biome-new-findings.mjs 0568b4f` | exit 0 — base 46, head 37, **0 new** |
 | `pnpm lint` | exit 1 — 37 diagnostics, the pre-existing baseline |
 | `git diff --check 0568b4f` | exit 0 |
 
-Per-package: primitives 180 (was 168), theme-cli 102, mcp-server **90** (was 82, 72 before that), mcp-app **63** (was 59, 46 before that), skill 14, tokens 10, adapter-skill 5.
+Per-package: primitives 180 (was 168), theme-cli 102, mcp-server **98** (90 → 82 → 72), mcp-app **65** (63 → 59 → 46), skill 14, tokens 10, adapter-skill 5.
 
 Round 1's 35 new tests were all written **before** the fix and watched fail. The exact failure text matters in two of them:
 
@@ -117,6 +128,16 @@ Round 2 added **12 tests** (net +8 in mcp-server after replacing 3 false positiv
 | MCP App over stdio | 3 e2e cases came back `isError: undefined` with a valid NoteCard document |
 
 Every round-2 payload is valid but for the `type` key, and each case pairs with a control asserting the same payload succeeds without it — the specific hole that let round 1's tests pass over a broken fix.
+
+Closing `id` added **10 more** (mcp-server 90 → 98, mcp-app 63 → 65). Six were watched fail; four could not be, and saying which is the point:
+
+| Guard | RED evidence |
+|---|---|
+| `invokeTool` refuses a caller `id` | 3 unit cases: a document came back where a throw was required, and the both-keys case reported `["type"]` instead of `["type","id"]` |
+| REST | 2 cases returned **200** with the caller's `id` stamped onto the root |
+| drift guard on the reserved list | errored — `FIXED_TOOL_RESERVED_KEYS is not iterable`, the export not existing yet |
+| MCP App over stdio | **already green before the fix.** That surface began refusing `id` the moment tools were registered by schema rather than `.shape`; these two cases lock behaviour the previous commit produced rather than driving new behaviour, and are labelled as such in the test |
+| `render_dashboard` keeps ids (×3 surfaces) | **green from the start by design** — they assert the escape hatch the decision depends on, so they must pass before and after |
 
 `pnpm lint` exit 1 is the **pre-existing baseline**, unchanged in kind. It dropped 46 → 37 because formatting the files this work already had to touch cleared 11 pre-existing findings — the same effect Wave 0 saw at 48 → 46. Judge lint by `scripts/biome-new-findings.mjs`, never by the raw exit code.
 
@@ -156,6 +177,15 @@ Restored from post-fix backups, `diff -q` identical, the fix present on the code
 | MCP App registration reverted to `.shape` | **3 red** over stdio — **with `invokeTool`'s guard fully intact**. The SDK strips `type` upstream, so the shared guard never sees the key. This is the proof the two layers are independent, and the reason the fix is not a one-liner |
 
 Restored from backups taken **after** the fix, `diff -q` identical on both files, each fix confirmed present on its own code line, `dist/` rebuilt, and a tree-wide `grep -rl --no-ignore-files 'SABOTAGE_T[12]_MARKER'` returning **0**. The sweep was given its own non-vacuity control this time: a string known to live in the gitignored bundle was searched with the identical flags and **did** return `packages/weave-mcp-app/dist/index.js`, so the zero is a real zero and not an unsearched tree.
+
+**The `id` decision.** Two sabotages, aimed at the two things that could rot:
+
+| Sabotage | Result |
+|---|---|
+| `id` dropped from `FIXED_TOOL_RESERVED_KEYS` — the regression a future edit would most plausibly make | **6 red**, and the drift guard caught it *independently* of the behaviour tests: `expected ['id','type'] to deeply equal ['id_SABOTAGE_A_MARKER','type']` |
+| Reserved keys reported in a fixed order instead of the caller's | **exactly 1 red**, on the reversed-order input only. A single-order test would have stayed green — which is why that test asserts both orders |
+
+Restored from the post-fix backup, `diff -q` identical, both fixed lines confirmed present, `dist/` rebuilt, `grep -rl --no-ignore-files 'SABOTAGE_[AB]_MARKER'` returning **0** against the same gitignored-bundle control.
 
 ## Key decisions
 
@@ -202,15 +232,17 @@ Written with the review's lesson in mind: **a documented limitation that makes a
 5. **A stdio frame over the budget is answered with silence, not an error.** The message was never framed, so its `id` was never read; an `id: null` JSON-RPC error would surface on an SDK client as an unmatched response rather than a failure. The caller times out; the operator gets the byte count on stderr. Documented in the spec's ingress section.
 6. **The `id` field is validated and unique but consumed by nothing.** Reserved for Wave 4's Tabs and Wave 5's registry.
 7. **`nesting: 40` was not derived from a stack-depth measurement**, only from the observation that a legal depth-6 document nests about 20. It is a guard rail with headroom, not a tuned number.
-8. **⚠️ `id` on a fixed tool's arguments still diverges across surfaces — verified, deliberately not fixed here.** The parity fixed in round 2 is scoped to `type`, so state it that way and not as blanket parity. Fixed tools advertise `…Schema.omit({ type, id })`, which makes `id` unrecognised on the two surfaces that execute the advertised schema. Measured on the remediated tree with `POST /invoke/render_note_card {"body":"ok","id":"note-1"}`:
+8. **`id` was the same divergence and is now closed the same way.** Fixed tools advertise `…Schema.omit({ type, id })`, so `id` is no more a caller argument than `type` is. It had reached a *third* answer per surface. Measured on `POST /invoke/render_note_card {"body":"ok","id":"note-1"}`:
 
-   | Surface | Before round 2 | After round 2 |
-   |---|---|---|
-   | REST | **200**, `id` stamped onto the root | **200**, unchanged |
-   | `/mcp` | rejected, `unrecognized_keys: ["id"]` | rejected, unchanged |
-   | MCP App | silently **stripped**, `id` lost | now **rejected**, matching `/mcp` |
+   | Surface | Before round 2 | After round 2 | Now |
+   |---|---|---|---|
+   | REST | **200**, `id` stamped onto the root | **200**, unchanged | **400** |
+   | `/mcp` | rejected, `unrecognized_keys: ["id"]` | unchanged | **400**, unchanged |
+   | MCP App | silently **stripped**, `id` lost | **rejected** (schema registration) | **rejected**, unchanged |
 
-   Three behaviours became two, and the surface that changed moved from silent data loss to a refusal — the direction the repo's "rejected, not stripped" policy points. Closing the last gap means deciding whether a caller may set a root `id` through a fixed tool at all (reject it in `invokeTool` like `type`, or re-admit it in the advertised schema). That is a contract decision, not a defect fix, so it was left for Pierre rather than folded into a scoped remediation. It makes no claim in the spec untrue: the spec documents `id` as an optional node field, never as a fixed tool's argument.
+   Ids are scoped, not removed: `render_dashboard` takes whole documents and carries every `id` through untouched, which is where Wave 4's Tabs and Wave 5's registry will read them. A test asserts that escape hatch on all three surfaces, so a future tightening cannot quietly turn a scoping decision into a capability removal.
+
+   The reserved keys live in one exported list, `FIXED_TOOL_RESERVED_KEYS`, with a test that derives the omitted keys from the schemas themselves — a hand-written mirror of a schema goes stale, and that test is what fails when it does.
 
 ## Files to know
 
@@ -230,12 +262,12 @@ Written with the review's lesson in mind: **a documented limitation that makes a
 
 ## Resume instructions
 
-1. `cd /Users/pierregallet/Documents/weave-wave-1`, confirm the tree is clean and 3 commits ahead of `0568b4f`.
+1. `cd /Users/pierregallet/Documents/weave-wave-1`, confirm the tree is clean and 4 commits ahead of `0568b4f`.
 2. Re-verify before trusting anything:
    ```bash
    TURBO_FORCE=true pnpm typecheck && TURBO_FORCE=true pnpm test
    ```
-   Expected exit 0, 464 vitest + 26 `node --test`.
+   Expected exit 0, 474 vitest + 26 `node --test`.
    If Playwright fails with `Executable doesn't exist … chromium_headless_shell-1228`:
    `pnpm --filter @shepherd-creative/weave-mcp-app exec playwright install chromium`.
 3. Confirm the lint position:

@@ -336,6 +336,42 @@ describe("weave-mcp-server", () => {
       }
     });
 
+    it("refuses a caller-supplied `id`, and only for that key", async () => {
+      // REST used to stamp a caller's `id` straight onto the root while `/mcp`
+      // refused the same request. `id` is omitted from the advertised schema
+      // alongside `type`, so it gets the same answer as `type` everywhere.
+      for (const [name, args] of Object.entries(VALID_FIXED_TOOL_ARGS)) {
+        const control = await post(name, args);
+        expect(control.status, `${name} fixture is not otherwise valid`).toBe(200);
+
+        const res = await post(name, { ...args, id: "caller-chosen" });
+        expect(res.status, `${name} accepted a caller-supplied id`).toBe(400);
+        const body = await res.json();
+        expect(body.document).toBeUndefined();
+        expect(
+          (body.issues as Array<{ code: string; keys?: string[] }>).some(
+            (issue) => issue.code === "unrecognized_keys" && issue.keys?.includes("id"),
+          ),
+        ).toBe(true);
+      }
+    });
+
+    it("keeps ids working on the canonical document path", async () => {
+      // Refusing `id` on the fixed tools is a scoping decision, not a removal:
+      // `render_dashboard` takes whole documents and preserves their ids.
+      const res = await post("render_dashboard", {
+        root: {
+          type: "Stack",
+          id: "root-1",
+          children: [{ type: "NoteCard", id: "n1", body: "x" }],
+        },
+      });
+      expect(res.status).toBe(200);
+      const { root } = (await res.json()).document;
+      expect(root.id).toBe("root-1");
+      expect(root.children[0].id).toBe("n1");
+    });
+
     it("refuses a redundant matching type as well — `type` is not an advertised argument", async () => {
       // The tool's advertised schema is `…Schema.omit({ type, id })`, so `type`
       // is unrecognised on `/mcp` whether it agrees with the discriminator or
@@ -558,6 +594,29 @@ describe("weave-mcp-server", () => {
         await jsonRpc({
           jsonrpc: "2.0",
           id: 30,
+          method: "tools/call",
+          params: { name: "render_note_card", arguments: args },
+        })
+      ).json();
+      const overRest = await post("render_note_card", args);
+
+      expect(overMcp.result.isError).toBe(true);
+      expect(JSON.stringify(overMcp.result.content)).toContain("unrecognized_keys");
+      expect(overMcp.result.structuredContent).toBeUndefined();
+      expect(overRest.status).toBe(400);
+      expect((await overRest.json()).document).toBeUndefined();
+    });
+
+    it("answers a caller-supplied `id` the same way REST does (surface parity)", async () => {
+      // `/mcp` already refused this — it runs the advertised schema. REST
+      // stamped the id onto the root and returned 200. The point of the test is
+      // the pair: one request, one answer, whichever door it came through.
+      const args = { ...VALID_FIXED_TOOL_ARGS.render_note_card, id: "caller-chosen" };
+
+      const overMcp = await (
+        await jsonRpc({
+          jsonrpc: "2.0",
+          id: 31,
           method: "tools/call",
           params: { name: "render_note_card", arguments: args },
         })
